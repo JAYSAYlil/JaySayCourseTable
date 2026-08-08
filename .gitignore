@@ -1,0 +1,40 @@
+# Gradle / Android build outputs
+.gradle/
+**/build/
+.cxx/
+.externalNativeBuild/
+captures/
+*.apk
+*.aab
+*.apks
+*.log
+
+# Local IDE and machine configuration
+local.properties
+.idea/
+.vscode/
+.tools/
+*.iml
+*.hprof
+
+# Signing material and credentials
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+keystore.properties
+signing.properties
+keys/
+
+# Personal schedules, exports and backups
+*.xls
+*.xlsx
+*course-table-backup*.json
+*课表备份*.json
+
+# Workspace-only folders outside this source project
+../交付成品/
+../交付记录/
+../签名密钥-请勿分享/
