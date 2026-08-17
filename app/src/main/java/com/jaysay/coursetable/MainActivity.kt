@@ -7,23 +7,22 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -35,10 +34,13 @@ import com.jaysay.coursetable.data.backup.BackupData
 import com.jaysay.coursetable.data.backup.BackupCodec
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.parser.ExcelParser
+import com.jaysay.coursetable.ui.components.AppPanel
+import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.screen.CourseDetailScreen
 import com.jaysay.coursetable.ui.screen.CourseEditDialog
 import com.jaysay.coursetable.ui.screen.CourseTableScreen
 import com.jaysay.coursetable.ui.screen.SettingsScreen
+import com.jaysay.coursetable.ui.screen.ScheduleViewMode
 import com.jaysay.coursetable.ui.screen.TableManageScreen
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
@@ -79,6 +81,12 @@ class MainActivity : ComponentActivity() {
             var showAddDialog by remember { mutableStateOf(false) }
             var showEditDialog by remember { mutableStateOf(false) }
             var editingCourse by remember { mutableStateOf<Course?>(null) }
+            var addCoursePreset by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+            var pendingDetailDelete by remember { mutableStateOf<Course?>(null) }
+            var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.WEEK) }
+            var scheduleFocusedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
+            val snackbarHostState = remember { SnackbarHostState() }
+            val coroutineScope = rememberCoroutineScope()
             val state = model.state
 
             JaySayTheme(themeMode = state.preferences.themeMode) {
@@ -94,6 +102,49 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val activeTable = state.activeTable
+                val locateToday: () -> Unit = {
+                    scheduleFocusedDay = LocalDate.now().dayOfWeek.value
+                    model.locateToday()
+                }
+                val offerUndo: (List<Course>, String) -> Unit = { previousCourses, message ->
+                    coroutineScope.launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        if (snackbarHostState.showSnackbar(message, actionLabel = "撤销", withDismissAction = true) == SnackbarResult.ActionPerformed) {
+                            model.updateCourses({ previousCourses }, onError = ::showSaveError)
+                        }
+                    }
+                }
+
+                pendingDetailDelete?.let { deleting ->
+                    AlertDialog(
+                        onDismissRequest = { pendingDetailDelete = null },
+                        icon = { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
+                        title = { Text("从本周移除课程？") },
+                        text = { Text("只从第 ${state.currentWeek} 周移除“${deleting.courseName}”，其他周次不受影响。") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val previous = state.courses
+                                val week = state.currentWeek
+                                pendingDetailDelete = null
+                                model.updateCourses(
+                                    transform = { courses ->
+                                        courses.mapNotNull { course ->
+                                            if (course.uniqueKey == deleting.uniqueKey) course.withoutWeeks(setOf(week)) else course
+                                        }
+                                    },
+                                    onComplete = {
+                                        selectedCourse = null
+                                        offerUndo(previous, "已从第 $week 周移除 ${deleting.courseName}")
+                                    },
+                                    onError = ::showSaveError
+                                )
+                            }) { Text("确认移除", color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { pendingDetailDelete = null }) { Text("取消") }
+                        }
+                    )
+                }
 
                 pendingBackupRestore.value?.let { backup ->
                     val courseCount = backup.tables.sumOf { it.courses.size }
@@ -119,6 +170,7 @@ class MainActivity : ComponentActivity() {
 
                 if (showEditDialog && editingCourse != null) {
                     CourseEditDialog(course = editingCourse, totalWeeks = activeTable.totalWeeks,
+                        currentWeek = state.currentWeek, maxPeriods = activeTable.periods.size,
                         onSave = { updated, applyToAll ->
                             val oldKey = editingCourse!!.uniqueKey
                             val week = state.currentWeek
@@ -135,12 +187,15 @@ class MainActivity : ComponentActivity() {
                                         } else listOf(c)
                                     }
                                 }
+                            }, onComplete = {
+                                showEditDialog = false; editingCourse = null
                             }, onError = ::showSaveError)
-                            showEditDialog = false; editingCourse = null
                         },
                         onDelete = { applyToAll ->
                             val oldKey = editingCourse!!.uniqueKey
                             val week = state.currentWeek
+                            val deletedName = editingCourse!!.courseName
+                            val previous = state.courses
                             model.updateCourses({ courses ->
                                 if (applyToAll) {
                                     courses.filter { c -> c.uniqueKey != oldKey }
@@ -149,116 +204,157 @@ class MainActivity : ComponentActivity() {
                                         if (c.uniqueKey == oldKey) c.withoutWeeks(setOf(week)) else c
                                     }
                                 }
+                            }, onComplete = {
+                                showEditDialog = false; editingCourse = null
+                                offerUndo(previous, if (applyToAll) "已删除 $deletedName 的全部周次" else "已从第 $week 周移除 $deletedName")
                             }, onError = ::showSaveError)
-                            showEditDialog = false; editingCourse = null
                         },
                         onDismiss = { showEditDialog = false; editingCourse = null })
                 }
 
                 if (showAddDialog) {
                     CourseEditDialog(course = null, totalWeeks = activeTable.totalWeeks,
+                        currentWeek = state.currentWeek,
+                        maxPeriods = activeTable.periods.size,
+                        initialDay = addCoursePreset?.first ?: 1,
+                        initialStartPeriod = addCoursePreset?.second ?: 1,
                         onSave = { c, _ ->
-                            model.updateCourses({ it + c }, onError = ::showSaveError)
-                            showAddDialog = false
-                        }, onDelete = null, onDismiss = { showAddDialog = false })
+                            model.updateCourses({ it + c }, onComplete = {
+                                showAddDialog = false
+                                addCoursePreset = null
+                                coroutineScope.launch { snackbarHostState.showSnackbar("已添加 ${c.courseName}") }
+                            }, onError = ::showSaveError)
+                        }, onDelete = null, onDismiss = { showAddDialog = false; addCoursePreset = null })
                 }
 
-                AnimatedContent(
-                    targetState = currentScreen,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.background),
-                    transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
-                    label = "screen"
-                ) { screen ->
-                when (screen) {
-                    Screen.SETTINGS -> SettingsScreen(
-                        tableData = state.activeTable,
-                        preferences = state.preferences,
-                        onUpdatePrefs = { model.updatePreferences(it, ::showSaveError) },
-                        onUpdateTable = { model.updateActiveTable(it, ::showSaveError) },
-                        onExportBackup = { sanitized ->
-                            exportSanitized = sanitized
-                            val suffix = if (sanitized) "脱敏副本" else "完整备份"
-                            backupExportLauncher.launch("JaySay课表-$suffix-${LocalDate.now()}.json")
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                        transitionSpec = {
+                            if (targetState.ordinal > initialState.ordinal) {
+                                (slideInHorizontally(tween(220)) { it / 4 } + fadeIn(tween(180))) togetherWith
+                                    (slideOutHorizontally(tween(180)) { -it / 5 } + fadeOut(tween(130)))
+                            } else {
+                                (slideInHorizontally(tween(220)) { -it / 4 } + fadeIn(tween(180))) togetherWith
+                                    (slideOutHorizontally(tween(180)) { it / 5 } + fadeOut(tween(130)))
+                            }
                         },
-                        onImportBackup = {
-                            backupImportLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
-                        },
-                        onBack = { model.locateToday(); currentScreen = Screen.MAIN }
-                    )
-                    Screen.IMPORT_CONFIRM -> ImportConfirmScreen(
-                        parsedCourses = importResult.courses,
-                        warnings = importResult.errors,
-                        onConfirm = { selected ->
-                            model.importCourses(selected, onComplete = { result ->
-                                model.locateToday()
-                                currentScreen = Screen.MAIN
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }, onError = ::showSaveError)
-                        },
-                        onCancel = { model.locateToday(); currentScreen = Screen.MAIN }
-                    )
-                    Screen.TABLE_MANAGE -> {
-                        TableManageScreen(
-                            tables = state.tables,
-                            activeIndex = state.activeTableIndex,
-                            onSelect = { idx ->
-                                model.selectTable(idx, ::showSaveError)
-                                currentScreen = Screen.MAIN
-                            },
-                            onDelete = { model.deleteTable(it, ::showSaveError) },
-                            onAdd = { model.addTable(::showSaveError) },
-                            onRename = { idx, name -> model.renameTable(idx, name, ::showSaveError) },
-                            onBack = { model.locateToday(); currentScreen = Screen.MAIN }
-                        )
-                    }
-                    Screen.MAIN -> {
-                        val sel = selectedCourse
-                        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                        AnimatedVisibility(
-                            visible = sel != null,
-                            enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.92f),
-                            exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.92f)
-                        ) {
-                            if (sel != null) CourseDetailScreen(course = sel, onClose = { selectedCourse = null },
-                                onEdit = { c -> selectedCourse = null; showEditDialog = true; editingCourse = c },
-                                onDelete = {
-                                    val week = state.currentWeek
-                                    model.updateCourses({ courses ->
-                                        courses.mapNotNull { c ->
-                                            if (c.uniqueKey == sel.uniqueKey) c.withoutWeeks(setOf(week)) else c
-                                        }
+                        label = "screen"
+                    ) { screen ->
+                        when (screen) {
+                            Screen.SETTINGS -> SettingsScreen(
+                                tableData = state.activeTable,
+                                preferences = state.preferences,
+                                onUpdatePrefs = { model.updatePreferences(it, ::showSaveError) },
+                                onUpdateTable = { model.updateActiveTable(it, ::showSaveError) },
+                                onExportBackup = { sanitized ->
+                                    exportSanitized = sanitized
+                                    val suffix = if (sanitized) "脱敏副本" else "完整备份"
+                                    backupExportLauncher.launch("JaySay课表-$suffix-${LocalDate.now()}.json")
+                                },
+                                onImportBackup = {
+                                    backupImportLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
+                                },
+                                onBack = { locateToday(); currentScreen = Screen.MAIN }
+                            )
+
+                            Screen.IMPORT_CONFIRM -> ImportConfirmScreen(
+                                parsedCourses = importResult.courses,
+                                warnings = importResult.errors,
+                                onConfirm = { selected ->
+                                    model.importCourses(selected, onComplete = { result ->
+                                        locateToday()
+                                        currentScreen = Screen.MAIN
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
+                                            Toast.LENGTH_LONG
+                                        ).show()
                                     }, onError = ::showSaveError)
-                                    selectedCourse = null
-                                })
+                                },
+                                onCancel = { locateToday(); currentScreen = Screen.MAIN }
+                            )
+
+                            Screen.TABLE_MANAGE -> TableManageScreen(
+                                tables = state.tables,
+                                activeIndex = state.activeTableIndex,
+                                onSelect = { idx ->
+                                    model.selectTable(idx, ::showSaveError)
+                                    currentScreen = Screen.MAIN
+                                },
+                                onDelete = { model.deleteTable(it, ::showSaveError) },
+                                onAdd = { model.addTable(::showSaveError) },
+                                onRename = { idx, name -> model.renameTable(idx, name, ::showSaveError) },
+                                onBack = { locateToday(); currentScreen = Screen.MAIN }
+                            )
+
+                            Screen.MAIN -> AnimatedContent(
+                                targetState = selectedCourse,
+                                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                                transitionSpec = {
+                                    if (targetState != null) {
+                                        (slideInHorizontally(tween(220)) { it / 3 } + fadeIn(tween(180))) togetherWith
+                                            (slideOutHorizontally(tween(180)) { -it / 5 } + fadeOut(tween(140)))
+                                    } else {
+                                        (slideInHorizontally(tween(220)) { -it / 5 } + fadeIn(tween(180))) togetherWith
+                                            (slideOutHorizontally(tween(180)) { it / 3 } + fadeOut(tween(140)))
+                                    }
+                                },
+                                label = "courseDetail"
+                            ) { course ->
+                                if (course != null) {
+                                    CourseDetailScreen(
+                                        course = course,
+                                        onClose = { selectedCourse = null },
+                                        onEdit = { editing ->
+                                            selectedCourse = null
+                                            editingCourse = editing
+                                            showEditDialog = true
+                                        },
+                                        onDelete = { pendingDetailDelete = course }
+                                    )
+                                } else {
+                                    CourseTableScreen(
+                                        courses = state.courses,
+                                        currentWeek = state.currentWeek,
+                                        tableName = activeTable.name,
+                                        onImportClick = {
+                                            importLauncher.launch(
+                                                arrayOf(
+                                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                                    "application/vnd.ms-excel",
+                                                    "application/octet-stream"
+                                                )
+                                            )
+                                        },
+                                        onCourseClick = { selectedCourse = it },
+                                        onWeekChange = model::setWeek,
+                                        onSettingsClick = { currentScreen = Screen.SETTINGS },
+                                        onTableMenuClick = { currentScreen = Screen.TABLE_MANAGE },
+                                        onAddCourseClick = { addCoursePreset = null; showAddDialog = true },
+                                        onAddCourseAt = { day, period ->
+                                            addCoursePreset = day to period
+                                            showAddDialog = true
+                                        },
+                                        onLocateToday = locateToday,
+                                        periodTimes = activeTable.periods,
+                                        semesterStart = activeTable.semesterStart,
+                                        totalWeeks = activeTable.totalWeeks,
+                                        viewMode = scheduleViewMode,
+                                        onViewModeChange = { scheduleViewMode = it },
+                                        focusedDay = scheduleFocusedDay,
+                                        onFocusedDayChange = { scheduleFocusedDay = it.coerceIn(1, 7) }
+                                    )
+                                }
+                            }
                         }
-                        if (sel == null) CourseTableScreen(
-                            courses = state.courses, currentWeek = state.currentWeek,
-                            tableName = activeTable.name,
-                            onImportClick = {
-                                importLauncher.launch(arrayOf(
-                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    "application/vnd.ms-excel",
-                                    "application/octet-stream"
-                                ))
-                            },
-                            onCourseClick = { c: Course -> selectedCourse = c },
-                            onWeekChange = model::setWeek,
-                            onSettingsClick = { currentScreen = Screen.SETTINGS },
-                            onTableMenuClick = { currentScreen = Screen.TABLE_MANAGE },
-                            onAddCourseClick = { showAddDialog = true },
-                            onLocateToday = model::locateToday,
-                            periodTimes = activeTable.periods,
-                            semesterStart = activeTable.semesterStart,
-                            totalWeeks = activeTable.totalWeeks
-                        )
                     }
-                    }
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp)
+                    )
                 }
-            }
             }
         }
     }
@@ -346,8 +442,8 @@ private fun ImportConfirmScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("确认导入", fontWeight = FontWeight.Bold) },
+            AppTopBar(
+                title = "确认导入",
                 navigationIcon = { IconButton(onClick = onCancel) { Icon(Icons.Default.Close, "取消") } },
                 actions = {
                     TextButton(onClick = { onConfirm(selected.toList()) }, enabled = selected.isNotEmpty()) {
@@ -373,15 +469,13 @@ private fun ImportConfirmScreen(
                 }
             }
 
-            itemsIndexed(parsedCourses, key = { index, course -> "${course.uniqueKey}-$index" }) { idx, course ->
+            itemsIndexed(parsedCourses, key = { index, course -> "${course.uniqueKey}-$index" }) { _, course ->
                 val isSel = course in selected
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clickable {
+                AppPanel(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp).clickable {
                         selected = if (isSel) selected - course else selected + course
-                    }.padding(horizontal = 12.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isSel) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shadowElevation = if (isSel) 1.dp else 0.dp
+                    },
+                    selected = isSel
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -401,7 +495,6 @@ private fun ImportConfirmScreen(
                         }
                     }
                 }
-                if (idx < parsedCourses.size - 1) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }

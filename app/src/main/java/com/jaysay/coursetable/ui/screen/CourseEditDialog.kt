@@ -1,9 +1,11 @@
 package com.jaysay.coursetable.ui.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,19 +32,30 @@ import com.jaysay.coursetable.util.TimeUtils
 fun CourseEditDialog(
     course: Course?,
     totalWeeks: Int,
+    currentWeek: Int = 1,
+    maxPeriods: Int = 30,
+    initialDay: Int = 1,
+    initialStartPeriod: Int = 1,
     onSave: (Course, applyToAll: Boolean) -> Unit,
     onDelete: ((applyToAll: Boolean) -> Unit)?,
     onDismiss: () -> Unit
 ) {
     val isNew = course == null
+    val initialKey = "$initialDay-$initialStartPeriod-$maxPeriods"
     var applyToAll by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember(course) { mutableStateOf(false) }
     // key = course 确保切换编辑对象时状态重置
     var name by remember(course) { mutableStateOf(course?.courseName ?: "") }
     var teacher by remember(course) { mutableStateOf(course?.teacher ?: "") }
     var classroom by remember(course) { mutableStateOf(course?.classroom ?: "") }
-    var day by remember(course) { mutableIntStateOf(course?.dayOfWeek ?: 1) }
-    var startPeriod by remember(course) { mutableIntStateOf(course?.startPeriod ?: 1) }
-    var endPeriod by remember(course) { mutableIntStateOf(course?.endPeriod ?: 2) }
+    var day by remember(course, initialKey) { mutableIntStateOf(course?.dayOfWeek ?: initialDay.coerceIn(1, 7)) }
+    var startPeriod by remember(course, initialKey) {
+        mutableIntStateOf(course?.startPeriod ?: initialStartPeriod.coerceIn(1, maxPeriods.coerceAtLeast(1)))
+    }
+    var endPeriod by remember(course, initialKey) {
+        val start = course?.startPeriod ?: initialStartPeriod.coerceIn(1, maxPeriods.coerceAtLeast(1))
+        mutableIntStateOf(course?.endPeriod ?: (start + 1).coerceAtMost(maxPeriods.coerceAtLeast(1)))
+    }
     var weekStr by remember(course) { mutableStateOf(course?.let { TimeUtils.formatWeeks(it.weeks) } ?: "1-$totalWeeks") }
     var creditsStr by remember(course) { mutableStateOf(course?.credits?.let { if (it == it.toLong().toFloat()) it.toLong().toString() else it.toString() } ?: "0") }
     var courseType by remember(course) { mutableStateOf(course?.courseType ?: "") }
@@ -64,13 +77,17 @@ fun CourseEditDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(
+                0.8.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
+            )
         ) {
             Column {
                 // 标题栏
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -85,7 +102,7 @@ fun CourseEditDialog(
                     Surface(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                         color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(errorMsg!!, color = MaterialTheme.colorScheme.onErrorContainer,
                             fontSize = 13.sp, modifier = Modifier.padding(12.dp))
@@ -113,12 +130,12 @@ fun CourseEditDialog(
 
                     // 星期选择
                     Text("上课星期", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         for (d in 1..7) {
                             val sel = d == day
                             Box(
-                                modifier = Modifier.size(36.dp)
-                                    .clip(RoundedCornerShape(18.dp))
+                                modifier = Modifier.weight(1f).height(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(
                                         if (sel) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.surfaceVariant
@@ -139,18 +156,18 @@ fun CourseEditDialog(
                     Text("上课节次 *", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("第 ", fontSize = 14.sp)
-                        var sText by remember(course) { mutableStateOf((course?.startPeriod ?: 1).toString()) }
+                        var sText by remember(course, initialKey) { mutableStateOf(startPeriod.toString()) }
                         OutlinedTextField(value = sText, onValueChange = { v ->
                             val f = v.filter { it.isDigit() }.take(2)
-                            sText = f; f.toIntOrNull()?.let { startPeriod = it.coerceIn(1, 30) }
+                            sText = f; f.toIntOrNull()?.let { startPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1)) }
                             errorMsg = null
                         }, modifier = Modifier.width(60.dp), singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         Text(" 节 ～ 第 ", fontSize = 14.sp)
-                        var eText by remember(course) { mutableStateOf((course?.endPeriod ?: 2).toString()) }
+                        var eText by remember(course, initialKey) { mutableStateOf(endPeriod.toString()) }
                         OutlinedTextField(value = eText, onValueChange = { v ->
                             val f = v.filter { it.isDigit() }.take(2)
-                            eText = f; f.toIntOrNull()?.let { endPeriod = it.coerceIn(1, 30) }
+                            eText = f; f.toIntOrNull()?.let { endPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1)) }
                             errorMsg = null
                         }, modifier = Modifier.width(60.dp), singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
@@ -203,9 +220,12 @@ fun CourseEditDialog(
 
                     // 自定义颜色
                     Text("卡片颜色", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         CourseColors.forEachIndexed { idx, clr ->
-                            Box(modifier = Modifier.size(30.dp)
+                            Box(modifier = Modifier.size(48.dp).padding(7.dp)
                                 .background(clr, RoundedCornerShape(15.dp))
                                 .border(if (idx == colorIdx) 2.dp else 0.dp,
                                     if (idx == colorIdx) MaterialTheme.colorScheme.onSurface else Color.Transparent,
@@ -241,13 +261,20 @@ fun CourseEditDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (!isNew && onDelete != null) {
-                        OutlinedButton(onClick = { onDelete(applyToAll) }, modifier = Modifier.weight(1f),
+                        OutlinedButton(
+                            onClick = { showDeleteConfirm = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error)) {
-                            Text("删除")
+                            Text(if (applyToAll) "删除全部" else "删除本周")
                         }
                     }
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
                         Text("取消")
                     }
                     Button(onClick = {
@@ -279,11 +306,34 @@ fun CourseEditDialog(
                             isOnline = isOnline, assessmentMethod = assessMethod.trim(),
                             customColor = selColor, notes = notes.trim()
                         ), applyToAll)
-                    }, modifier = Modifier.weight(1f)) {
+                    }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
                         Text("保存", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+    }
+
+    if (showDeleteConfirm && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            icon = { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("确认删除课程？") },
+            text = {
+                Text(
+                    if (applyToAll) "将删除“$name”的全部周次，删除后可在提示条中撤销。"
+                    else "只从第 $currentWeek 周移除“$name”，其他周次不受影响。删除后可在提示条中撤销。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete(applyToAll)
+                }) { Text("确认删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+            }
+        )
     }
 }

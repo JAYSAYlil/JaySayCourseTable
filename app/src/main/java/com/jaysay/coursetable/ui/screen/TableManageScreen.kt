@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.repository.TableData
+import com.jaysay.coursetable.ui.components.AppPanel
+import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,11 +34,33 @@ fun TableManageScreen(
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
+    var pendingDeleteIndex by remember { mutableStateOf<Int?>(null) }
+
+    pendingDeleteIndex?.let { index ->
+        val table = tables.getOrNull(index)
+        if (table != null) {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteIndex = null },
+                icon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                title = { Text("删除课表？") },
+                text = { Text("将永久删除“${table.name}”及其中 ${table.courses.size} 门课程，此操作不会影响其他课表。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingDeleteIndex = null
+                        onDelete(index)
+                    }) { Text("确认删除", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteIndex = null }) { Text("取消") }
+                }
+            )
+        }
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("课表管理", fontWeight = FontWeight.Bold) },
+            AppTopBar(
+                title = "课表管理",
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }
             )
         }
@@ -50,12 +74,9 @@ fun TableManageScreen(
                     var editing by remember { mutableStateOf(false) }
                     var editName by remember { mutableStateOf(table.name) }
 
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (idx == activeIndex) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surface,
-                        shadowElevation = 1.dp
+                    AppPanel(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+                        selected = idx == activeIndex
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable { onSelect(idx) }.padding(16.dp),
@@ -91,7 +112,7 @@ fun TableManageScreen(
                             }
 
                             if (tables.size > 1 && !editing) {
-                                IconButton(onClick = { onDelete(idx) }) {
+                                IconButton(onClick = { pendingDeleteIndex = idx }, modifier = Modifier.size(48.dp)) {
                                     Icon(Icons.Outlined.Delete, "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                                 }
                             }

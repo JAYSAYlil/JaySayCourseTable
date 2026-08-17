@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.preferences.*
 import com.jaysay.coursetable.data.repository.TableData
+import com.jaysay.coursetable.ui.components.AppPanel
+import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.theme.*
 import java.util.*
 
@@ -45,14 +47,13 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("设置", fontWeight = FontWeight.Bold) },
+            AppTopBar(
+                title = "设置",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                }
             )
         }
     ) { pad ->
@@ -153,7 +154,7 @@ fun SettingsScreen(
                                 val np = table.periods.toMutableList()
                                 np.removeAt(idx)
                                 saveTable(table.copy(periods = np))
-                            }, modifier = Modifier.size(32.dp)) {
+                            }) {
                                 Icon(Icons.Default.RemoveCircleOutline, "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                             }
                         }
@@ -208,14 +209,14 @@ fun SettingsScreen(
                         val np = table.periods.toMutableList()
                         np.add(PeriodTime(ns, ne))
                         saveTable(table.copy(periods = np))
-                    }, modifier = Modifier.height(40.dp)) {
+                    }, modifier = Modifier.height(48.dp)) {
                         Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("添加节次", fontSize = 13.sp)
                     }
 
                     OutlinedButton(onClick = { saveTable(table.copy(periods = TableData.defaultPeriods())) },
-                        modifier = Modifier.height(40.dp),
+                        modifier = Modifier.height(48.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                         Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -288,12 +289,12 @@ fun SettingsScreen(
                     Icon(Icons.Outlined.ViewWeek, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(12.dp))
                     Text("总周数", fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { if (totalWeeks > 1) saveTable(table.copy(totalWeeks = table.totalWeeks - 1)) }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Remove, null, modifier = Modifier.size(16.dp))
+                    IconButton(onClick = { if (totalWeeks > 1) saveTable(table.copy(totalWeeks = table.totalWeeks - 1)) }) {
+                        Icon(Icons.Default.Remove, "减少总周数", modifier = Modifier.size(18.dp))
                     }
                     Text("" + totalWeeks, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
-                    IconButton(onClick = { if (totalWeeks < 30) saveTable(table.copy(totalWeeks = table.totalWeeks + 1)) }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
+                    IconButton(onClick = { if (totalWeeks < 30) saveTable(table.copy(totalWeeks = table.totalWeeks + 1)) }) {
+                        Icon(Icons.Default.Add, "增加总周数", modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -350,11 +351,11 @@ private fun SettingsActionRow(
 
 @Composable
 private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-        Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, shadowElevation = 0.5.dp) {
-            Column(content = content)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 7.dp))
+        AppPanel(modifier = Modifier.padding(horizontal = 16.dp)) {
+            content()
         }
     }
 }

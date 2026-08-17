@@ -49,7 +49,11 @@ fun JaySayTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable ()
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colors.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDark
+            window.navigationBarColor = colors.background.toArgb()
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !isDark
+                isAppearanceLightNavigationBars = !isDark
+            }
         }
     }
     MaterialTheme(colorScheme = colors, typography = Typography, content = content)

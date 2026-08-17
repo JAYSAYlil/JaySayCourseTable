@@ -31,8 +31,14 @@ class BackupCodecTest {
             sanitized = true
         )
 
-        assertTrue(JSONObject(json).getBoolean("sanitized"))
-        listOf("教师甲", "教室A", "私人备注", "学院", "C001", "01").forEach {
+        val root = JSONObject(json)
+        assertTrue(root.getBoolean("sanitized"))
+        val sanitizedCourse = root.getJSONArray("tables").getJSONObject(0)
+            .getJSONArray("courses").getJSONObject(0)
+        listOf("courseId", "classNumber", "department", "teacher", "classroom", "notes").forEach {
+            assertEquals("Sanitized field $it was not cleared", "", sanitizedCourse.optString(it))
+        }
+        listOf("教师甲", "教室A", "私人备注", "学院", "C001").forEach {
             assertFalse("Sanitized JSON leaked $it", json.contains(it))
         }
         assertThrows(IllegalArgumentException::class.java) { BackupCodec.decode(json) }

@@ -1,7 +1,7 @@
 package com.jaysay.coursetable.ui.screen
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,13 +13,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.ui.components.AppPanel
+import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
 
@@ -39,8 +40,8 @@ fun CourseDetailScreen(course: Course, onClose: () -> Unit, onEdit: ((Course) ->
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("课程详情") },
+            AppTopBar(
+                title = "课程详情",
                 navigationIcon = {
                     IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
@@ -51,8 +52,7 @@ fun CourseDetailScreen(course: Course, onClose: () -> Unit, onEdit: ((Course) ->
                     if (onDelete != null) {
                         IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "删除", tint = MaterialTheme.colorScheme.error) }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                }
             )
         }
     ) { paddingValues ->
@@ -61,17 +61,18 @@ fun CourseDetailScreen(course: Course, onClose: () -> Unit, onEdit: ((Course) ->
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
         ) {
             // Course header card
-            Box(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(courseColor.copy(alpha = 0.12f))
-                    .padding(20.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = courseColor.copy(alpha = if (dark) 0.22f else 0.15f),
+                border = BorderStroke(0.9.dp, courseColor.copy(alpha = if (dark) 0.66f else 0.48f))
             ) {
-                Column {
+                Column(modifier = Modifier.padding(20.dp)) {
                     // Course name
                     Text(
                         text = course.courseName,
@@ -179,11 +180,7 @@ private fun SectionTitle(title: String) {
 
 @Composable
 private fun DetailCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 1.dp
-    ) {
+    AppPanel {
         Column(
             modifier = Modifier.padding(16.dp),
             content = content
@@ -225,8 +222,12 @@ private fun DetailRow(label: String, value: String) {
 private fun InfoChip(icon: ImageVector, text: String) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-        shadowElevation = 0.5.dp
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+        border = BorderStroke(
+            0.6.dp,
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
+        ),
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),

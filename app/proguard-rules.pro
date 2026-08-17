@@ -5,7 +5,9 @@
 # === Apache POI ===
 # POI/XMLBeans 大量使用反射（Class.forName 加载 schema 类），
 # 必须保持原名，否则 R8 混淆后 Excel 导入会因找不到类闪退。
--keep class org.apache.poi.** { *; }
+# 课表只读取 XLS/XLSX，不使用 Office 文档数字签名。该包包含一个会信任
+# 任意证书的时间戳 HTTP 客户端；从保留规则中排除后由 R8 安全裁剪。
+-keep class !org.apache.poi.poifs.crypt.dsig.**,org.apache.poi.** { *; }
 -keep class org.apache.poi.schemas.** { *; }
 -keep class org.apache.xmlbeans.** { *; }
 -keep class org.openxmlformats.schemas.** { *; }
