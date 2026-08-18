@@ -14,10 +14,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -25,25 +22,24 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModelProvider
 import com.jaysay.coursetable.data.backup.BackupData
 import com.jaysay.coursetable.data.backup.BackupCodec
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.CourseConflict
+import com.jaysay.coursetable.data.model.CourseImportAnalyzer
+import com.jaysay.coursetable.data.model.CourseSeriesOperations
+import com.jaysay.coursetable.data.model.CourseSeriesUndo
 import com.jaysay.coursetable.data.parser.ExcelParser
-import com.jaysay.coursetable.ui.components.AppPanel
-import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.screen.CourseDetailScreen
 import com.jaysay.coursetable.ui.screen.CourseEditDialog
 import com.jaysay.coursetable.ui.screen.CourseTableScreen
+import com.jaysay.coursetable.ui.screen.ImportConfirmScreen
 import com.jaysay.coursetable.ui.screen.SettingsScreen
-import com.jaysay.coursetable.ui.screen.ScheduleViewMode
 import com.jaysay.coursetable.ui.screen.TableManageScreen
 import com.jaysay.coursetable.ui.theme.*
-import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -51,6 +47,12 @@ import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 
 private enum class Screen { MAIN, SETTINGS, IMPORT_CONFIRM, TABLE_MANAGE }
+
+private data class PendingConflictChange(
+    val courseName: String,
+    val conflicts: List<CourseConflict>,
+    val onConfirm: () -> Unit
+)
 
 class MainActivity : ComponentActivity() {
     private lateinit var model: MainViewModel
@@ -83,7 +85,7 @@ class MainActivity : ComponentActivity() {
             var editingCourse by remember { mutableStateOf<Course?>(null) }
             var addCoursePreset by remember { mutableStateOf<Pair<Int, Int>?>(null) }
             var pendingDetailDelete by remember { mutableStateOf<Course?>(null) }
-            var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.WEEK) }
+            var pendingConflictChange by remember { mutableStateOf<PendingConflictChange?>(null) }
             var scheduleFocusedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
@@ -102,15 +104,24 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val activeTable = state.activeTable
+                val runAfterConflictCheck: (Course, List<Course>, () -> Unit) -> Unit =
+                    { candidate, comparisonCourses, action ->
+                        val conflicts = CourseImportAnalyzer.findConflicts(comparisonCourses, candidate)
+                        if (conflicts.isEmpty()) {
+                            action()
+                        } else {
+                            pendingConflictChange = PendingConflictChange(candidate.courseName, conflicts, action)
+                        }
+                    }
                 val locateToday: () -> Unit = {
                     scheduleFocusedDay = LocalDate.now().dayOfWeek.value
                     model.locateToday()
                 }
-                val offerUndo: (List<Course>, String) -> Unit = { previousCourses, message ->
+                val offerUndo: (CourseSeriesUndo, String) -> Unit = { undo, message ->
                     coroutineScope.launch {
                         snackbarHostState.currentSnackbarData?.dismiss()
                         if (snackbarHostState.showSnackbar(message, actionLabel = "撤销", withDismissAction = true) == SnackbarResult.ActionPerformed) {
-                            model.updateCourses({ previousCourses }, onError = ::showSaveError)
+                            model.updateCourses(undo::restore, onError = ::showSaveError)
                         }
                     }
                 }
@@ -125,16 +136,17 @@ class MainActivity : ComponentActivity() {
                             TextButton(onClick = {
                                 val previous = state.courses
                                 val week = state.currentWeek
+                                val seriesKey = deleting.seriesKey
+                                val after = CourseSeriesOperations.deleteWeek(previous, seriesKey, week)
                                 pendingDetailDelete = null
                                 model.updateCourses(
-                                    transform = { courses ->
-                                        courses.mapNotNull { course ->
-                                            if (course.uniqueKey == deleting.uniqueKey) course.withoutWeeks(setOf(week)) else course
-                                        }
-                                    },
+                                    transform = { courses -> CourseSeriesOperations.deleteWeek(courses, seriesKey, week) },
                                     onComplete = {
                                         selectedCourse = null
-                                        offerUndo(previous, "已从第 $week 周移除 ${deleting.courseName}")
+                                        offerUndo(
+                                            CourseSeriesUndo.capture(previous, after, seriesKey),
+                                            "已从第 $week 周移除 ${deleting.courseName}"
+                                        )
                                     },
                                     onError = ::showSaveError
                                 )
@@ -169,44 +181,62 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (showEditDialog && editingCourse != null) {
-                    CourseEditDialog(course = editingCourse, totalWeeks = activeTable.totalWeeks,
+                    val selected = editingCourse!!
+                    val oldSeriesKey = selected.seriesKey
+                    val editorCourse = selected.copy(
+                        weeks = state.courses.filter { it.seriesKey == oldSeriesKey }
+                            .flatMap(Course::weeks).distinct().sorted(),
+                        seriesId = oldSeriesKey
+                    )
+                    CourseEditDialog(course = editorCourse, totalWeeks = activeTable.totalWeeks,
                         currentWeek = state.currentWeek, maxPeriods = activeTable.periods.size,
                         onSave = { updated, applyToAll ->
-                            val oldKey = editingCourse!!.uniqueKey
                             val week = state.currentWeek
-                            model.updateCourses({ courses ->
-                                if (applyToAll) {
-                                    courses.map { c -> if (c.uniqueKey == oldKey) updated else c }
-                                } else {
-                                    courses.flatMap { c ->
-                                        if (c.uniqueKey == oldKey) {
-                                            listOfNotNull(
-                                                c.withoutWeeks(setOf(week)),
-                                                updated.copy(weeks = listOf(week))
-                                            )
-                                        } else listOf(c)
-                                    }
+                            val candidate = updated.copy(
+                                weeks = if (applyToAll) updated.weeks else listOf(week),
+                                seriesId = oldSeriesKey
+                            )
+                            val comparisonCourses = if (applyToAll) {
+                                state.courses.filter { it.seriesKey != oldSeriesKey }
+                            } else {
+                                state.courses.mapNotNull { course ->
+                                    if (course.seriesKey == oldSeriesKey) course.withoutWeeks(setOf(week)) else course
                                 }
-                            }, onComplete = {
-                                showEditDialog = false; editingCourse = null
-                            }, onError = ::showSaveError)
+                            }
+                            val saveAction = {
+                                model.updateCourses({ courses ->
+                                    if (applyToAll) {
+                                        CourseSeriesOperations.replaceAll(courses, oldSeriesKey, candidate)
+                                    } else {
+                                        CourseSeriesOperations.replaceWeek(courses, oldSeriesKey, week, candidate)
+                                    }
+                                }, onComplete = {
+                                    showEditDialog = false; editingCourse = null
+                                }, onError = ::showSaveError)
+                            }
+                            runAfterConflictCheck(candidate, comparisonCourses, saveAction)
                         },
                         onDelete = { applyToAll ->
-                            val oldKey = editingCourse!!.uniqueKey
                             val week = state.currentWeek
-                            val deletedName = editingCourse!!.courseName
+                            val deletedName = selected.courseName
                             val previous = state.courses
+                            val after = if (applyToAll) {
+                                CourseSeriesOperations.deleteAll(previous, oldSeriesKey)
+                            } else {
+                                CourseSeriesOperations.deleteWeek(previous, oldSeriesKey, week)
+                            }
                             model.updateCourses({ courses ->
                                 if (applyToAll) {
-                                    courses.filter { c -> c.uniqueKey != oldKey }
+                                    CourseSeriesOperations.deleteAll(courses, oldSeriesKey)
                                 } else {
-                                    courses.mapNotNull { c ->
-                                        if (c.uniqueKey == oldKey) c.withoutWeeks(setOf(week)) else c
-                                    }
+                                    CourseSeriesOperations.deleteWeek(courses, oldSeriesKey, week)
                                 }
                             }, onComplete = {
                                 showEditDialog = false; editingCourse = null
-                                offerUndo(previous, if (applyToAll) "已删除 $deletedName 的全部周次" else "已从第 $week 周移除 $deletedName")
+                                offerUndo(
+                                    CourseSeriesUndo.capture(previous, after, oldSeriesKey),
+                                    if (applyToAll) "已删除 $deletedName 的全部周次" else "已从第 $week 周移除 $deletedName"
+                                )
                             }, onError = ::showSaveError)
                         },
                         onDismiss = { showEditDialog = false; editingCourse = null })
@@ -219,12 +249,51 @@ class MainActivity : ComponentActivity() {
                         initialDay = addCoursePreset?.first ?: 1,
                         initialStartPeriod = addCoursePreset?.second ?: 1,
                         onSave = { c, _ ->
-                            model.updateCourses({ it + c }, onComplete = {
-                                showAddDialog = false
-                                addCoursePreset = null
-                                coroutineScope.launch { snackbarHostState.showSnackbar("已添加 ${c.courseName}") }
-                            }, onError = ::showSaveError)
+                            val saveAction = {
+                                model.updateCourses({ it + c }, onComplete = {
+                                    showAddDialog = false
+                                    addCoursePreset = null
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("已添加 ${c.courseName}") }
+                                }, onError = ::showSaveError)
+                            }
+                            runAfterConflictCheck(c, state.courses, saveAction)
                         }, onDelete = null, onDismiss = { showAddDialog = false; addCoursePreset = null })
+                }
+
+                // 保持在编辑/新增弹窗之后组合，确保冲突确认始终位于最上层。
+                pendingConflictChange?.let { pending ->
+                    AlertDialog(
+                        onDismissRequest = { pendingConflictChange = null },
+                        icon = { Icon(Icons.Default.WarningAmber, null, tint = MaterialTheme.colorScheme.error) },
+                        title = { Text("检测到课程冲突") },
+                        text = {
+                            Column {
+                                Text("“${pending.courseName}”与现有课程在相同周次和节次重叠：")
+                                Spacer(Modifier.height(8.dp))
+                                pending.conflicts.take(4).forEach { conflict ->
+                                    Text(
+                                        "• ${conflict.otherCourseName}：第${conflict.overlappingWeeks.joinToString("、")}周，" +
+                                            "${conflict.startPeriod}-${conflict.endPeriod}节",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                if (pending.conflicts.size > 4) {
+                                    Text("另有 ${pending.conflicts.size - 4} 项冲突", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val action = pending.onConfirm
+                                pendingConflictChange = null
+                                action()
+                            }) { Text("仍然保存", color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { pendingConflictChange = null }) { Text("返回修改") }
+                        }
+                    )
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -259,22 +328,27 @@ class MainActivity : ComponentActivity() {
                                 onBack = { locateToday(); currentScreen = Screen.MAIN }
                             )
 
-                            Screen.IMPORT_CONFIRM -> ImportConfirmScreen(
-                                parsedCourses = importResult.courses,
-                                warnings = importResult.errors,
-                                onConfirm = { selected ->
-                                    model.importCourses(selected, onComplete = { result ->
-                                        locateToday()
-                                        currentScreen = Screen.MAIN
-                                        Toast.makeText(
-                                            this@MainActivity,
-                                            "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }, onError = ::showSaveError)
-                                },
-                                onCancel = { locateToday(); currentScreen = Screen.MAIN }
-                            )
+                            Screen.IMPORT_CONFIRM -> {
+                                val preview = remember(importResult, state.courses) {
+                                    CourseImportAnalyzer.analyze(state.courses, importResult.courses)
+                                }
+                                ImportConfirmScreen(
+                                    preview = preview,
+                                    warnings = importResult.errors,
+                                    onConfirm = { selected ->
+                                        model.importCourses(selected, onComplete = { result ->
+                                            locateToday()
+                                            currentScreen = Screen.MAIN
+                                            Toast.makeText(
+                                                this@MainActivity,
+                                                "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }, onError = ::showSaveError)
+                                    },
+                                    onCancel = { locateToday(); currentScreen = Screen.MAIN }
+                                )
+                            }
 
                             Screen.TABLE_MANAGE -> TableManageScreen(
                                 tables = state.tables,
@@ -341,8 +415,8 @@ class MainActivity : ComponentActivity() {
                                         periodTimes = activeTable.periods,
                                         semesterStart = activeTable.semesterStart,
                                         totalWeeks = activeTable.totalWeeks,
-                                        viewMode = scheduleViewMode,
-                                        onViewModeChange = { scheduleViewMode = it },
+                                        viewMode = activeTable.viewMode,
+                                        onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,
                                         onFocusedDayChange = { scheduleFocusedDay = it.coerceIn(1, 7) }
                                     )
@@ -426,77 +500,5 @@ class MainActivity : ComponentActivity() {
 
     private fun showError(prefix: String, error: Throwable) {
         Toast.makeText(this, "$prefix：${error.message ?: "未知错误"}", Toast.LENGTH_LONG).show()
-    }
-}
-
-// ===== 导入确认界面 =====
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ImportConfirmScreen(
-    parsedCourses: List<Course>,
-    warnings: List<String>,
-    onConfirm: (List<Course>) -> Unit,
-    onCancel: () -> Unit
-) {
-    var selected by remember(parsedCourses) { mutableStateOf(parsedCourses.toSet()) }
-
-    Scaffold(
-        topBar = {
-            AppTopBar(
-                title = "确认导入",
-                navigationIcon = { IconButton(onClick = onCancel) { Icon(Icons.Default.Close, "取消") } },
-                actions = {
-                    TextButton(onClick = { onConfirm(selected.toList()) }, enabled = selected.isNotEmpty()) {
-                        Text("导入 " + selected.size + " 条", color = Primary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            )
-        }
-    ) { pad ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(pad)) {
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("已解析 ${parsedCourses.size} 条课程，点击可取消选择：",
-                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (warnings.isNotEmpty()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "有 ${warnings.size} 条提示，正常课程仍可导入。首条：${warnings.first()}",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            }
-
-            itemsIndexed(parsedCourses, key = { index, course -> "${course.uniqueKey}-$index" }) { _, course ->
-                val isSel = course in selected
-                AppPanel(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp).clickable {
-                        selected = if (isSel) selected - course else selected + course
-                    },
-                    selected = isSel
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(checked = isSel, onCheckedChange = {
-                            selected = if (it) selected + course else selected - course
-                        })
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(course.courseName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(
-                                TimeUtils.getDayName(course.dayOfWeek) + " " + course.startPeriod + "-" + course.endPeriod + "节" +
-                                (if (course.teacher.isNotBlank()) " | " + course.teacher else "") +
-                                (if (course.classroom.isNotBlank()) " | " + course.classroom else ""),
-                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-            item { Spacer(modifier = Modifier.height(80.dp)) }
-        }
     }
 }

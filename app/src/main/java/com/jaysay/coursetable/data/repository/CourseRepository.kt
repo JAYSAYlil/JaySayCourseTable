@@ -3,6 +3,8 @@ package com.jaysay.coursetable.data.repository
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.CourseSeriesIds
+import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.data.preferences.defaultPeriodTimes
 import com.jaysay.coursetable.data.storage.AtomicFileStore
@@ -19,7 +21,8 @@ data class TableData(
     val courses: List<Course>,
     val periods: List<PeriodTime> = defaultPeriods(),
     val semesterStart: String = TimeUtils.todayDate(),
-    val totalWeeks: Int = 20
+    val totalWeeks: Int = 20,
+    val viewMode: ScheduleViewMode = ScheduleViewMode.WEEK
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -64,7 +67,7 @@ class CourseRepository(context: Context) {
     }
 
     private companion object {
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
     }
 }
 
@@ -90,9 +93,9 @@ object TableDataJson {
 
     private fun parseTable(obj: JSONObject, strict: Boolean): TableData {
         val coursesArray = obj.optJSONArray("courses") ?: JSONArray()
-        val courses = (0 until coursesArray.length()).mapNotNull { index ->
+        val courses = CourseSeriesIds.ensure((0 until coursesArray.length()).mapNotNull { index ->
             runCatching { parseCourse(coursesArray.getJSONObject(index)) }.getOrNull()
-        }
+        })
         require(!strict || courses.size == coursesArray.length()) { "备份中存在损坏的课程" }
         val periodsArray = obj.optJSONArray("periods")
         val periods = if (periodsArray != null && periodsArray.length() > 0) {
@@ -107,12 +110,18 @@ object TableDataJson {
         } else {
             TableData.defaultPeriods()
         }
+        val viewModeName = obj.optString("viewMode", ScheduleViewMode.WEEK.name)
+        val viewMode = runCatching { ScheduleViewMode.valueOf(viewModeName) }.getOrElse {
+            require(!strict) { "备份中的视图模式无效" }
+            ScheduleViewMode.WEEK
+        }
         return TableData(
             name = obj.optString("name", "课表"),
             courses = courses,
             periods = periods,
             semesterStart = obj.optString("semesterStart", TimeUtils.todayDate()),
-            totalWeeks = obj.optInt("totalWeeks", 20)
+            totalWeeks = obj.optInt("totalWeeks", 20),
+            viewMode = viewMode
         )
     }
 
@@ -132,7 +141,8 @@ object TableDataJson {
             isOnline = obj.optBoolean("isOnline", false),
             assessmentMethod = obj.optString("assessmentMethod"),
             customColor = if (obj.has("customColor") && !obj.isNull("customColor")) obj.optInt("customColor") else null,
-            notes = obj.optString("notes")
+            notes = obj.optString("notes"),
+            seriesId = obj.optString("seriesId")
         )
     }
 
@@ -140,6 +150,7 @@ object TableDataJson {
         put("name", table.name)
         put("semesterStart", table.semesterStart)
         put("totalWeeks", table.totalWeeks)
+        put("viewMode", table.viewMode.name)
         put("periods", JSONArray().apply {
             table.periods.forEach { period ->
                 put(JSONObject().put("start", period.start).put("end", period.end))
@@ -164,6 +175,7 @@ object TableDataJson {
         put("courseCategory", course.courseCategory)
         put("isOnline", course.isOnline)
         put("assessmentMethod", course.assessmentMethod)
+        put("seriesId", course.seriesKey)
         course.customColor?.let { put("customColor", it) }
         if (course.notes.isNotBlank()) put("notes", course.notes)
     }
@@ -178,12 +190,12 @@ object TableDataJson {
                 name = table.name.trim().ifEmpty { "课表${index + 1}" },
                 periods = periods,
                 totalWeeks = table.totalWeeks.coerceIn(1, MAX_WEEKS),
-                courses = table.courses.mapNotNull { course ->
+                courses = CourseSeriesIds.ensure(table.courses.mapNotNull { course ->
                     val weeks = course.weeks.filter { it in 1..MAX_WEEKS }.distinct().sorted()
                     if (course.courseName.isBlank() || course.dayOfWeek !in 1..7 ||
                         course.startPeriod !in 1..MAX_PERIODS || course.endPeriod !in course.startPeriod..MAX_PERIODS
                     ) null else course.copy(weeks = weeks)
-                }
+                })
             )
         }
 

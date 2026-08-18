@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.theme.CourseColors
@@ -100,12 +102,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
-
-enum class ScheduleViewMode(val label: String) {
-    WEEK("七天"),
-    WORK_WEEK("五天"),
-    DAY("单日")
-}
 
 private val dateFormat by lazy { SimpleDateFormat("M/d", Locale.getDefault()) }
 
@@ -263,6 +259,7 @@ fun CourseTableScreen(
             .background(bgColor)
             .statusBarsPadding()
             .navigationBarsPadding()
+            .testTag("course-table-screen")
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 4.dp),
@@ -284,10 +281,10 @@ fun CourseTableScreen(
                 )
                 Icon(Icons.Default.ArrowDropDown, "切换课表", tint = MaterialTheme.colorScheme.primary)
             }
-            IconButton(onClick = onAddCourseClick, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onAddCourseClick, modifier = Modifier.size(48.dp).testTag("add-course-button")) {
                 Icon(Icons.Default.AddCircleOutline, "添加课程", tint = MaterialTheme.colorScheme.primary)
             }
-            IconButton(onClick = onImportClick, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onImportClick, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
                 Icon(Icons.Default.FileOpen, "导入课表", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp)) {
@@ -307,7 +304,7 @@ fun CourseTableScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    modifier = Modifier.weight(1f).fillMaxHeight().testTag("week-navigation"),
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (dark) 0.76f else 0.62f),
                     border = BorderStroke(
@@ -366,7 +363,7 @@ fun CourseTableScreen(
                 Box {
                     Surface(
                         onClick = { viewMenuExpanded = true },
-                        modifier = Modifier.width(70.dp).fillMaxHeight(),
+                        modifier = Modifier.width(70.dp).fillMaxHeight().testTag("view-mode-button"),
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (dark) 0.92f else 0.78f),
                         border = BorderStroke(
@@ -395,6 +392,7 @@ fun CourseTableScreen(
                     DropdownMenu(expanded = viewMenuExpanded, onDismissRequest = { viewMenuExpanded = false }) {
                         ScheduleViewMode.entries.forEach { mode ->
                             DropdownMenuItem(
+                                modifier = Modifier.testTag("view-mode-${mode.name.lowercase()}"),
                                 text = {
                                     Text(
                                         "${mode.label}视图",

@@ -19,15 +19,17 @@ object BackupCodec {
     private const val MAX_TABLES = 50
 
     fun encode(data: BackupData, sanitized: Boolean = false): String {
-        val tables = if (sanitized) data.tables.map { table ->
-            table.copy(courses = table.courses.map { course ->
+        val tables = if (sanitized) data.tables.mapIndexed { tableIndex, table ->
+            table.copy(courses = table.courses.mapIndexed { courseIndex, course ->
                 course.copy(
                     courseId = "",
                     classNumber = "",
                     department = "",
                     teacher = "",
                     classroom = "",
-                    notes = ""
+                    notes = "",
+                    // 不沿用由真实课程信息派生的系列 ID，避免脱敏副本保留关联指纹。
+                    seriesId = "sanitized-$tableIndex-$courseIndex"
                 )
             })
         } else data.tables

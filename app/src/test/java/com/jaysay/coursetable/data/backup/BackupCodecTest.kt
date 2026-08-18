@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.data.backup
 
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.ThemeMode
 import com.jaysay.coursetable.data.repository.TableData
@@ -15,7 +16,7 @@ class BackupCodecTest {
     @Test
     fun fullBackupRoundTripPreservesAllUserData() {
         val original = BackupData(
-            tables = listOf(TableData("我的课表", listOf(course()))),
+            tables = listOf(TableData("我的课表", listOf(course()), viewMode = ScheduleViewMode.WORK_WEEK)),
             preferences = AppPreferences(ThemeMode.DARK, 0)
         )
 
@@ -41,6 +42,7 @@ class BackupCodecTest {
         listOf("教师甲", "教室A", "私人备注", "学院", "C001").forEach {
             assertFalse("Sanitized JSON leaked $it", json.contains(it))
         }
+        assertEquals("sanitized-0-0", sanitizedCourse.getString("seriesId"))
         assertThrows(IllegalArgumentException::class.java) { BackupCodec.decode(json) }
     }
 
@@ -73,6 +75,7 @@ class BackupCodecTest {
         isOnline = false,
         assessmentMethod = "考试",
         customColor = 0x123456,
-        notes = "私人备注"
+        notes = "私人备注",
+        seriesId = "series-1"
     )
 }

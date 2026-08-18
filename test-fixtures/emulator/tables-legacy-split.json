@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "tables": [
+    {
+      "name": "功能回归",
+      "semesterStart": "2026-08-17",
+      "totalWeeks": 20,
+      "courses": [
+        {
+          "courseId": "TEST001",
+          "courseName": "模拟拆分课程",
+          "classNumber": "01",
+          "department": "测试学院",
+          "credits": 2.0,
+          "weeks": [1],
+          "dayOfWeek": 2,
+          "startPeriod": 1,
+          "endPeriod": 2,
+          "teacher": "测试教师",
+          "classroom": "测试教室A",
+          "courseType": "必修",
+          "courseCategory": "专业",
+          "isOnline": false,
+          "assessmentMethod": "考试"
+        },
+        {
+          "courseId": "TEST001",
+          "courseName": "模拟拆分课程",
+          "classNumber": "01",
+          "department": "测试学院",
+          "credits": 2.0,
+          "weeks": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+          "dayOfWeek": 2,
+          "startPeriod": 1,
+          "endPeriod": 2,
+          "teacher": "测试教师",
+          "classroom": "测试教室B",
+          "courseType": "必修",
+          "courseCategory": "专业",
+          "isOnline": false,
+          "assessmentMethod": "考试"
+        }
+      ]
+    }
+  ]
+}

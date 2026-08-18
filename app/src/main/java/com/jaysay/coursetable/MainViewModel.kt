@@ -11,6 +11,7 @@ import com.jaysay.coursetable.data.backup.BackupData
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseMerger
 import com.jaysay.coursetable.data.model.ImportMergeResult
+import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PreferencesManager
 import com.jaysay.coursetable.data.repository.CourseRepository
@@ -81,13 +82,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         launchWrite(onError) {
         val updated = state.tables.toMutableList()
         if (targetIndex !in updated.indices) return@launchWrite
-        updated[targetIndex] = table
+        val current = updated[targetIndex]
+        // 设置页只负责学期和节次配置；保留可能在排队写入期间变化的课程、名称和视图状态。
+        val safeTable = table.copy(
+            name = current.name,
+            courses = current.courses,
+            viewMode = current.viewMode
+        )
+        updated[targetIndex] = safeTable
         repository.saveAllTables(updated)
         state = if (state.activeTableIndex == targetIndex) {
-            state.copy(tables = updated, currentWeek = state.currentWeek.coerceIn(1, table.totalWeeks))
+            state.copy(tables = updated, currentWeek = state.currentWeek.coerceIn(1, safeTable.totalWeeks))
         } else {
             state.copy(tables = updated)
         }
+        }
+    }
+
+    fun setScheduleViewMode(mode: ScheduleViewMode, onError: (Throwable) -> Unit = {}) {
+        val targetIndex = state.activeTableIndex
+        launchWrite(onError) {
+            val updatedTables = state.tables.toMutableList()
+            if (targetIndex !in updatedTables.indices) return@launchWrite
+            val current = updatedTables[targetIndex]
+            if (current.viewMode == mode) return@launchWrite
+            updatedTables[targetIndex] = current.copy(viewMode = mode)
+            repository.saveAllTables(updatedTables)
+            state = state.copy(tables = updatedTables)
         }
     }
 

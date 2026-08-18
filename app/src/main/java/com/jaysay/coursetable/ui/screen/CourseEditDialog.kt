@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,7 @@ import androidx.compose.ui.window.Dialog
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +44,7 @@ fun CourseEditDialog(
 ) {
     val isNew = course == null
     val initialKey = "$initialDay-$initialStartPeriod-$maxPeriods"
+    val stableSeriesId = remember(course) { course?.seriesKey ?: UUID.randomUUID().toString() }
     var applyToAll by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember(course) { mutableStateOf(false) }
     // key = course 确保切换编辑对象时状态重置
@@ -76,7 +79,7 @@ fun CourseEditDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f).testTag("course-edit-dialog"),
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(
@@ -118,7 +121,7 @@ fun CourseEditDialog(
                     // 课程名称
                     OutlinedTextField(value = name, onValueChange = { name = it; errorMsg = null },
                         label = { Text("课程名称 *") }, singleLine = true,
-                        modifier = Modifier.fillMaxWidth())
+                        modifier = Modifier.fillMaxWidth().testTag("course-name-input"))
 
                     // 教师 + 教室
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -304,9 +307,10 @@ fun CourseEditDialog(
                             teacher = teacher.trim(), classroom = classroom.trim(),
                             courseType = courseType.trim(), courseCategory = courseCat.trim(),
                             isOnline = isOnline, assessmentMethod = assessMethod.trim(),
-                            customColor = selColor, notes = notes.trim()
+                            customColor = selColor, notes = notes.trim(),
+                            seriesId = stableSeriesId
                         ), applyToAll)
-                    }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
+                    }, modifier = Modifier.weight(1f).testTag("course-save-button"), shape = RoundedCornerShape(12.dp)) {
                         Text("保存", fontWeight = FontWeight.Bold)
                     }
                 }
