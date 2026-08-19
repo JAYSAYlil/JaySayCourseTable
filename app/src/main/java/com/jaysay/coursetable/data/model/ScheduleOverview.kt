@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.data.model
 
 import com.jaysay.coursetable.data.preferences.PeriodTime
+import com.jaysay.coursetable.util.TimeUtils
 import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -48,8 +49,8 @@ object TodayAgendaCalculator {
 
         var invalidCount = 0
         val slots = todayCourses.mapNotNull { course ->
-            val start = periods.getOrNull(course.startPeriod - 1)?.start?.toMinuteOrNull()
-            val end = periods.getOrNull(course.endPeriod - 1)?.end?.toMinuteOrNull()
+            val start = periods.getOrNull(course.startPeriod - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
+            val end = periods.getOrNull(course.endPeriod - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
             if (start == null || end == null || end <= start) {
                 invalidCount += 1
                 null
@@ -96,16 +97,6 @@ object TodayAgendaCalculator {
         if (days < 0 || days >= totalWeeks.toLong() * 7L) return null
         return (days / 7L + 1L).toInt()
     }
-
-    private fun String.toMinuteOrNull(): Int? {
-        val match = TIME_PATTERN.matchEntire(this) ?: return null
-        val hour = match.groupValues[1].toInt()
-        val minute = match.groupValues[2].toInt()
-        if (hour !in 0..23 || minute !in 0..59) return null
-        return hour * 60 + minute
-    }
-
-    private val TIME_PATTERN = Regex("^(\\d{2}):(\\d{2})$")
 }
 
 /** 本地过滤只改变显示集合；空查询直接返回原列表实例。 */

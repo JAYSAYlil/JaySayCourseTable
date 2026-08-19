@@ -1,5 +1,6 @@
 package com.jaysay.coursetable.ui.screen
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +43,7 @@ fun SettingsScreen(
 ) {
     // 拦截系统返回手势，回到主界面而非退出
     BackHandler(onBack = onBack)
+    val context = LocalContext.current
 
     var table by remember(tableData) { mutableStateOf(tableData) }
     fun save(new: AppPreferences) { if (readOnlyMessage == null) onUpdatePrefs(new) }
@@ -214,21 +217,23 @@ fun SettingsScreen(
                 ) {
                     OutlinedButton(onClick = {
                         val last = table.periods.lastOrNull()
-                        val ns = if (last != null) {
+                        val startMinute = if (last != null) {
                             val p = last.end.split(":")
                             val h = p.getOrNull(0)?.toIntOrNull() ?: 22
                             val m = p.getOrNull(1)?.toIntOrNull() ?: 0
-                            val t = h * 60 + m + 10
-                            "%02d:%02d".format((t / 60) % 24, t % 60)
-                        } else "08:00"
-                        val nep = ns.split(":")
-                        val eh = nep.getOrNull(0)?.toIntOrNull() ?: 8
-                        val em = nep.getOrNull(1)?.toIntOrNull() ?: 0
-                        val et = eh * 60 + em + 45
-                        val ne = "%02d:%02d".format((et / 60) % 24, et % 60)
-                        val np = table.periods.toMutableList()
-                        np.add(PeriodTime(ns, ne))
-                        saveTable(table.copy(periods = np))
+                            h * 60 + m + 10
+                        } else 8 * 60
+                        val endMinute = startMinute + 45
+                        if (endMinute > 23 * 60 + 59) {
+                            // 避免跨天回绕出 00:xx 的错误时间
+                            Toast.makeText(context, "节次时间不能超过 23:59，请先修改最后一节的结束时间", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val ns = "%02d:%02d".format(startMinute / 60, startMinute % 60)
+                            val ne = "%02d:%02d".format(endMinute / 60, endMinute % 60)
+                            val np = table.periods.toMutableList()
+                            np.add(PeriodTime(ns, ne))
+                            saveTable(table.copy(periods = np))
+                        }
                     }, modifier = Modifier.height(48.dp)) {
                         Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))

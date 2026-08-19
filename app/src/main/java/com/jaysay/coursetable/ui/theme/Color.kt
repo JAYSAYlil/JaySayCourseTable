@@ -2,6 +2,7 @@
 package com.jaysay.coursetable.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import com.jaysay.coursetable.data.model.Course
 
 // === 主色调 ===
 val Primary = Color(0xFF0D9488)
@@ -37,6 +38,33 @@ val DarkCourseColors = listOf(
 )
 val DarkCourseTextColor = Color(0xFFE8E8E8)
 val DarkCourseSubTextColor = Color(0xFFB0B0B0)
+
+/**
+ * 按“课程名首次出现顺序”构建课表配色映射，避免哈希碰撞导致相邻课程颜色过近。
+ * 网格课表和课程详情页必须共用同一映射，保证同一课程两处颜色一致。
+ */
+fun buildCourseColorMap(courses: List<Course>, dark: Boolean): Map<String, Color> {
+    val palette = if (dark) DarkCourseColors else CourseColors
+    return buildMap {
+        courses.distinctBy { it.courseName }.forEachIndexed { index, course ->
+            put(course.courseName, palette[index % palette.size])
+        }
+    }
+}
+
+/**
+ * 解析单条课程卡片的最终颜色：自定义颜色（索引或 ARGB）优先，
+ * 否则按课程名在整表首次出现顺序取调色板颜色。
+ */
+fun resolveCourseColor(courses: List<Course>, course: Course, dark: Boolean): Color {
+    val palette = if (dark) DarkCourseColors else CourseColors
+    val customColor = course.customColor
+    return when {
+        customColor != null && customColor in palette.indices -> palette[customColor]
+        customColor != null -> Color(customColor)
+        else -> buildCourseColorMap(courses, dark)[course.courseName] ?: palette.first()
+    }
+}
 
 // Dark mode Material
 val DarkPrimary = Color(0xFF2DD4BF)

@@ -298,7 +298,8 @@ fun CourseEditDialog(
                         // 存储颜色索引（0-14），随深浅色模式自动切换
                         val selColor = if (colorIdx in 0..14) colorIdx else null
                         onSave(Course(
-                            courseId = courseId.ifBlank { "M${System.currentTimeMillis()}" },
+                            // 手工新增时用随机 ID，避免同一毫秒添加两门课程时时间戳碰撞
+                            courseId = courseId.ifBlank { UUID.randomUUID().toString() },
                             courseName = name.trim(), classNumber = classNum.trim(),
                             department = dept.trim(),
                             credits = creditsStr.toFloatOrNull() ?: 0f,

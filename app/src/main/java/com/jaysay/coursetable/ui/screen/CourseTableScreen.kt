@@ -98,31 +98,14 @@ import com.jaysay.coursetable.ui.theme.DarkCourseSubTextColor
 import com.jaysay.coursetable.ui.theme.DarkCourseTextColor
 import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
 import com.jaysay.coursetable.ui.theme.PrimaryDark
+import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.util.Calendar
-import java.util.Locale
 import kotlin.math.abs
 
-private val dateFormat by lazy { SimpleDateFormat("M/d", Locale.getDefault()) }
-
 private data class Section(val name: String, val periods: List<Int>)
-
-private fun refDate(week: Int, dayOfWeek: Int, semesterStart: String): String {
-    val cal = Calendar.getInstance()
-    try {
-        val parts = semesterStart.split("-")
-        cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt(), 0, 0, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-    } catch (_: Exception) {
-        cal.set(2026, Calendar.FEBRUARY, 23, 0, 0, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-    }
-    cal.add(Calendar.DAY_OF_YEAR, (week - 1) * 7 + dayOfWeek - 1)
-    return dateFormat.format(cal.time)
-}
 
 private fun buildSections(periodTimes: List<PeriodTime>): List<Section> {
     val total = periodTimes.size
@@ -146,15 +129,6 @@ private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): 
         offset += cellHeight * section.periods.size
     }
     return offset
-}
-
-private fun parseMinutes(value: String): Int? {
-    val parts = value.split(":")
-    if (parts.size != 2) return null
-    val hour = parts[0].toIntOrNull() ?: return null
-    val minute = parts[1].toIntOrNull() ?: return null
-    if (hour !in 0..23 || minute !in 0..59) return null
-    return hour * 60 + minute
 }
 
 @Composable
@@ -242,14 +216,7 @@ fun CourseTableScreen(
         ScheduleViewMode.DAY -> 100.dp
     }
     val weekCourses = remember(displayedCourses, currentWeek) { displayedCourses.filter { currentWeek in it.weeks } }
-    val colorMap = remember(courses, dark) {
-        val palette = if (dark) DarkCourseColors else CourseColors
-        buildMap {
-            courses.distinctBy { it.courseName }.forEachIndexed { index, course ->
-                put(course.courseName, palette[index % palette.size])
-            }
-        }
-    }
+    val colorMap = remember(courses, dark) { buildCourseColorMap(courses, dark) }
     val isTodayWeek = currentWeek == todayWeek
     val weekControlTint = MaterialTheme.colorScheme.primary
     val weekDisabledTint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (dark) 0.38f else 0.3f)
@@ -550,7 +517,7 @@ private fun DayHeader(
                     modifier = Modifier.weight(1f).fillMaxHeight()
                         .background(if (isToday) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent)
                         .clickable { onDayClick(day) }
-                        .semantics { contentDescription = "${TimeUtils.getDayName(day)} ${refDate(currentWeek, day, semesterStart)}，点击查看单日" },
+                        .semantics { contentDescription = "${TimeUtils.getDayName(day)} ${TimeUtils.refDate(currentWeek, day, semesterStart)}，点击查看单日" },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -562,7 +529,7 @@ private fun DayHeader(
                             lineHeight = 14.sp
                         )
                         Text(
-                            refDate(currentWeek, day, semesterStart),
+                            TimeUtils.refDate(currentWeek, day, semesterStart),
                             fontSize = 10.sp,
                             color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 12.sp
@@ -774,8 +741,8 @@ private fun TableGrid(
                             else -> colorMap[course.courseName] ?: palette.first()
                         }
                         val accent = lerp(cardColor, if (dark) Color.White else Color.Black, if (dark) 0.28f else 0.22f)
-                        val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(::parseMinutes)
-                        val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(::parseMinutes)
+                        val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
+                        val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
                         val isCurrent = isTodayColumn && startMinute != null && endMinute != null && currentMinute in startMinute..endMinute
                         CourseCard(
                             course = course,
@@ -792,13 +759,13 @@ private fun TableGrid(
 
                     if (isTodayColumn) {
                         val activeIndex = periodTimes.indexOfFirst { period ->
-                            val start = parseMinutes(period.start)
-                            val end = parseMinutes(period.end)
+                            val start = TimeUtils.parseMinuteOfDay(period.start)
+                            val end = TimeUtils.parseMinuteOfDay(period.end)
                             start != null && end != null && currentMinute in start..end
                         }
                         if (activeIndex >= 0) {
-                            val start = parseMinutes(periodTimes[activeIndex].start) ?: currentMinute
-                            val end = parseMinutes(periodTimes[activeIndex].end) ?: currentMinute + 1
+                            val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
+                            val end = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].end) ?: currentMinute + 1
                             val fraction = ((currentMinute - start).toFloat() / (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
                             val lineY = periodOffset(activeIndex + 1, sections, cellHeight) + cellHeight * fraction
                             Row(modifier = Modifier.fillMaxWidth().height(8.dp).offset(y = lineY - 4.dp), verticalAlignment = Alignment.CenterVertically) {

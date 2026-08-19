@@ -77,13 +77,19 @@ class MainActivity : ComponentActivity() {
         model = ViewModelProvider(this)[MainViewModel::class.java]
 
         setContent {
-            var currentScreen by remember { mutableStateOf(Screen.MAIN) }
+            // 屏幕位置持久化，Activity 重建（旋转/进程回收）后不会跳回主界面。
+            var currentScreenOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
+            fun currentScreen(): Screen = Screen.values().getOrNull(currentScreenOrdinal) ?: Screen.MAIN
+            // 详情页用 uniqueKey 保存恢复依据，数据加载完成后在 LaunchedEffect 中还原课程实例。
+            var selectedCourseKey by rememberSaveable { mutableStateOf<String?>(null) }
             var selectedCourse by remember { mutableStateOf<Course?>(null) }
             var importResult by remember { mutableStateOf(ExcelParser.ParseResult(emptyList(), emptyList())) }
-            var showAddDialog by remember { mutableStateOf(false) }
-            var showEditDialog by remember { mutableStateOf(false) }
+            var showAddDialog by rememberSaveable { mutableStateOf(false) }
+            var showEditDialog by rememberSaveable { mutableStateOf(false) }
             var editingCourse by remember { mutableStateOf<Course?>(null) }
-            var addCoursePreset by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+            // 新增弹窗的星期/节次预设；0 表示未预设（day 有效范围 1-7，period 1-30）
+            var addCoursePresetDay by rememberSaveable { mutableIntStateOf(0) }
+            var addCoursePresetPeriod by rememberSaveable { mutableIntStateOf(0) }
             var pendingDetailDelete by remember { mutableStateOf<Course?>(null) }
             var pendingConflictChange by remember { mutableStateOf<PendingConflictChange?>(null) }
             var scheduleFocusedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
@@ -94,11 +100,19 @@ class MainActivity : ComponentActivity() {
             JaySayTheme(themeMode = state.preferences.themeMode) {
                 if (state.isLoading) return@JaySayTheme
 
+                // 数据就绪后按保存的 uniqueKey 还原详情页课程；课程已不存在则关闭详情。
+                LaunchedEffect(state.isLoading, selectedCourseKey) {
+                    if (!state.isLoading && selectedCourseKey != null) {
+                        selectedCourse = state.courses.firstOrNull { it.uniqueKey == selectedCourseKey }
+                            ?: run { selectedCourseKey = null; null }
+                    }
+                }
+
                 val pend = pendingImport.value
                 LaunchedEffect(pend) {
                     if (pend != null) {
                         importResult = pend
-                        currentScreen = Screen.IMPORT_CONFIRM
+                        currentScreenOrdinal = Screen.IMPORT_CONFIRM.ordinal
                         pendingImport.value = null
                     }
                 }
@@ -143,6 +157,7 @@ class MainActivity : ComponentActivity() {
                                     transform = { courses -> CourseSeriesOperations.deleteWeek(courses, seriesKey, week) },
                                     onComplete = {
                                         selectedCourse = null
+                                        selectedCourseKey = null
                                         offerUndo(
                                             CourseSeriesUndo.capture(previous, after, seriesKey),
                                             "已从第 $week 周移除 ${deleting.courseName}"
@@ -246,18 +261,23 @@ class MainActivity : ComponentActivity() {
                     CourseEditDialog(course = null, totalWeeks = activeTable.totalWeeks,
                         currentWeek = state.currentWeek,
                         maxPeriods = activeTable.periods.size,
-                        initialDay = addCoursePreset?.first ?: 1,
-                        initialStartPeriod = addCoursePreset?.second ?: 1,
+                        initialDay = addCoursePresetDay.takeIf { it > 0 } ?: 1,
+                        initialStartPeriod = addCoursePresetPeriod.takeIf { it > 0 } ?: 1,
                         onSave = { c, _ ->
                             val saveAction = {
                                 model.updateCourses({ it + c }, onComplete = {
                                     showAddDialog = false
-                                    addCoursePreset = null
+                                    addCoursePresetDay = 0
+                                    addCoursePresetPeriod = 0
                                     coroutineScope.launch { snackbarHostState.showSnackbar("已添加 ${c.courseName}") }
                                 }, onError = ::showSaveError)
                             }
                             runAfterConflictCheck(c, state.courses, saveAction)
-                        }, onDelete = null, onDismiss = { showAddDialog = false; addCoursePreset = null })
+                        }, onDelete = null, onDismiss = {
+                            showAddDialog = false
+                            addCoursePresetDay = 0
+                            addCoursePresetPeriod = 0
+                        })
                 }
 
                 // 保持在编辑/新增弹窗之后组合，确保冲突确认始终位于最上层。
@@ -298,7 +318,7 @@ class MainActivity : ComponentActivity() {
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     AnimatedContent(
-                        targetState = currentScreen,
+                        targetState = currentScreen(),
                         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
                         transitionSpec = {
                             if (targetState.ordinal > initialState.ordinal) {
@@ -326,7 +346,7 @@ class MainActivity : ComponentActivity() {
                                     backupImportLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
                                 },
                                 readOnlyMessage = state.persistentDataError,
-                                onBack = { locateToday(); currentScreen = Screen.MAIN }
+                                onBack = { locateToday(); currentScreenOrdinal = Screen.MAIN.ordinal }
                             )
 
                             Screen.IMPORT_CONFIRM -> {
@@ -339,7 +359,7 @@ class MainActivity : ComponentActivity() {
                                     onConfirm = { selected ->
                                         model.importCourses(selected, onComplete = { result ->
                                             locateToday()
-                                            currentScreen = Screen.MAIN
+                                            currentScreenOrdinal = Screen.MAIN.ordinal
                                             Toast.makeText(
                                                 this@MainActivity,
                                                 "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
@@ -347,7 +367,7 @@ class MainActivity : ComponentActivity() {
                                             ).show()
                                         }, onError = ::showSaveError)
                                     },
-                                    onCancel = { locateToday(); currentScreen = Screen.MAIN }
+                                    onCancel = { locateToday(); currentScreenOrdinal = Screen.MAIN.ordinal }
                                 )
                             }
 
@@ -356,12 +376,12 @@ class MainActivity : ComponentActivity() {
                                 activeIndex = state.activeTableIndex,
                                 onSelect = { idx ->
                                     model.selectTable(idx, ::showSaveError)
-                                    currentScreen = Screen.MAIN
+                                    currentScreenOrdinal = Screen.MAIN.ordinal
                                 },
                                 onDelete = { model.deleteTable(it, ::showSaveError) },
                                 onAdd = { model.addTable(::showSaveError) },
                                 onRename = { idx, name -> model.renameTable(idx, name, ::showSaveError) },
-                                onBack = { locateToday(); currentScreen = Screen.MAIN }
+                                onBack = { locateToday(); currentScreenOrdinal = Screen.MAIN.ordinal }
                             )
 
                             Screen.MAIN -> AnimatedContent(
@@ -381,9 +401,11 @@ class MainActivity : ComponentActivity() {
                                 if (course != null) {
                                     CourseDetailScreen(
                                         course = course,
-                                        onClose = { selectedCourse = null },
+                                        allCourses = state.courses,
+                                        onClose = { selectedCourse = null; selectedCourseKey = null },
                                         onEdit = { editing ->
                                             selectedCourse = null
+                                            selectedCourseKey = null
                                             editingCourse = editing
                                             showEditDialog = true
                                         },
@@ -403,13 +425,14 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             )
                                         },
-                                        onCourseClick = { selectedCourse = it },
+                                        onCourseClick = { selectedCourse = it; selectedCourseKey = it.uniqueKey },
                                         onWeekChange = model::setWeek,
-                                        onSettingsClick = { currentScreen = Screen.SETTINGS },
-                                        onTableMenuClick = { currentScreen = Screen.TABLE_MANAGE },
-                                        onAddCourseClick = { addCoursePreset = null; showAddDialog = true },
+                                        onSettingsClick = { currentScreenOrdinal = Screen.SETTINGS.ordinal },
+                                        onTableMenuClick = { currentScreenOrdinal = Screen.TABLE_MANAGE.ordinal },
+                                        onAddCourseClick = { addCoursePresetDay = 0; addCoursePresetPeriod = 0; showAddDialog = true },
                                         onAddCourseAt = { day, period ->
-                                            addCoursePreset = day to period
+                                            addCoursePresetDay = day
+                                            addCoursePresetPeriod = period
                                             showAddDialog = true
                                         },
                                         onLocateToday = locateToday,
@@ -421,7 +444,7 @@ class MainActivity : ComponentActivity() {
                                         focusedDay = scheduleFocusedDay,
                                         onFocusedDayChange = { scheduleFocusedDay = it.coerceIn(1, 7) },
                                         readOnlyMessage = state.persistentDataError,
-                                        onRecoveryClick = { currentScreen = Screen.SETTINGS }
+                                        onRecoveryClick = { currentScreenOrdinal = Screen.SETTINGS.ordinal }
                                     )
                                 }
                             }

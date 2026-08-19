@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.model.AgendaCourseSlot
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
+import com.jaysay.coursetable.util.TimeUtils
 
 @Composable
 fun ScheduleOverviewBar(
@@ -235,4 +236,4 @@ private fun AgendaCourseSlot.fullText(): String = buildString {
     append("，${startMinute.asTime()} 到 ${endMinute.asTime()}")
 }
 
-private fun Int?.asTime(): String = this?.let { "%02d:%02d".format(it / 60, it % 60) }.orEmpty()
+private fun Int?.asTime(): String = this?.let { TimeUtils.formatMinuteOfDay(it) }.orEmpty()

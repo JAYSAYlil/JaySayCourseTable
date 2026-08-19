@@ -11,9 +11,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,17 +26,17 @@ import com.jaysay.coursetable.util.TimeUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CourseDetailScreen(course: Course, onClose: () -> Unit, onEdit: ((Course) -> Unit)? = null, onDelete: (() -> Unit)? = null) {
+fun CourseDetailScreen(
+    course: Course,
+    allCourses: List<Course> = listOf(course),
+    onClose: () -> Unit,
+    onEdit: ((Course) -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
     BackHandler(onBack = onClose)
     val dark = MaterialTheme.colorScheme.background == DarkBackground
-    val colors = if (dark) DarkCourseColors else CourseColors
-    val cc = course.customColor
-    val courseColor = when {
-        cc != null && cc in 0..14 -> colors[cc]
-        cc != null -> Color(cc)
-        // 避免 Math.abs(Int.MIN_VALUE) 仍为负数导致数组越界
-        else -> colors[course.courseName.hashCode().and(Int.MAX_VALUE) % colors.size]
-    }
+    // 与课表网格共用同一配色映射，保证同一课程在两处的颜色一致。
+    val courseColor = remember(course, allCourses, dark) { resolveCourseColor(allCourses, course, dark) }
 
     Scaffold(
         topBar = {

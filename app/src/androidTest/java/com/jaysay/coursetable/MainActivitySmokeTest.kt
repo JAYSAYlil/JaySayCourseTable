@@ -74,4 +74,29 @@ class MainActivitySmokeTest {
             composeRule.onAllNodesWithText("五天").fetchSemanticsNodes().isNotEmpty()
         }
     }
+
+    @Test
+    fun settingsScreenSurvivesActivityRecreation() {
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // 进入设置页（窄屏入口在“更多操作”菜单中，宽屏直接可见）
+        if (composeRule.onAllNodesWithTag("more-actions-button").fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onNodeWithTag("more-actions-button").performClick()
+            composeRule.onNodeWithText("设置").performClick()
+        } else {
+            composeRule.onNodeWithContentDescription("设置").performClick()
+        }
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithText("外观模式").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.activityRule.scenario.recreate()
+
+        // 导航位置必须保留，重建后仍停留在设置页而非跳回主界面
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithText("外观模式").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
 }
