@@ -76,6 +76,16 @@ class ScheduleOverviewTest {
         assertSame(courses, CourseSearch.filter(courses, "  "))
     }
 
+    @Test
+    fun excludedWeekReportsNoCourses() {
+        val result = TodayAgendaCalculator.calculate(
+            courses, periods, monday.toString(), 20, monday, 8 * 60, excludedWeeks = setOf(1)
+        )
+        assertEquals(TodayAgendaPhase.NO_COURSES, result.phase)
+        assertEquals(1, result.week)
+        assertNull(result.next)
+    }
+
     private fun agenda(minute: Int) = TodayAgendaCalculator.calculate(
         courses, periods, monday.toString(), 20, monday, minute
     )

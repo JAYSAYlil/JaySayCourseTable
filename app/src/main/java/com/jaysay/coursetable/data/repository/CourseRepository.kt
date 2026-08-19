@@ -22,7 +22,9 @@ data class TableData(
     val periods: List<PeriodTime> = defaultPeriods(),
     val semesterStart: String = TimeUtils.todayDate(),
     val totalWeeks: Int = 20,
-    val viewMode: ScheduleViewMode = ScheduleViewMode.WEEK
+    val viewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
+    /** 校历停课周（节假日/考试周），这些周不显示课程、不触发提醒。 */
+    val excludedWeeks: List<Int> = emptyList()
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -125,13 +127,19 @@ object TableDataJson {
             require(!strict) { "备份中的视图模式无效" }
             ScheduleViewMode.WEEK
         }
+        val excludedWeeks = obj.optJSONArray("excludedWeeks")?.let { array ->
+            (0 until array.length()).mapNotNull { index ->
+                runCatching { array.getInt(index) }.getOrNull()
+            }
+        } ?: emptyList()
         return TableData(
             name = obj.optString("name", "课表"),
             courses = courses,
             periods = periods,
             semesterStart = obj.optString("semesterStart", TimeUtils.todayDate()),
             totalWeeks = obj.optInt("totalWeeks", 20),
-            viewMode = viewMode
+            viewMode = viewMode,
+            excludedWeeks = excludedWeeks
         )
     }
 
@@ -161,6 +169,9 @@ object TableDataJson {
         put("semesterStart", table.semesterStart)
         put("totalWeeks", table.totalWeeks)
         put("viewMode", table.viewMode.name)
+        if (table.excludedWeeks.isNotEmpty()) {
+            put("excludedWeeks", JSONArray(table.excludedWeeks))
+        }
         put("periods", JSONArray().apply {
             table.periods.forEach { period ->
                 put(JSONObject().put("start", period.start).put("end", period.end))
@@ -200,6 +211,7 @@ object TableDataJson {
                 name = table.name.trim().ifEmpty { "课表${index + 1}" },
                 periods = periods,
                 totalWeeks = table.totalWeeks.coerceIn(1, MAX_WEEKS),
+                excludedWeeks = table.excludedWeeks.filter { it in 1..MAX_WEEKS }.distinct().sorted(),
                 courses = CourseSeriesIds.ensure(table.courses.mapNotNull { course ->
                     val weeks = course.weeks.filter { it in 1..MAX_WEEKS }.distinct().sorted()
                     if (course.courseName.isBlank() || course.dayOfWeek !in 1..7 ||

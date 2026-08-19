@@ -93,35 +93,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateActiveTable(table: TableData, onError: (Throwable) -> Unit = {}) {
         val targetIndex = state.activeTableIndex
         launchWrite(onError) {
-        val updated = state.tables.toMutableList()
-        if (targetIndex !in updated.indices) return@launchWrite
-        val current = updated[targetIndex]
-        // 设置页只负责学期和节次配置；保留可能在排队写入期间变化的课程、名称和视图状态。
-        val safeTable = table.copy(
-            name = current.name,
-            courses = current.courses,
-            viewMode = current.viewMode
-        )
-        updated[targetIndex] = safeTable
-        repository.saveAllTables(updated)
-        state = if (state.activeTableIndex == targetIndex) {
-            state.copy(tables = updated, currentWeek = state.currentWeek.coerceIn(1, safeTable.totalWeeks))
-        } else {
-            state.copy(tables = updated)
-        }
+            // 设置页只负责学期和节次配置；保留可能在排队写入期间变化的课程、名称和视图状态。
+            val updated = mutateTable(targetIndex) { current ->
+                table.copy(
+                    name = current.name,
+                    courses = current.courses,
+                    viewMode = current.viewMode
+                )
+            } ?: return@launchWrite
+            state = if (state.activeTableIndex == targetIndex) {
+                val safeTable = updated[targetIndex]
+                state.copy(tables = updated, currentWeek = state.currentWeek.coerceIn(1, safeTable.totalWeeks))
+            } else {
+                state.copy(tables = updated)
+            }
         }
     }
 
     fun setScheduleViewMode(mode: ScheduleViewMode, onError: (Throwable) -> Unit = {}) {
         val targetIndex = state.activeTableIndex
         launchWrite(onError) {
-            val updatedTables = state.tables.toMutableList()
-            if (targetIndex !in updatedTables.indices) return@launchWrite
-            val current = updatedTables[targetIndex]
+            val current = state.tables.getOrNull(targetIndex) ?: return@launchWrite
             if (current.viewMode == mode) return@launchWrite
-            updatedTables[targetIndex] = current.copy(viewMode = mode)
-            repository.saveAllTables(updatedTables)
-            state = state.copy(tables = updatedTables)
+            val updated = mutateTable(targetIndex) { it.copy(viewMode = mode) } ?: return@launchWrite
+            state = state.copy(tables = updated)
         }
     }
 
@@ -132,13 +127,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val targetIndex = state.activeTableIndex
         launchWrite(onError) {
-        val updatedTables = state.tables.toMutableList()
-        if (targetIndex !in updatedTables.indices) return@launchWrite
-        val table = updatedTables[targetIndex]
-        updatedTables[targetIndex] = table.copy(courses = transform(table.courses))
-        repository.saveAllTables(updatedTables)
-        state = state.copy(tables = updatedTables)
-        onComplete()
+            val updated = mutateTable(targetIndex) { it.copy(courses = transform(it.courses)) }
+                ?: return@launchWrite
+            state = state.copy(tables = updated)
+            onComplete()
         }
     }
 
@@ -149,14 +141,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val targetIndex = state.activeTableIndex
         launchWrite(onError) {
-        val updatedTables = state.tables.toMutableList()
-        if (targetIndex !in updatedTables.indices) return@launchWrite
-        val table = updatedTables[targetIndex]
-        val result = CourseMerger.mergeImported(table.courses, imported)
-        updatedTables[targetIndex] = table.copy(courses = result.courses)
-        repository.saveAllTables(updatedTables)
-        state = state.copy(tables = updatedTables)
-        onComplete(result)
+            val courses = state.tables.getOrNull(targetIndex)?.courses ?: return@launchWrite
+            val result = CourseMerger.mergeImported(courses, imported)
+            val updated = mutateTable(targetIndex) { it.copy(courses = result.courses) }
+                ?: return@launchWrite
+            state = state.copy(tables = updated)
+            onComplete(result)
         }
     }
 
@@ -240,6 +230,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             persistentDataError = null
         )
         onComplete()
+    }
+
+    /**
+     * 修改并持久化指定课表的共用入口：变换 → 保存 → 返回更新后的列表。
+     * 调用方必须在 launchWrite 的互斥区内调用。
+     */
+    private suspend fun mutateTable(index: Int, transform: (TableData) -> TableData): List<TableData>? {
+        val updated = state.tables.toMutableList()
+        if (index !in updated.indices) return null
+        updated[index] = transform(updated[index])
+        repository.saveAllTables(updated)
+        return updated
     }
 
     private fun launchWrite(

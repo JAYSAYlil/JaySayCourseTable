@@ -40,10 +40,12 @@ object TodayAgendaCalculator {
         semesterStart: String,
         totalWeeks: Int,
         date: LocalDate,
-        minuteOfDay: Int
+        minuteOfDay: Int,
+        excludedWeeks: Set<Int> = emptySet()
     ): TodayAgenda {
         val week = semesterWeek(semesterStart, totalWeeks, date)
             ?: return TodayAgenda(TodayAgendaPhase.OUTSIDE_SEMESTER)
+        if (week in excludedWeeks) return TodayAgenda(TodayAgendaPhase.NO_COURSES, week = week)
         val todayCourses = courses.filter { week in it.weeks && it.dayOfWeek == date.dayOfWeek.value }
         if (todayCourses.isEmpty()) return TodayAgenda(TodayAgendaPhase.NO_COURSES, week = week)
 

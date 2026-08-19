@@ -26,7 +26,11 @@ enum class ThemeMode { LIGHT, DARK, SYSTEM }
 @Immutable
 data class AppPreferences(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val activeTableIndex: Int = 0
+    val activeTableIndex: Int = 0,
+    /** 是否启用上课提醒。 */
+    val reminderEnabled: Boolean = false,
+    /** 上课前提前提醒分钟数（5/10/15/30）。 */
+    val reminderMinutes: Int = 10
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -45,6 +49,8 @@ class PreferencesManager(context: Context) {
             .put("schemaVersion", SCHEMA_VERSION)
             .put("themeMode", prefs.themeMode.name)
             .put("activeTableIndex", prefs.activeTableIndex.coerceAtLeast(0))
+            .put("reminderEnabled", prefs.reminderEnabled)
+            .put("reminderMinutes", prefs.reminderMinutes.coerceIn(1, 60))
         store.write(obj.toString(2))
     }
 
@@ -54,7 +60,9 @@ class PreferencesManager(context: Context) {
             .getOrDefault(ThemeMode.SYSTEM)
         return AppPreferences(
             themeMode = theme,
-            activeTableIndex = obj.optInt("activeTableIndex", 0).coerceAtLeast(0)
+            activeTableIndex = obj.optInt("activeTableIndex", 0).coerceAtLeast(0),
+            reminderEnabled = obj.optBoolean("reminderEnabled", false),
+            reminderMinutes = obj.optInt("reminderMinutes", 10).coerceIn(1, 60)
         )
     }
 

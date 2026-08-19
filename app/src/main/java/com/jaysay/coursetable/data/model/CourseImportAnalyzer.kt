@@ -121,14 +121,49 @@ object CourseImportAnalyzer {
         })
     }
 
+    /**
+     * 手工新增/编辑时的单候选冲突检查：直接线性扫描，避免为单个候选
+     * 重建整个星期/节次槽位索引（O(课程数) 而不是 O(课程数 × 节次数)）。
+     */
     fun findConflicts(
         existing: List<Course>,
         candidate: Course,
         excludedUniqueKeys: Set<String> = emptySet()
-    ): List<CourseConflict> = analyze(
-        existing = existing.filterNot { it.uniqueKey in excludedUniqueKeys },
-        imported = listOf(candidate)
-    ).items.single().conflicts
+    ): List<CourseConflict> {
+        val result = mutableListOf<CourseConflict>()
+        existing.forEach { other ->
+            if (other.importIdentityKey == candidate.importIdentityKey) return@forEach
+            if (other.uniqueKey in excludedUniqueKeys) return@forEach
+            buildConflict(candidate, other, ConflictSource.EXISTING)?.let(result::add)
+        }
+        return result
+    }
+
+    /**
+     * 分析当前课表内部所有课程两两冲突（数据诊断用）。
+     * 使用星期/节次槽位索引，仅对同槽课程做周次交集检查，避免全表平方级比较。
+     */
+    fun findConflictsAmong(courses: List<Course>): List<CourseConflict> {
+        val bySlot = buildSlotIndex(courses)
+        val result = mutableListOf<CourseConflict>()
+        val seen = mutableSetOf<String>()
+        bySlot.forEach { (_, indexes) ->
+            for (i in indexes.indices) {
+                for (j in i + 1 until indexes.size) {
+                    val first = indexes[i]
+                    val second = indexes[j]
+                    val a = courses[first]
+                    val b = courses[second]
+                    if (a.importIdentityKey == b.importIdentityKey) continue
+                    buildConflict(a, b, ConflictSource.EXISTING)?.let { conflict ->
+                        val key = if (first < second) "$first|$second" else "$second|$first"
+                        if (seen.add(key)) result += conflict
+                    }
+                }
+            }
+        }
+        return result
+    }
 
     private fun buildSlotIndex(courses: List<Course>): Map<Int, List<Int>> {
         val index = mutableMapOf<Int, MutableList<Int>>()

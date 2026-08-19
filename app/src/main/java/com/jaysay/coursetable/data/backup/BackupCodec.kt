@@ -41,7 +41,9 @@ object BackupCodec {
             .put("sanitized", sanitized)
             .put("preferences", JSONObject()
                 .put("themeMode", data.preferences.themeMode.name)
-                .put("activeTableIndex", data.preferences.activeTableIndex))
+                .put("activeTableIndex", data.preferences.activeTableIndex)
+                .put("reminderEnabled", data.preferences.reminderEnabled)
+                .put("reminderMinutes", data.preferences.reminderMinutes))
             .put("tables", TableDataJson.toJson(tables))
             .toString(2)
     }
@@ -62,6 +64,14 @@ object BackupCodec {
         val theme = runCatching { ThemeMode.valueOf(prefsJson.optString("themeMode")) }
             .getOrDefault(ThemeMode.SYSTEM)
         val activeIndex = prefsJson.optInt("activeTableIndex", 0).coerceIn(tables.indices)
-        return BackupData(tables, AppPreferences(theme, activeIndex))
+        return BackupData(
+            tables,
+            AppPreferences(
+                themeMode = theme,
+                activeTableIndex = activeIndex,
+                reminderEnabled = prefsJson.optBoolean("reminderEnabled", false),
+                reminderMinutes = prefsJson.optInt("reminderMinutes", 10).coerceIn(1, 60)
+            )
+        )
     }
 }

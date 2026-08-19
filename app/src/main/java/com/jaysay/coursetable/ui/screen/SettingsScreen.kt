@@ -22,11 +22,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jaysay.coursetable.data.model.CourseImportAnalyzer
 import com.jaysay.coursetable.data.preferences.*
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.theme.*
+import com.jaysay.coursetable.util.TimeUtils
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +40,9 @@ fun SettingsScreen(
     onUpdateTable: ((TableData) -> Unit)? = null,
     onExportBackup: (sanitized: Boolean) -> Unit,
     onImportBackup: () -> Unit,
+    onPasteImport: () -> Unit = {},
+    onExportCalendar: () -> Unit = {},
+    tablesCount: Int = 1,
     readOnlyMessage: String? = null,
     onBack: () -> Unit
 ) {
@@ -322,6 +327,127 @@ fun SettingsScreen(
                         Icon(Icons.Default.Add, "增加总周数", modifier = Modifier.size(18.dp))
                     }
                 }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+                // ===== 停课周（校历）=====
+                var showExcludedWeeksDialog by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = readOnlyMessage == null) { showExcludedWeeksDialog = true }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.EventBusy, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("停课周", fontSize = 15.sp)
+                        Text(
+                            if (table.excludedWeeks.isEmpty()) "未设置，用于节假日/考试周"
+                            else "第 ${TimeUtils.formatWeeks(table.excludedWeeks)}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
+                }
+                if (showExcludedWeeksDialog) {
+                    var selected by remember(table.excludedWeeks) {
+                        mutableStateOf(table.excludedWeeks.toMutableSet())
+                    }
+                    AlertDialog(
+                        onDismissRequest = { showExcludedWeeksDialog = false },
+                        title = { Text("选择停课周") },
+                        text = {
+                            Column(modifier = Modifier.verticalScroll(rememberScrollState()).heightIn(max = 360.dp)) {
+                                Text(
+                                    "这些周不显示课程、不触发上课提醒（如节假日、考试周）",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                (1..totalWeeks).forEach { week ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            if (!selected.add(week)) selected.remove(week)
+                                        }.padding(vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(checked = week in selected, onCheckedChange = {
+                                            if (week in selected) selected.remove(week) else selected.add(week)
+                                        })
+                                        Text("第 $week 周", fontSize = 14.sp)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                saveTable(table.copy(excludedWeeks = selected.sorted()))
+                                showExcludedWeeksDialog = false
+                            }) { Text("确定") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showExcludedWeeksDialog = false }) { Text("取消") }
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ===== 上课提醒 =====
+            SettingsSection(title = "上课提醒") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("提醒上课", fontSize = 15.sp)
+                        Text(
+                            "按节次时间提前通知，需要通知与精确闹钟权限",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = preferences.reminderEnabled,
+                        enabled = readOnlyMessage == null,
+                        onCheckedChange = { enabled ->
+                            save(preferences.copy(reminderEnabled = enabled))
+                        }
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("提前提醒", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    listOf(5, 10, 15, 30).forEach { minutes ->
+                        val selected = preferences.reminderMinutes == minutes
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable(enabled = readOnlyMessage == null) {
+                                    save(preferences.copy(reminderMinutes = minutes))
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "$minutes 分钟",
+                                fontSize = 12.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -349,6 +475,49 @@ fun SettingsScreen(
                     subtitle = "先校验文件，再确认是否替换当前课表",
                     onClick = onImportBackup
                 )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsActionRow(
+                    icon = Icons.Outlined.ContentPaste,
+                    title = "粘贴导入课程",
+                    subtitle = "复制网页课表文本，每行：星期 节次 课程名 [教室] [教师] [周次]",
+                    enabled = readOnlyMessage == null,
+                    onClick = onPasteImport
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsActionRow(
+                    icon = Icons.Outlined.CalendarMonth,
+                    title = "导出日历（.ics）",
+                    subtitle = "生成 iCal 文件，可导入系统日历或分享",
+                    onClick = onExportCalendar
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ===== 数据诊断（只显示统计，不展示课程原文）=====
+            SettingsSection(title = "数据诊断") {
+                val courseCount = table.courses.size
+                val conflictCount = remember(table.courses) {
+                    CourseImportAnalyzer.findConflictsAmong(table.courses).size
+                }
+                val stats = listOf(
+                    "课表总数" to "$tablesCount",
+                    "当前课表课程数" to "$courseCount",
+                    "节次数量" to "${table.periods.size}",
+                    "学期总周数" to "${table.totalWeeks}",
+                    "停课周" to "${table.excludedWeeks.size}",
+                    "课程时间冲突" to if (conflictCount > 0) "$conflictCount 处（建议在课程编辑时确认）" else "无"
+                )
+                stats.forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, fontSize = 14.sp, modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
             }
         }
     }

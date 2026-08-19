@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   quality:
-    name: JVM tests, Lint and Debug build
+    name: JVM tests, Lint, Debug and Release build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +33,8 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
       - name: Run quality checks
-        run: ./gradlew --stacktrace :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+        # assembleRelease 守护 POI 反射 keep 规则与 R8 配置不被后续改动破坏
+        run: ./gradlew --stacktrace :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
 
   ui-api34:
     name: UI tests (API 34)

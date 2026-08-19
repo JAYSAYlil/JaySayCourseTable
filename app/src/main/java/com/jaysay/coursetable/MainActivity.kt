@@ -1,6 +1,9 @@
 package com.jaysay.coursetable
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -22,17 +25,22 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.jaysay.coursetable.data.backup.BackupData
-import com.jaysay.coursetable.data.backup.BackupCodec
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseConflict
 import com.jaysay.coursetable.data.model.CourseImportAnalyzer
 import com.jaysay.coursetable.data.model.CourseSeriesOperations
 import com.jaysay.coursetable.data.model.CourseSeriesUndo
 import com.jaysay.coursetable.data.parser.ExcelParser
+import com.jaysay.coursetable.data.parser.TextScheduleParser
+import com.jaysay.coursetable.data.reminder.ReminderScheduler
+import com.jaysay.coursetable.data.transfer.ImportExportCoordinator
 import com.jaysay.coursetable.ui.screen.CourseDetailScreen
 import com.jaysay.coursetable.ui.screen.CourseEditDialog
 import com.jaysay.coursetable.ui.screen.CourseTableScreen
@@ -40,10 +48,10 @@ import com.jaysay.coursetable.ui.screen.ImportConfirmScreen
 import com.jaysay.coursetable.ui.screen.SettingsScreen
 import com.jaysay.coursetable.ui.screen.TableManageScreen
 import com.jaysay.coursetable.ui.theme.*
+import com.jaysay.coursetable.widget.CourseWidgetProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 
 private enum class Screen { MAIN, SETTINGS, IMPORT_CONFIRM, TABLE_MANAGE }
@@ -59,22 +67,39 @@ class MainActivity : ComponentActivity() {
     private val pendingImport = mutableStateOf<ExcelParser.ParseResult?>(null)
     private val pendingBackupRestore = mutableStateOf<BackupData?>(null)
     private var exportSanitized = false
+    private lateinit var fileTransfer: ImportExportCoordinator
 
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? -> uri?.let { handleFileImport(it) } }
+    ) { uri: Uri? -> uri?.let { fileTransfer.handleFileImport(it) } }
 
     private val backupExportLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? -> uri?.let { handleBackupExport(it, exportSanitized) } }
+    ) { uri: Uri? -> uri?.let { fileTransfer.handleBackupExport(it, exportSanitized) } }
 
     private val backupImportLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? -> uri?.let { handleBackupImport(it) } }
+    ) { uri: Uri? -> uri?.let { fileTransfer.handleBackupImport(it) } }
+
+    private val icsExportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/calendar")
+    ) { uri: Uri? -> uri?.let { fileTransfer.handleIcsExport(it) } }
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* 结果不强制处理：用户可在系统设置中开启通知权限 */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         model = ViewModelProvider(this)[MainViewModel::class.java]
+        fileTransfer = ImportExportCoordinator(
+            activity = this,
+            model = model,
+            onPendingImport = { pendingImport.value = it },
+            onPendingBackupRestore = { pendingBackupRestore.value = it },
+            showError = ::showError,
+            showToast = { message -> Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
+        )
 
         setContent {
             // 屏幕位置持久化，Activity 重建（旋转/进程回收）后不会跳回主界面。
@@ -92,6 +117,7 @@ class MainActivity : ComponentActivity() {
             var addCoursePresetPeriod by rememberSaveable { mutableIntStateOf(0) }
             var pendingDetailDelete by remember { mutableStateOf<Course?>(null) }
             var pendingConflictChange by remember { mutableStateOf<PendingConflictChange?>(null) }
+            var showPasteImportDialog by rememberSaveable { mutableStateOf(false) }
             var scheduleFocusedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
@@ -105,6 +131,17 @@ class MainActivity : ComponentActivity() {
                     if (!state.isLoading && selectedCourseKey != null) {
                         selectedCourse = state.courses.firstOrNull { it.uniqueKey == selectedCourseKey }
                             ?: run { selectedCourseKey = null; null }
+                    }
+                }
+
+                // 课表或偏好变化后重新调度上课提醒并刷新桌面小组件（覆盖式，频率低）。
+                val appContext = LocalContext.current.applicationContext
+                LaunchedEffect(state.isLoading, state.tables, state.preferences) {
+                    if (!state.isLoading) {
+                        withContext(Dispatchers.IO) {
+                            ReminderScheduler.rescheduleAll(appContext, state.tables, state.preferences)
+                        }
+                        CourseWidgetProvider.requestUpdate(appContext)
                     }
                 }
 
@@ -316,6 +353,52 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                if (showPasteImportDialog) {
+                    var pasteText by remember { mutableStateOf("") }
+                    AlertDialog(
+                        onDismissRequest = { showPasteImportDialog = false },
+                        icon = { Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.primary) },
+                        title = { Text("粘贴导入课程") },
+                        text = {
+                            Column {
+                                Text(
+                                    "每行一条：星期 节次 课程名 [教室] [教师] [周次]",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "示例：周一 1-2节 高等数学 教1-101 张老师 1-16周",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                OutlinedTextField(
+                                    value = pasteText,
+                                    onValueChange = { pasteText = it },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp).testTag("paste-import-input"),
+                                    placeholder = { Text("粘贴课表文本…") },
+                                    maxLines = 8
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val result = TextScheduleParser.parse(pasteText)
+                                if (result.courses.isEmpty()) {
+                                    val reason = result.errors.firstOrNull() ?: "请检查格式"
+                                    Toast.makeText(this@MainActivity, "未解析到课程：$reason", Toast.LENGTH_LONG).show()
+                                } else {
+                                    pendingImport.value = ExcelParser.ParseResult(result.courses, result.errors)
+                                    showPasteImportDialog = false
+                                }
+                            }, modifier = Modifier.testTag("paste-import-confirm")) { Text("解析并导入") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showPasteImportDialog = false }) { Text("取消") }
+                        }
+                    )
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = currentScreen(),
@@ -335,7 +418,19 @@ class MainActivity : ComponentActivity() {
                             Screen.SETTINGS -> SettingsScreen(
                                 tableData = state.activeTable,
                                 preferences = state.preferences,
-                                onUpdatePrefs = { model.updatePreferences(it, ::showSaveError) },
+                                onUpdatePrefs = { prefs ->
+                                    model.updatePreferences(prefs, ::showSaveError)
+                                    // Android 13+ 开启提醒时请求通知权限（拒绝后仍可用，通知由系统设置控制）。
+                                    if (prefs.reminderEnabled &&
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(
+                                            this@MainActivity,
+                                            Manifest.permission.POST_NOTIFICATIONS
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                },
                                 onUpdateTable = { model.updateActiveTable(it, ::showSaveError) },
                                 onExportBackup = { sanitized ->
                                     exportSanitized = sanitized
@@ -345,6 +440,11 @@ class MainActivity : ComponentActivity() {
                                 onImportBackup = {
                                     backupImportLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
                                 },
+                                onPasteImport = { showPasteImportDialog = true },
+                                onExportCalendar = {
+                                    icsExportLauncher.launch("JaySay课表-日历-${LocalDate.now()}.ics")
+                                },
+                                tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
                                 onBack = { locateToday(); currentScreenOrdinal = Screen.MAIN.ordinal }
                             )
@@ -439,6 +539,7 @@ class MainActivity : ComponentActivity() {
                                         periodTimes = activeTable.periods,
                                         semesterStart = activeTable.semesterStart,
                                         totalWeeks = activeTable.totalWeeks,
+                                        excludedWeeks = activeTable.excludedWeeks,
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,
@@ -456,69 +557,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
-        }
-    }
-
-    private fun handleFileImport(uri: Uri) {
-        // 解析 Excel 放到后台线程，避免大文件阻塞主线程导致卡顿/ANR
-        lifecycleScope.launch {
-            // 任何意外异常都只提示、不崩溃
-            val result = try {
-                withContext(Dispatchers.IO) { ExcelParser.parse(this@MainActivity, uri) }
-            } catch (e: Exception) {
-                Toast.makeText(this@MainActivity, "导入失败：" + e.message, Toast.LENGTH_LONG).show()
-                return@launch
-            }
-            if (result.courses.isEmpty()) {
-                val message = result.errors.firstOrNull() ?: "文件中未找到课程数据"
-                Toast.makeText(this@MainActivity, "导入失败：$message", Toast.LENGTH_LONG).show()
-            } else {
-                // 有个别坏行时仍允许确认导入正常课程，并在确认页展示警告。
-                pendingImport.value = result
-            }
-        }
-    }
-
-    private fun handleBackupExport(uri: Uri, sanitized: Boolean) {
-        lifecycleScope.launch {
-            val result = runCatching {
-                val text = withContext(Dispatchers.Default) {
-                    BackupCodec.encode(model.backupSnapshot(), sanitized)
-                }
-                withContext(Dispatchers.IO) {
-                    contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
-                        it.write(text)
-                    } ?: error("无法写入所选文件")
-                }
-            }
-            result.onSuccess {
-                val message = if (sanitized) "脱敏副本已导出（不能用于恢复）" else "完整备份已导出"
-                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-            }.onFailure { showError("导出失败", it) }
-        }
-    }
-
-    private fun handleBackupImport(uri: Uri) {
-        lifecycleScope.launch {
-            val decoded = runCatching {
-                withContext(Dispatchers.IO) {
-                    val stream = contentResolver.openInputStream(uri) ?: error("无法读取所选文件")
-                    stream.use { input ->
-                        val output = ByteArrayOutputStream()
-                        val buffer = ByteArray(8192)
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            output.write(buffer, 0, count)
-                            require(output.size() <= 10 * 1024 * 1024) { "备份文件过大" }
-                        }
-                        BackupCodec.decode(output.toString(Charsets.UTF_8.name()))
-                    }
-                }
-            }
-            decoded.onSuccess { backup ->
-                pendingBackupRestore.value = backup
-            }.onFailure { showError("备份校验失败，原课表未被替换", it) }
         }
     }
 
