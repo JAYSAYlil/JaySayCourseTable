@@ -325,6 +325,7 @@ class MainActivity : ComponentActivity() {
                                 onImportBackup = {
                                     backupImportLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
                                 },
+                                readOnlyMessage = state.persistentDataError,
                                 onBack = { locateToday(); currentScreen = Screen.MAIN }
                             )
 
@@ -418,7 +419,9 @@ class MainActivity : ComponentActivity() {
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,
-                                        onFocusedDayChange = { scheduleFocusedDay = it.coerceIn(1, 7) }
+                                        onFocusedDayChange = { scheduleFocusedDay = it.coerceIn(1, 7) },
+                                        readOnlyMessage = state.persistentDataError,
+                                        onRecoveryClick = { currentScreen = Screen.SETTINGS }
                                     )
                                 }
                             }

@@ -36,12 +36,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircleOutline
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarViewDay
 import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -55,6 +52,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,9 +82,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.CourseSearch
 import com.jaysay.coursetable.data.model.ScheduleViewMode
+import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PeriodTime
+import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
+import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
 import com.jaysay.coursetable.ui.theme.CourseColors
 import com.jaysay.coursetable.ui.theme.CourseSubTextColor
 import com.jaysay.coursetable.ui.theme.CourseTextColor
@@ -99,6 +101,7 @@ import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
@@ -188,7 +191,9 @@ fun CourseTableScreen(
     viewMode: ScheduleViewMode,
     onViewModeChange: (ScheduleViewMode) -> Unit,
     focusedDay: Int,
-    onFocusedDayChange: (Int) -> Unit
+    onFocusedDayChange: (Int) -> Unit,
+    readOnlyMessage: String? = null,
+    onRecoveryClick: () -> Unit = {}
 ) {
     val dark = MaterialTheme.colorScheme.background == DarkBackground
     val bgColor = MaterialTheme.colorScheme.background
@@ -197,28 +202,24 @@ fun CourseTableScreen(
     val density = LocalDensity.current
     val swipeThresholdPx = remember(density) { with(density) { 64.dp.toPx() } }
 
-    val (todayWeek, todayDow) = remember(semesterStart) {
-        val semCal = Calendar.getInstance().apply {
-            try {
-                val p = semesterStart.split("-")
-                set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt())
-            } catch (_: Exception) {
-                set(2026, Calendar.FEBRUARY, 23)
-            }
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val today = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val daysDiff = ((today.timeInMillis - semCal.timeInMillis) / 86_400_000L).toInt()
-        if (daysDiff >= 0) daysDiff / 7 + 1 to daysDiff % 7 + 1 else -1 to -1
+    val currentMinute = rememberCurrentMinute()
+    val today = LocalDate.now()
+    val todayWeek = remember(semesterStart, totalWeeks, today) {
+        TodayAgendaCalculator.semesterWeek(semesterStart, totalWeeks, today) ?: -1
     }
+    val todayDow = today.dayOfWeek.value
+    val agenda = remember(courses, periodTimes, semesterStart, totalWeeks, today, currentMinute) {
+        TodayAgendaCalculator.calculate(
+            courses = courses,
+            periods = periodTimes,
+            semesterStart = semesterStart,
+            totalWeeks = totalWeeks,
+            date = today,
+            minuteOfDay = currentMinute
+        )
+    }
+    var searchQuery by remember { mutableStateOf("") }
+    val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
     var viewMenuExpanded by remember { mutableStateOf(false) }
     val visibleDays = remember(viewMode, focusedDay) {
@@ -240,7 +241,7 @@ fun CourseTableScreen(
         ScheduleViewMode.WORK_WEEK -> 116.dp
         ScheduleViewMode.DAY -> 100.dp
     }
-    val weekCourses = remember(courses, currentWeek) { courses.filter { currentWeek in it.weeks } }
+    val weekCourses = remember(displayedCourses, currentWeek) { displayedCourses.filter { currentWeek in it.weeks } }
     val colorMap = remember(courses, dark) {
         val palette = if (dark) DarkCourseColors else CourseColors
         buildMap {
@@ -261,41 +262,24 @@ fun CourseTableScreen(
             .navigationBarsPadding()
             .testTag("course-table-screen")
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).clickable(onClick = onTableMenuClick)
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    tableName,
-                    modifier = Modifier.weight(1f, fill = false),
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Icon(Icons.Default.ArrowDropDown, "切换课表", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onAddCourseClick, modifier = Modifier.size(48.dp).testTag("add-course-button")) {
-                Icon(Icons.Default.AddCircleOutline, "添加课程", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onImportClick, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
-                Icon(Icons.Default.FileOpen, "导入课表", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Default.MyLocation, "定位到今天", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Default.Settings, "设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        ScheduleOverviewBar(
+            tableName = tableName,
+            agenda = agenda,
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            onTableMenuClick = onTableMenuClick,
+            onAddCourseClick = onAddCourseClick,
+            onImportClick = onImportClick,
+            onLocateToday = onLocateToday,
+            onSettingsClick = onSettingsClick,
+            writesEnabled = readOnlyMessage == null
+        )
 
         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+
+        readOnlyMessage?.let { message ->
+            ReadOnlyRecoveryBanner(message = message, onRecoveryClick = onRecoveryClick)
+        }
 
         if (courses.isNotEmpty()) {
             Row(
@@ -468,7 +452,20 @@ fun CourseTableScreen(
         }
 
         if (courses.isEmpty()) {
-            EmptySchedule(onImportClick = onImportClick, onAddCourseClick = onAddCourseClick)
+            EmptySchedule(
+                onImportClick = if (readOnlyMessage == null) onImportClick else ({}),
+                onAddCourseClick = if (readOnlyMessage == null) onAddCourseClick else ({}),
+                readOnly = readOnlyMessage != null
+            )
+        } else if (displayedCourses.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("没有匹配“$searchQuery”的课程", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { searchQuery = "" }) { Text("清空搜索") }
+            }
         } else {
             AnimatedContent(
                 targetState = currentWeek,
@@ -507,14 +504,14 @@ fun CourseTableScreen(
                         .verticalScroll(scrollState)
                 ) {
                     TableGrid(
-                        courses = courses.filter { displayedWeek in it.weeks },
+                        courses = displayedCourses.filter { displayedWeek in it.weeks },
                         colorMap = colorMap,
                         visibleDays = visibleDays,
                         timeWidth = timeWidth,
                         cellHeight = cellHeight,
                         currentWeek = displayedWeek,
                         onCourseClick = onCourseClick,
-                        onEmptyCellClick = onAddCourseAt,
+                        onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
                         periodTimes = periodTimes,
                         dark = dark,
                         cTextColor = cTextColor,
@@ -578,7 +575,11 @@ private fun DayHeader(
 }
 
 @Composable
-private fun ColumnScope.EmptySchedule(onImportClick: () -> Unit, onAddCourseClick: () -> Unit) {
+private fun ColumnScope.EmptySchedule(
+    onImportClick: () -> Unit,
+    onAddCourseClick: () -> Unit,
+    readOnly: Boolean = false
+) {
     Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(92.dp)) {
@@ -589,7 +590,10 @@ private fun ColumnScope.EmptySchedule(onImportClick: () -> Unit, onAddCourseClic
             Spacer(Modifier.height(20.dp))
             Text("还没有课程", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("可以导入 Excel，也可以手动添加第一门课程", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                if (readOnly) "数据保护模式下不能新增课程，请先在设置中恢复完整备份" else "可以导入 Excel，也可以手动添加第一门课程",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(Modifier.height(24.dp))
             BoxWithConstraints {
                 val narrow = maxWidth < 340.dp
@@ -597,13 +601,13 @@ private fun ColumnScope.EmptySchedule(onImportClick: () -> Unit, onAddCourseClic
                 val arrangement = if (narrow) Arrangement.spacedBy(10.dp) else Arrangement.spacedBy(12.dp)
                 if (narrow) {
                     Column(modifier = containerModifier, verticalArrangement = arrangement) {
-                        EmptyImportButton(onClick = onImportClick, modifier = Modifier.fillMaxWidth())
-                        EmptyManualButton(onClick = onAddCourseClick, modifier = Modifier.fillMaxWidth())
+                        EmptyImportButton(onClick = onImportClick, modifier = Modifier.fillMaxWidth(), enabled = !readOnly)
+                        EmptyManualButton(onClick = onAddCourseClick, modifier = Modifier.fillMaxWidth(), enabled = !readOnly)
                     }
                 } else {
                     Row(horizontalArrangement = arrangement) {
-                        EmptyImportButton(onClick = onImportClick)
-                        EmptyManualButton(onClick = onAddCourseClick)
+                        EmptyImportButton(onClick = onImportClick, enabled = !readOnly)
+                        EmptyManualButton(onClick = onAddCourseClick, enabled = !readOnly)
                     }
                 }
             }
@@ -612,8 +616,8 @@ private fun ColumnScope.EmptySchedule(onImportClick: () -> Unit, onAddCourseClic
 }
 
 @Composable
-private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Button(onClick = onClick, shape = RoundedCornerShape(12.dp), modifier = modifier.height(48.dp)) {
+private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(12.dp), modifier = modifier.height(48.dp)) {
         Icon(Icons.Default.FileOpen, null)
         Spacer(Modifier.width(8.dp))
         Text("导入课表", maxLines = 1)
@@ -621,20 +625,21 @@ private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val contentAlpha = if (enabled) 1f else 0.38f
     Surface(
-        modifier = modifier.height(48.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick),
+        modifier = modifier.height(48.dp).clip(RoundedCornerShape(12.dp)).clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = contentAlpha)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Default.AddCircleOutline, null)
+            Icon(Icons.Default.AddCircleOutline, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha))
             Spacer(Modifier.width(8.dp))
-            Text("手动添加", maxLines = 1, fontWeight = FontWeight.Medium)
+            Text("手动添加", maxLines = 1, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha))
         }
     }
 }

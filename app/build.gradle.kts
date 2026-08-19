@@ -11,8 +11,8 @@ android {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
         targetSdk = 34
-        versionCode = 79
-        versionName = "2.6.1"
+        versionCode = 80
+        versionName = "2.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("zh", "en")
     }
@@ -59,6 +59,11 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    // 源码编码在编译任务中声明，避免修改整个 Gradle JVM 的默认文件系统编码。
+    options.encoding = "UTF-8"
 }
 
 dependencies {

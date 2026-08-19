@@ -16,6 +16,8 @@ import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PreferencesManager
 import com.jaysay.coursetable.data.repository.CourseRepository
 import com.jaysay.coursetable.data.repository.TableData
+import com.jaysay.coursetable.data.storage.DataCorruptionException
+import com.jaysay.coursetable.data.storage.WriteProtectionGate
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -27,10 +29,13 @@ data class MainUiState(
     val preferences: AppPreferences = AppPreferences(),
     val activeTableIndex: Int = 0,
     val currentWeek: Int = 1,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    /** 非空时必须持续展示，且所有普通持久化入口处于只读保护。 */
+    val persistentDataError: String? = null
 ) {
     val activeTable: TableData get() = tables.getOrElse(activeTableIndex) { TableData.placeholder() }
     val courses: List<Course> get() = activeTable.courses
+    val isReadOnly: Boolean get() = persistentDataError != null
 }
 
 /**
@@ -40,25 +45,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = CourseRepository(application)
     private val preferencesManager = PreferencesManager(application)
     private val writeMutex = Mutex()
+    private val writeProtection = WriteProtectionGate()
 
     var state by mutableStateOf(MainUiState())
         private set
 
     init {
         viewModelScope.launch {
-            runCatching {
-                val preferences = preferencesManager.load()
-                val tables = repository.loadAllTables()
+            val tablesResult = runCatching { repository.loadAllTables() }
+            tablesResult.onSuccess { tables ->
+                // 偏好文件损坏不代表课表损坏；退回默认偏好，避免误锁课程数据。
+                val preferences = runCatching { preferencesManager.load() }.getOrDefault(AppPreferences())
                 val active = preferences.activeTableIndex.coerceIn(tables.indices)
-                MainUiState(
+                state = MainUiState(
                     tables = tables,
                     preferences = preferences.copy(activeTableIndex = active),
                     activeTableIndex = active,
                     currentWeek = TimeUtils.todayWeek(tables[active].semesterStart, tables[active].totalWeeks),
                     isLoading = false
                 )
-            }.onSuccess { state = it }
-                .onFailure { state = MainUiState(isLoading = false) }
+            }.onFailure { error ->
+                val message = when (error) {
+                    is DataCorruptionException -> error.message ?: "课表数据及其备份均无法读取"
+                    else -> "课表数据读取失败：${error.message ?: "未知错误"}"
+                }
+                writeProtection.lock(message)
+                state = MainUiState(isLoading = false, persistentDataError = message)
+            }
         }
     }
 
@@ -198,35 +211,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         backup: BackupData,
         onComplete: () -> Unit,
         onError: (Throwable) -> Unit = {}
-    ) = launchWrite(onError) {
+    ) = launchWrite(onError, allowWhenReadOnly = true) {
         val previous = state
+        val wasReadOnly = writeProtection.isReadOnly
         val active = backup.preferences.activeTableIndex.coerceIn(backup.tables.indices)
         val preferences = backup.preferences.copy(activeTableIndex = active)
         try {
-            repository.saveAllTables(backup.tables)
+            repository.restoreValidatedTables(backup.tables)
             preferencesManager.save(preferences)
         } catch (error: Throwable) {
             // 两个文件任一写入失败时尽力回滚，避免出现“课表已换、偏好未换”的半恢复状态。
-            runCatching { repository.saveAllTables(previous.tables) }
-                .onFailure(error::addSuppressed)
-            runCatching { preferencesManager.save(previous.preferences) }
-                .onFailure(error::addSuppressed)
+            // 数据损坏保护中绝不能用内存中的空占位课表覆盖磁盘；此时保留已恢复结果供重启读取。
+            if (!wasReadOnly) {
+                runCatching { repository.saveAllTables(previous.tables) }
+                    .onFailure(error::addSuppressed)
+                runCatching { preferencesManager.save(previous.preferences) }
+                    .onFailure(error::addSuppressed)
+            }
             throw error
         }
         val table = backup.tables[active]
+        writeProtection.unlockAfterValidatedRestore()
         state = state.copy(
             tables = backup.tables,
             preferences = preferences,
             activeTableIndex = active,
-            currentWeek = TimeUtils.todayWeek(table.semesterStart, table.totalWeeks)
+            currentWeek = TimeUtils.todayWeek(table.semesterStart, table.totalWeeks),
+            persistentDataError = null
         )
         onComplete()
     }
 
     private fun launchWrite(
         onError: (Throwable) -> Unit,
+        allowWhenReadOnly: Boolean = false,
         block: suspend () -> Unit
     ) = viewModelScope.launch {
-        runCatching { writeMutex.withLock { block() } }.onFailure(onError)
+        runCatching {
+            writeMutex.withLock {
+                if (!allowWhenReadOnly) writeProtection.requireWritable()
+                block()
+            }
+        }.onFailure(onError)
     }
 }

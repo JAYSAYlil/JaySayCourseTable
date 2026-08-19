@@ -41,11 +41,12 @@ class CourseRepository(context: Context) {
     }
 
     suspend fun saveAllTables(tables: List<TableData>) = withContext(Dispatchers.IO) {
-        val normalized = TableDataJson.normalize(tables)
-        val root = JSONObject()
-            .put("schemaVersion", SCHEMA_VERSION)
-            .put("tables", TableDataJson.toJson(normalized))
-        store.write(root.toString(2))
+        store.write(encodeTables(tables))
+    }
+
+    /** 仅供已经由 [com.jaysay.coursetable.data.backup.BackupCodec] 严格校验的完整备份恢复。 */
+    suspend fun restoreValidatedTables(tables: List<TableData>) = withContext(Dispatchers.IO) {
+        store.replaceWithValidated(encodeTables(tables))
     }
 
     suspend fun deleteTable(index: Int): List<TableData> {
@@ -61,9 +62,18 @@ class CourseRepository(context: Context) {
             // 兼容 2.2.2 及更早版本的顶层数组格式。
             JSONArray(text)
         } else {
-            JSONObject(text).optJSONArray("tables") ?: JSONArray()
+            JSONObject(text).optJSONArray("tables") ?: error("课表数据缺少 tables 数组")
         }
-        return TableDataJson.fromJson(array)
+        require(array.length() > 0) { "课表数据不能为空" }
+        return TableDataJson.fromJson(array, requireEveryRowValid = true)
+    }
+
+    private fun encodeTables(tables: List<TableData>): String {
+        val normalized = TableDataJson.normalize(tables)
+        return JSONObject()
+            .put("schemaVersion", SCHEMA_VERSION)
+            .put("tables", TableDataJson.toJson(normalized))
+            .toString(2)
     }
 
     private companion object {

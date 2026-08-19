@@ -36,14 +36,20 @@ fun SettingsScreen(
     onUpdateTable: ((TableData) -> Unit)? = null,
     onExportBackup: (sanitized: Boolean) -> Unit,
     onImportBackup: () -> Unit,
+    readOnlyMessage: String? = null,
     onBack: () -> Unit
 ) {
     // 拦截系统返回手势，回到主界面而非退出
     BackHandler(onBack = onBack)
 
     var table by remember(tableData) { mutableStateOf(tableData) }
-    fun save(new: AppPreferences) { onUpdatePrefs(new) }
-    fun saveTable(new: TableData) { table = new; onUpdateTable?.invoke(new) }
+    fun save(new: AppPreferences) { if (readOnlyMessage == null) onUpdatePrefs(new) }
+    fun saveTable(new: TableData) {
+        if (readOnlyMessage == null) {
+            table = new
+            onUpdateTable?.invoke(new)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -65,6 +71,20 @@ fun SettingsScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .padding(bottom = 80.dp) // 底部留空间避免遮挡
         ) {
+            readOnlyMessage?.let { message ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("课表数据处于只读保护", fontWeight = FontWeight.Bold)
+                        Text("$message\n普通设置已停用，请使用下方“从备份恢复”。", fontSize = 12.sp)
+                    }
+                }
+            }
+
             // ===== 外观模式 =====
             SettingsSection(title = "外观模式") {
                 val options = listOf(
@@ -306,6 +326,7 @@ fun SettingsScreen(
                     icon = Icons.Outlined.Backup,
                     title = "导出完整备份",
                     subtitle = "包含全部课表和备注，可用于恢复",
+                    enabled = readOnlyMessage == null,
                     onClick = { onExportBackup(false) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -313,6 +334,7 @@ fun SettingsScreen(
                     icon = Icons.Outlined.Share,
                     title = "导出脱敏副本",
                     subtitle = "移除教师、教室、班号、院系和备注，仅用于分享",
+                    enabled = readOnlyMessage == null,
                     onClick = { onExportBackup(true) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -332,18 +354,20 @@ private fun SettingsActionRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+        val contentAlpha = if (enabled) 1f else 0.38f
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = contentAlpha), modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp)
-            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha))
+            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha))
         }
         Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
     }

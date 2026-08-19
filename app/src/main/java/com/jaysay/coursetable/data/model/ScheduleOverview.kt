@@ -1,0 +1,123 @@
+package com.jaysay.coursetable.data.model
+
+import com.jaysay.coursetable.data.preferences.PeriodTime
+import java.time.DateTimeException
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import java.util.Locale
+
+enum class TodayAgendaPhase {
+    OUTSIDE_SEMESTER,
+    NO_COURSES,
+    BEFORE_FIRST,
+    IN_CLASS,
+    BETWEEN_CLASSES,
+    FINISHED,
+    INVALID_TIME
+}
+
+data class AgendaCourseSlot(
+    val course: Course,
+    val startMinute: Int,
+    val endMinute: Int
+)
+
+data class TodayAgenda(
+    val phase: TodayAgendaPhase,
+    val week: Int? = null,
+    val current: AgendaCourseSlot? = null,
+    val next: AgendaCourseSlot? = null,
+    val remainingCount: Int = 0,
+    val invalidCourseCount: Int = 0
+)
+
+/** 今日课程状态的纯 Kotlin 计算，不依赖 Compose 或系统时钟，便于覆盖边界测试。 */
+object TodayAgendaCalculator {
+    fun calculate(
+        courses: List<Course>,
+        periods: List<PeriodTime>,
+        semesterStart: String,
+        totalWeeks: Int,
+        date: LocalDate,
+        minuteOfDay: Int
+    ): TodayAgenda {
+        val week = semesterWeek(semesterStart, totalWeeks, date)
+            ?: return TodayAgenda(TodayAgendaPhase.OUTSIDE_SEMESTER)
+        val todayCourses = courses.filter { week in it.weeks && it.dayOfWeek == date.dayOfWeek.value }
+        if (todayCourses.isEmpty()) return TodayAgenda(TodayAgendaPhase.NO_COURSES, week = week)
+
+        var invalidCount = 0
+        val slots = todayCourses.mapNotNull { course ->
+            val start = periods.getOrNull(course.startPeriod - 1)?.start?.toMinuteOrNull()
+            val end = periods.getOrNull(course.endPeriod - 1)?.end?.toMinuteOrNull()
+            if (start == null || end == null || end <= start) {
+                invalidCount += 1
+                null
+            } else {
+                AgendaCourseSlot(course, start, end)
+            }
+        }.sortedWith(compareBy<AgendaCourseSlot> { it.startMinute }.thenBy { it.endMinute })
+
+        if (slots.isEmpty()) {
+            return TodayAgenda(
+                phase = TodayAgendaPhase.INVALID_TIME,
+                week = week,
+                invalidCourseCount = invalidCount
+            )
+        }
+
+        val now = minuteOfDay.coerceIn(0, 23 * 60 + 59)
+        val current = slots.firstOrNull { now >= it.startMinute && now < it.endMinute }
+        val next = slots.firstOrNull { it.startMinute > now }
+        val phase = when {
+            current != null -> TodayAgendaPhase.IN_CLASS
+            now < slots.first().startMinute -> TodayAgendaPhase.BEFORE_FIRST
+            next != null -> TodayAgendaPhase.BETWEEN_CLASSES
+            else -> TodayAgendaPhase.FINISHED
+        }
+        return TodayAgenda(
+            phase = phase,
+            week = week,
+            current = current,
+            next = if (current == null) next else slots.firstOrNull { it.startMinute >= current.endMinute },
+            remainingCount = slots.count { it.endMinute > now },
+            invalidCourseCount = invalidCount
+        )
+    }
+
+    fun semesterWeek(semesterStart: String, totalWeeks: Int, date: LocalDate): Int? {
+        if (totalWeeks <= 0) return null
+        val start = try {
+            LocalDate.parse(semesterStart)
+        } catch (_: DateTimeException) {
+            return null
+        }
+        val days = ChronoUnit.DAYS.between(start, date)
+        if (days < 0 || days >= totalWeeks.toLong() * 7L) return null
+        return (days / 7L + 1L).toInt()
+    }
+
+    private fun String.toMinuteOrNull(): Int? {
+        val match = TIME_PATTERN.matchEntire(this) ?: return null
+        val hour = match.groupValues[1].toInt()
+        val minute = match.groupValues[2].toInt()
+        if (hour !in 0..23 || minute !in 0..59) return null
+        return hour * 60 + minute
+    }
+
+    private val TIME_PATTERN = Regex("^(\\d{2}):(\\d{2})$")
+}
+
+/** 本地过滤只改变显示集合；空查询直接返回原列表实例。 */
+object CourseSearch {
+    fun filter(courses: List<Course>, query: String): List<Course> {
+        val terms = query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter(String::isNotBlank)
+        if (terms.isEmpty()) return courses
+        return courses.filter { course ->
+            val searchable = listOf(course.courseName, course.teacher, course.classroom)
+                .joinToString("\n")
+                .lowercase(Locale.ROOT)
+            terms.all(searchable::contains)
+        }
+    }
+}
