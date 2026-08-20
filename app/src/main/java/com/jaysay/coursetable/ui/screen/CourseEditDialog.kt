@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.CourseReminderMode
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
 import java.util.UUID
@@ -69,6 +70,9 @@ fun CourseEditDialog(
     var courseCat by remember(course) { mutableStateOf(course?.courseCategory ?: "") }
     var isOnline by remember(course) { mutableStateOf(course?.isOnline ?: false) }
     var assessMethod by remember(course) { mutableStateOf(course?.assessmentMethod ?: "") }
+    var reminderMode by remember(course) { mutableStateOf(course?.reminderMode ?: CourseReminderMode.INHERIT) }
+    var reminderMinutesOverride by remember(course) { mutableStateOf(course?.reminderMinutesOverride) }
+    var endReminderEnabled by remember(course) { mutableStateOf(course?.endReminderEnabled ?: false) }
     // 颜色索引：-1=不选，0-14=对应 CourseColors/DarkCourseColors
     var colorIdx by remember(course) { mutableIntStateOf(
         course?.customColor?.let { cc ->
@@ -242,6 +246,56 @@ fun CourseEditDialog(
                         label = { Text("备注") }, maxLines = 3,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp))
 
+                    Text("课程提醒", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            CourseReminderMode.INHERIT to "跟随全局",
+                            CourseReminderMode.ENABLED to "单独开启",
+                            CourseReminderMode.DISABLED to "单独关闭"
+                        ).forEach { (mode, label) ->
+                            FilterChip(
+                                selected = reminderMode == mode,
+                                onClick = { reminderMode = mode },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                    if (reminderMode != CourseReminderMode.DISABLED) {
+                        Text("提前时间", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = reminderMinutesOverride == null,
+                                onClick = { reminderMinutesOverride = null },
+                                label = { Text("跟随全局") }
+                            )
+                            listOf(5, 10, 15, 30).forEach { minutes ->
+                                FilterChip(
+                                    selected = reminderMinutesOverride == minutes,
+                                    onClick = { reminderMinutesOverride = minutes },
+                                    label = { Text("$minutes 分钟") }
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("下课时提醒", fontSize = 14.sp)
+                                Text("课程结束时发送一条本地通知", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(checked = endReminderEnabled, onCheckedChange = { endReminderEnabled = it })
+                        }
+                    }
+
                     // 应用到全部周（仅编辑模式）
                     if (!isNew) {
                         Row(
@@ -309,7 +363,10 @@ fun CourseEditDialog(
                             courseType = courseType.trim(), courseCategory = courseCat.trim(),
                             isOnline = isOnline, assessmentMethod = assessMethod.trim(),
                             customColor = selColor, notes = notes.trim(),
-                            seriesId = stableSeriesId
+                            seriesId = stableSeriesId,
+                            reminderMode = reminderMode,
+                            reminderMinutesOverride = reminderMinutesOverride,
+                            endReminderEnabled = endReminderEnabled
                         ), applyToAll)
                     }, modifier = Modifier.weight(1f).testTag("course-save-button"), shape = RoundedCornerShape(12.dp)) {
                         Text("保存", fontWeight = FontWeight.Bold)

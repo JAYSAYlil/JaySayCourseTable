@@ -5,6 +5,8 @@ import androidx.compose.runtime.Immutable
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
+enum class CourseReminderMode { INHERIT, ENABLED, DISABLED }
+
 @Immutable
 data class Course(
     val courseId: String,
@@ -28,7 +30,13 @@ data class Course(
      * 同一次课在不同周次拆分后的稳定系列标识。
      * 不参与界面展示；旧数据缺失时会由 [CourseSeriesIds] 自动补齐。
      */
-    val seriesId: String = ""
+    val seriesId: String = "",
+    /** 是否沿用全局提醒、单独开启或单独关闭。 */
+    val reminderMode: CourseReminderMode = CourseReminderMode.INHERIT,
+    /** 单课提前分钟数；null 表示沿用全局设置。 */
+    val reminderMinutesOverride: Int? = null,
+    /** 是否在课程结束时再发一条本地通知。 */
+    val endReminderEnabled: Boolean = false
 ) {
     /** 不包含周次和用户自定义字段的稳定身份，用于重复导入时合并周次。 */
     val importIdentityKey: String

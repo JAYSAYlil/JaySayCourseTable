@@ -11,8 +11,8 @@ android {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
         targetSdk = 34
-        versionCode = 81
-        versionName = "2.8.0"
+        versionCode = 82
+        versionName = "2.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 界面文案为中文硬编码；保留 zh 即可，移除误导性的 en（无英文资源）。
         resourceConfigurations += listOf("zh")
@@ -40,6 +40,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.13"

@@ -1,6 +1,8 @@
 package com.jaysay.coursetable.data.reminder
 
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.ScheduleDateException
+import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.util.TimeUtils
@@ -31,20 +33,21 @@ object ReminderCalculator {
         semesterStart: String,
         periods: List<PeriodTime>,
         week: Int,
-        excludedWeeks: Set<Int> = emptySet()
+        excludedWeeks: Set<Int> = emptySet(),
+        exceptions: List<ScheduleDateException> = emptyList()
     ): List<CourseInstance> {
-        if (week in excludedWeeks) return emptyList()
         val start = runCatching { LocalDate.parse(semesterStart) }.getOrNull() ?: return emptyList()
-        return courses
-            .filter { week in it.weeks }
-            .mapNotNull { course ->
+        return (0L..6L).flatMap { dayOffset ->
+            val date = start.plusDays((week - 1L) * 7L + dayOffset)
+            ScheduleDateResolver.coursesOn(courses, semesterStart, Int.MAX_VALUE, excludedWeeks, exceptions, date)
+        }.mapNotNull { resolved ->
+                val course = resolved.course
                 val startPeriod = periods.getOrNull(course.startPeriod - 1) ?: return@mapNotNull null
                 val endPeriod = periods.getOrNull(course.endPeriod - 1) ?: return@mapNotNull null
                 val startMinute = TimeUtils.parseMinuteOfDay(startPeriod.start) ?: return@mapNotNull null
                 val endMinute = TimeUtils.parseMinuteOfDay(endPeriod.end) ?: return@mapNotNull null
                 if (endMinute <= startMinute) return@mapNotNull null
-                val date = start.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1))
-                CourseInstance(course, week, date, startMinute, endMinute)
+                CourseInstance(course, resolved.week.takeIf { it > 0 } ?: week, resolved.date, startMinute, endMinute)
             }
             .sortedWith(compareBy<CourseInstance> { it.date }.thenBy { it.startMinute })
     }
@@ -60,7 +63,8 @@ object ReminderCalculator {
         periods: List<PeriodTime>,
         fromDate: LocalDate,
         days: Long,
-        excludedWeeks: Set<Int> = emptySet()
+        excludedWeeks: Set<Int> = emptySet(),
+        exceptions: List<ScheduleDateException> = emptyList()
     ): List<CourseInstance> {
         if (days <= 0) return emptyList()
         val lastDate = fromDate.plusDays(days - 1)
@@ -72,7 +76,7 @@ object ReminderCalculator {
             )
         }.distinct()
         return weeks.flatMap { week ->
-            courseInstances(courses, semesterStart, periods, week, excludedWeeks)
+            courseInstances(courses, semesterStart, periods, week, excludedWeeks, exceptions)
         }.filter { it.date in fromDate..lastDate }
             .sortedWith(compareBy<CourseInstance> { it.date }.thenBy { it.startMinute })
     }

@@ -14,6 +14,8 @@ import com.jaysay.coursetable.data.repository.TableData
 import java.time.LocalDateTime
 import java.time.ZoneId
 
+enum class ReminderEventKind { START, END }
+
 /**
  * 上课提醒调度器：按“学期周次 + 课程周次 + 节次时间”计算未来 7 天的课程实例，
  * 用 AlarmManager 精确（或近似）触发广播；提醒被触发时接收器会再次调度，
@@ -25,9 +27,12 @@ object ReminderScheduler {
     const val EXTRA_SERIES_KEY = "extra_series_key"
     const val EXTRA_WEEK = "extra_week"
     const val EXTRA_DAY_OF_WEEK = "extra_day_of_week"
+    const val EXTRA_DATE = "extra_date"
     const val EXTRA_TITLE = "extra_title"
     const val EXTRA_INFO = "extra_info"
     const val EXTRA_START_MINUTE = "extra_start_minute"
+    const val EXTRA_END_MINUTE = "extra_end_minute"
+    const val EXTRA_EVENT_KIND = "extra_event_kind"
 
     /** 覆盖今天至下周同一天，保证每周一次的课程也能接续下一条提醒。 */
     private const val SCHEDULE_WINDOW_DAYS = 8L
@@ -66,10 +71,11 @@ object ReminderScheduler {
     ) {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
         if (replaceExisting) cancelRegistered(context, alarmManager)
-        if (!preferences.reminderEnabled || tables.isEmpty()) return
+        if (tables.isEmpty()) return
 
         val activeIndex = preferences.activeTableIndex.coerceIn(tables.indices)
         val table = tables.getOrNull(activeIndex) ?: return
+        if (table.archived) return
         ensureChannel(context)
 
         val now = LocalDateTime.now()
@@ -81,13 +87,38 @@ object ReminderScheduler {
             periods = table.periods,
             fromDate = now.toLocalDate(),
             days = SCHEDULE_WINDOW_DAYS,
-            excludedWeeks = table.excludedWeeks.toSet()
-        ).mapNotNull { instance ->
-            val triggerMillis = ReminderCalculator.reminderAt(instance, preferences.reminderMinutes)
-                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            if (triggerMillis > nowMillis) {
-                ScheduledAlarm(activeIndex, instance, triggerMillis, requestCode(activeIndex, instance))
-            } else null
+            excludedWeeks = table.excludedWeeks.toSet(),
+            exceptions = table.dateExceptions
+        ).filter { instance ->
+            ReminderPolicy.isEnabled(instance.course, preferences) &&
+                !ReminderSuppression.isSuppressed(context, activeIndex, instance.week, instance.date)
+        }.flatMap { instance ->
+            buildList {
+                val startMillis = ReminderCalculator.reminderAt(
+                    instance,
+                    ReminderPolicy.advanceMinutes(instance.course, preferences)
+                ).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                if (startMillis > nowMillis) {
+                    add(
+                        ScheduledAlarm(
+                            activeIndex, instance, ReminderEventKind.START, startMillis,
+                            requestCode(activeIndex, instance, ReminderEventKind.START)
+                        )
+                    )
+                }
+                if (instance.course.endReminderEnabled) {
+                    val endMillis = instance.date.atTime(instance.endMinute / 60, instance.endMinute % 60)
+                        .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    if (endMillis > nowMillis) {
+                        add(
+                            ScheduledAlarm(
+                                activeIndex, instance, ReminderEventKind.END, endMillis,
+                                requestCode(activeIndex, instance, ReminderEventKind.END)
+                            )
+                        )
+                    }
+                }
+            }
         }
 
         // 先登记再调度；即使进程在中途终止，下次仍能取消已经提交给系统的部分闹钟。
@@ -118,6 +149,7 @@ object ReminderScheduler {
             putExtra(EXTRA_SERIES_KEY, instance.course.seriesKey)
             putExtra(EXTRA_WEEK, instance.week)
             putExtra(EXTRA_DAY_OF_WEEK, instance.course.dayOfWeek)
+            putExtra(EXTRA_DATE, instance.date.toString())
             putExtra(EXTRA_TITLE, instance.course.courseName)
             putExtra(
                 EXTRA_INFO,
@@ -127,6 +159,8 @@ object ReminderScheduler {
                 ).joinToString(" · ")
             )
             putExtra(EXTRA_START_MINUTE, instance.startMinute)
+            putExtra(EXTRA_END_MINUTE, instance.endMinute)
+            putExtra(EXTRA_EVENT_KIND, plan.kind.name)
         }
         val pending = PendingIntent.getBroadcast(
             context,
@@ -165,8 +199,8 @@ object ReminderScheduler {
         prefs.edit().remove(REGISTRY_CODES).commit()
     }
 
-    private fun requestCode(tableIndex: Int, instance: CourseInstance): Int =
-        "$tableIndex|${instance.course.seriesKey}|${instance.week}|${instance.course.dayOfWeek}".hashCode()
+    private fun requestCode(tableIndex: Int, instance: CourseInstance, kind: ReminderEventKind): Int =
+        "$tableIndex|${instance.course.seriesKey}|${instance.date}|$kind".hashCode()
 
     private fun registry(context: Context) =
         context.getSharedPreferences(REGISTRY_NAME, Context.MODE_PRIVATE)
@@ -174,16 +208,20 @@ object ReminderScheduler {
     private data class ScheduledAlarm(
         val tableIndex: Int,
         val instance: CourseInstance,
+        val kind: ReminderEventKind,
         val triggerMillis: Long,
         val requestCode: Int
     )
 
     /** 打开应用的通知：点击回到主界面。 */
-    fun buildOpenAppIntent(context: Context): PendingIntent =
+    fun buildOpenAppIntent(context: Context, tableIndex: Int, seriesKey: String): PendingIntent =
         PendingIntent.getActivity(
             context,
-            0,
-            Intent(context, MainActivity::class.java),
+            "$tableIndex|$seriesKey".hashCode(),
+            Intent(context, MainActivity::class.java).apply {
+                putExtra(EXTRA_TABLE_INDEX, tableIndex)
+                putExtra(EXTRA_SERIES_KEY, seriesKey)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 

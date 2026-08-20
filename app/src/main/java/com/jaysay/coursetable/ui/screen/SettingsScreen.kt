@@ -24,12 +24,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.model.CourseImportAnalyzer
 import com.jaysay.coursetable.data.preferences.*
+import com.jaysay.coursetable.data.reminder.ReminderCalculator
+import com.jaysay.coursetable.data.reminder.ReminderPolicy
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
 import java.util.*
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,9 +44,14 @@ fun SettingsScreen(
     onUpdatePrefs: (AppPreferences) -> Unit,
     onUpdateTable: ((TableData) -> Unit)? = null,
     onExportBackup: (sanitized: Boolean) -> Unit,
+    onExportEncryptedBackup: () -> Unit = {},
     onImportBackup: () -> Unit,
     onPasteImport: () -> Unit = {},
     onExportCalendar: () -> Unit = {},
+    onExportDiagnostics: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onOpenCalendarExceptions: () -> Unit = {},
+    onClearReminderPause: () -> Unit = {},
     tablesCount: Int = 1,
     readOnlyMessage: String? = null,
     onBack: () -> Unit
@@ -116,6 +126,48 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SettingsSection(title = "显示与无障碍") {
+                Text("课程信息密度", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(
+                        DisplayDensity.COMPACT to "紧凑",
+                        DisplayDensity.STANDARD to "标准",
+                        DisplayDensity.COMFORTABLE to "完整"
+                    ).forEach { (density, label) ->
+                        FilterChip(
+                            selected = preferences.displayDensity == density,
+                            onClick = { save(preferences.copy(displayDensity = density)) },
+                            label = { Text(label) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                PreferenceSwitchRow(
+                    title = "增强对比度",
+                    subtitle = "提高次要文字、边框和控件的可见度",
+                    checked = preferences.highContrast,
+                    onCheckedChange = { save(preferences.copy(highContrast = it)) }
+                )
+                PreferenceSwitchRow(
+                    title = "减少动态效果",
+                    subtitle = "缩短页面与周次切换动画",
+                    checked = preferences.reduceMotion,
+                    onCheckedChange = { save(preferences.copy(reduceMotion = it)) }
+                )
+                PreferenceSwitchRow(
+                    title = "小组件隐私模式",
+                    subtitle = "桌面不显示教师和教室",
+                    checked = preferences.widgetHideDetails,
+                    onCheckedChange = { save(preferences.copy(widgetHideDetails = it)) }
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -390,12 +442,37 @@ fun SettingsScreen(
                         }
                     )
                 }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsActionRow(
+                    icon = Icons.Outlined.EditCalendar,
+                    title = "具体日期与周标签",
+                    subtitle = "设置整日停课、单课取消、补课及考试周标签",
+                    enabled = readOnlyMessage == null,
+                    onClick = onOpenCalendarExceptions
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // ===== 上课提醒 =====
             SettingsSection(title = "上课提醒") {
+                val nextReminder = remember(table, preferences) {
+                    if (!preferences.reminderEnabled) null else {
+                        val now = LocalDateTime.now()
+                        ReminderCalculator.upcomingInstances(
+                            courses = table.courses,
+                            semesterStart = table.semesterStart,
+                            totalWeeks = table.totalWeeks,
+                            periods = table.periods,
+                            fromDate = LocalDate.now(),
+                            days = 31,
+                            excludedWeeks = table.excludedWeeks.toSet(),
+                            exceptions = table.dateExceptions
+                        ).asSequence().filter { ReminderPolicy.isEnabled(it.course, preferences) }
+                            .map { it to ReminderCalculator.reminderAt(it, ReminderPolicy.advanceMinutes(it.course, preferences)) }
+                            .firstOrNull { (_, time) -> time.isAfter(now) }
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -448,6 +525,20 @@ fun SettingsScreen(
                         }
                     }
                 }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text("下次提醒", fontSize = 15.sp)
+                    Text(
+                        nextReminder?.let { (instance, time) ->
+                            "${instance.course.courseName} · ${time.format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))}"
+                        } ?: if (preferences.reminderEnabled) "未来 31 天内没有待触发提醒" else "提醒已关闭",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = onClearReminderPause, contentPadding = PaddingValues(0.dp)) {
+                        Text("清除“今天/本周暂停”状态")
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -459,6 +550,14 @@ fun SettingsScreen(
                     subtitle = "包含全部课表和备注，可用于恢复",
                     enabled = readOnlyMessage == null,
                     onClick = { onExportBackup(false) }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsActionRow(
+                    icon = Icons.Outlined.Lock,
+                    title = "导出密码加密备份",
+                    subtitle = "使用密码加密全部课表，换机时可恢复",
+                    enabled = readOnlyMessage == null,
+                    onClick = onExportEncryptedBackup
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
@@ -474,6 +573,13 @@ fun SettingsScreen(
                     title = "从备份恢复",
                     subtitle = "先校验文件，再确认是否替换当前课表",
                     onClick = onImportBackup
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsActionRow(
+                    icon = Icons.Outlined.History,
+                    title = "本机历史版本",
+                    subtitle = "自动保留最近 10 次改动，可预览差异后恢复",
+                    onClick = onOpenHistory
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
@@ -518,8 +624,35 @@ fun SettingsScreen(
                         Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
                 }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsActionRow(
+                    icon = Icons.Outlined.BugReport,
+                    title = "导出脱敏诊断报告",
+                    subtitle = "仅包含版本、数量和异常统计，不含课程原文",
+                    onClick = onExportDiagnostics
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun PreferenceSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp)
+            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

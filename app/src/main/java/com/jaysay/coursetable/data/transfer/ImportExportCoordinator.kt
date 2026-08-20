@@ -1,12 +1,17 @@
 package com.jaysay.coursetable.data.transfer
 
 import android.net.Uri
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.jaysay.coursetable.MainViewModel
+import com.jaysay.coursetable.BuildConfig
 import com.jaysay.coursetable.data.backup.BackupCodec
 import com.jaysay.coursetable.data.backup.BackupData
+import com.jaysay.coursetable.data.backup.EncryptedBackupCodec
 import com.jaysay.coursetable.data.ical.IcsExporter
+import com.jaysay.coursetable.data.diagnostics.DiagnosticsEnvironment
+import com.jaysay.coursetable.data.diagnostics.DiagnosticsReportGenerator
 import com.jaysay.coursetable.data.parser.ExcelParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,6 +27,7 @@ class ImportExportCoordinator(
     private val model: MainViewModel,
     private val onPendingImport: (ExcelParser.ParseResult) -> Unit,
     private val onPendingBackupRestore: (BackupData) -> Unit,
+    private val onEncryptedBackupPasswordRequired: (Uri) -> Unit,
     private val showError: (String, Throwable) -> Unit,
     private val showToast: (String) -> Unit
 ) {
@@ -45,11 +51,16 @@ class ImportExportCoordinator(
         }
     }
 
-    fun handleBackupExport(uri: Uri, sanitized: Boolean) {
+    fun handleBackupExport(uri: Uri, sanitized: Boolean, password: CharArray? = null) {
         activity.lifecycleScope.launch {
             val result = runCatching {
                 val text = withContext(Dispatchers.Default) {
-                    BackupCodec.encode(model.backupSnapshot(), sanitized)
+                    if (password != null) {
+                        require(!sanitized) { "脱敏副本不需要密码加密" }
+                        EncryptedBackupCodec.encode(model.backupSnapshot(), password)
+                    } else {
+                        BackupCodec.encode(model.backupSnapshot(), sanitized)
+                    }
                 }
                 withContext(Dispatchers.IO) {
                     activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
@@ -58,12 +69,19 @@ class ImportExportCoordinator(
                 }
             }
             result.onSuccess {
-                showToast(if (sanitized) "脱敏副本已导出（不能用于恢复）" else "完整备份已导出")
+                showToast(
+                    when {
+                        sanitized -> "脱敏副本已导出（不能用于恢复）"
+                        password != null -> "密码加密备份已导出"
+                        else -> "完整备份已导出"
+                    }
+                )
             }.onFailure { showError("导出失败", it) }
+            password?.fill('\u0000')
         }
     }
 
-    fun handleBackupImport(uri: Uri) {
+    fun handleBackupImport(uri: Uri, password: CharArray? = null) {
         activity.lifecycleScope.launch {
             val decoded = runCatching {
                 withContext(Dispatchers.IO) {
@@ -77,13 +95,21 @@ class ImportExportCoordinator(
                             output.write(buffer, 0, count)
                             require(output.size() <= 10 * 1024 * 1024) { "备份文件过大" }
                         }
-                        BackupCodec.decode(output.toString(Charsets.UTF_8.name()))
+                        val text = output.toString(Charsets.UTF_8.name())
+                        if (EncryptedBackupCodec.isEncrypted(text)) {
+                            if (password == null) return@withContext null
+                            EncryptedBackupCodec.decode(text, password)
+                        } else {
+                            BackupCodec.decode(text)
+                        }
                     }
                 }
             }
             decoded.onSuccess { backup ->
-                onPendingBackupRestore(backup)
+                if (backup == null) onEncryptedBackupPasswordRequired(uri)
+                else onPendingBackupRestore(backup)
             }.onFailure { showError("备份校验失败，原课表未被替换", it) }
+            password?.fill('\u0000')
         }
     }
 
@@ -100,6 +126,32 @@ class ImportExportCoordinator(
             result.onSuccess {
                 showToast("日历已导出")
             }.onFailure { showError("导出失败", it) }
+        }
+    }
+
+    fun handleDiagnosticsExport(uri: Uri) {
+        activity.lifecycleScope.launch {
+            val result = runCatching {
+                val report = withContext(Dispatchers.Default) {
+                    DiagnosticsReportGenerator.generate(
+                        environment = DiagnosticsEnvironment(
+                            appVersionName = BuildConfig.VERSION_NAME,
+                            appVersionCode = BuildConfig.VERSION_CODE,
+                            androidApiLevel = Build.VERSION.SDK_INT,
+                            isDebugBuild = BuildConfig.DEBUG
+                        ),
+                        tables = model.state.tables,
+                        preferences = model.state.preferences
+                    ).toText()
+                }
+                withContext(Dispatchers.IO) {
+                    activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
+                        it.write(report)
+                    } ?: error("无法写入所选文件")
+                }
+            }
+            result.onSuccess { showToast("脱敏诊断报告已导出") }
+                .onFailure { showError("诊断报告导出失败", it) }
         }
     }
 }

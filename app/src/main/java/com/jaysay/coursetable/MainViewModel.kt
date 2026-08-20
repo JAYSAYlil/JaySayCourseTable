@@ -8,6 +8,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jaysay.coursetable.data.backup.BackupData
+import com.jaysay.coursetable.data.history.CourseSnapshotDiff
+import com.jaysay.coursetable.data.history.CourseSnapshotSummary
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseMerger
 import com.jaysay.coursetable.data.model.ImportMergeResult
@@ -19,10 +21,13 @@ import com.jaysay.coursetable.data.repository.CourseRepository
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.data.storage.DataCorruptionException
 import com.jaysay.coursetable.data.storage.WriteProtectionGate
+import com.jaysay.coursetable.data.transfer.ImportDraftStore
 import com.jaysay.coursetable.util.TimeUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Instant
 
 @Immutable
 data class MainUiState(
@@ -47,6 +52,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val preferencesManager = PreferencesManager(application)
     private val writeMutex = Mutex()
     private val writeProtection = WriteProtectionGate()
+    private val importDraftStore = ImportDraftStore(application)
 
     var state by mutableStateOf(MainUiState())
         private set
@@ -55,13 +61,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var stagedCourseImport by mutableStateOf<ExcelParser.ParseResult?>(null)
         private set
 
+    var historySnapshots by mutableStateOf<List<CourseSnapshotSummary>>(emptyList())
+        private set
+
     init {
         viewModelScope.launch {
             val tablesResult = runCatching { repository.loadAllTables() }
             tablesResult.onSuccess { tables ->
                 // 偏好文件损坏不代表课表损坏；退回默认偏好，避免误锁课程数据。
                 val preferences = runCatching { preferencesManager.load() }.getOrDefault(AppPreferences())
-                val active = preferences.activeTableIndex.coerceIn(tables.indices)
+                val requested = preferences.activeTableIndex.coerceIn(tables.indices)
+                val active = requested.takeIf { !tables[it].archived }
+                    ?: tables.indexOfFirst { !it.archived }.takeIf { it >= 0 }
+                    ?: requested
                 state = MainUiState(
                     tables = tables,
                     preferences = preferences.copy(activeTableIndex = active),
@@ -69,6 +81,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     currentWeek = TimeUtils.todayWeek(tables[active].semesterStart, tables[active].totalWeeks),
                     isLoading = false
                 )
+                stagedCourseImport = runCatching { importDraftStore.load() }.getOrNull()
             }.onFailure { error ->
                 val message = when (error) {
                     is DataCorruptionException -> error.message ?: "课表数据及其备份均无法读取"
@@ -86,10 +99,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stageCourseImport(result: ExcelParser.ParseResult) {
         stagedCourseImport = result
+        viewModelScope.launch(Dispatchers.IO) { runCatching { importDraftStore.save(result) } }
     }
 
     fun clearStagedCourseImport() {
         stagedCourseImport = null
+        viewModelScope.launch(Dispatchers.IO) { runCatching { importDraftStore.clear() } }
     }
 
     fun locateToday() {
@@ -164,7 +179,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectTable(index: Int, onError: (Throwable) -> Unit = {}) = launchWrite(onError) {
-        if (index !in state.tables.indices) return@launchWrite
+        if (index !in state.tables.indices || state.tables[index].archived) return@launchWrite
         val preferences = state.preferences.copy(activeTableIndex = index)
         preferencesManager.save(preferences)
         val table = state.tables[index]
@@ -177,12 +192,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTable(index: Int, onError: (Throwable) -> Unit = {}) = launchWrite(onError) {
         if (state.tables.size <= 1 || index !in state.tables.indices) return@launchWrite
+        if (!state.tables[index].archived && state.tables.count { !it.archived } <= 1) {
+            throw IllegalStateException("至少需要保留一张使用中的课表")
+        }
         val tables = state.tables.toMutableList().also { it.removeAt(index) }
-        val active = when {
+        val preferredActive = when {
             index < state.activeTableIndex -> state.activeTableIndex - 1
             state.activeTableIndex >= tables.size -> tables.lastIndex
             else -> state.activeTableIndex
         }.coerceAtLeast(0)
+        val active = preferredActive.takeIf { it in tables.indices && !tables[it].archived }
+            ?: tables.indexOfFirst { !it.archived }
         val preferences = state.preferences.copy(activeTableIndex = active)
         repository.saveAllTables(tables)
         preferencesManager.save(preferences)
@@ -207,6 +227,68 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.saveAllTables(tables)
         state = state.copy(tables = tables)
     }
+
+    fun duplicateTable(index: Int, onError: (Throwable) -> Unit = {}) = launchWrite(onError) {
+        val source = state.tables.getOrNull(index) ?: return@launchWrite
+        val copy = source.copy(
+            name = "${source.name} 副本",
+            archived = false,
+            archivedAt = null
+        )
+        val tables = state.tables + copy
+        repository.saveAllTables(tables)
+        state = state.copy(tables = tables)
+    }
+
+    fun setTableArchived(index: Int, archived: Boolean, onError: (Throwable) -> Unit = {}) = launchWrite(onError) {
+        val target = state.tables.getOrNull(index) ?: return@launchWrite
+        if (target.archived == archived) return@launchWrite
+        if (archived && state.tables.count { !it.archived } <= 1) {
+            throw IllegalStateException("至少需要保留一张使用中的课表")
+        }
+        val tables = state.tables.toMutableList()
+        tables[index] = target.copy(
+            archived = archived,
+            archivedAt = if (archived) Instant.now().toString() else null
+        )
+        var active = state.activeTableIndex
+        if (archived && active == index) active = tables.indexOfFirst { !it.archived }
+        val preferences = state.preferences.copy(activeTableIndex = active)
+        repository.saveAllTables(tables)
+        preferencesManager.save(preferences)
+        state = state.copy(tables = tables, preferences = preferences, activeTableIndex = active)
+        locateToday()
+    }
+
+    fun refreshHistory(onError: (Throwable) -> Unit = {}) = viewModelScope.launch {
+        runCatching { repository.listSnapshots() }
+            .onSuccess { historySnapshots = it }
+            .onFailure(onError)
+    }
+
+    fun previewHistory(id: String, onResult: (CourseSnapshotDiff) -> Unit, onError: (Throwable) -> Unit = {}) =
+        viewModelScope.launch {
+            runCatching { repository.previewSnapshot(id) }.onSuccess(onResult).onFailure(onError)
+        }
+
+    fun restoreHistory(id: String, onComplete: () -> Unit = {}, onError: (Throwable) -> Unit = {}) =
+        launchWrite(onError, allowWhenReadOnly = true) {
+            val tables = repository.restoreSnapshot(id)
+            val active = state.activeTableIndex.coerceIn(tables.indices).takeIf { !tables[it].archived }
+                ?: tables.indexOfFirst { !it.archived }.takeIf { it >= 0 } ?: 0
+            val preferences = state.preferences.copy(activeTableIndex = active)
+            preferencesManager.save(preferences)
+            writeProtection.unlockAfterValidatedRestore()
+            state = state.copy(
+                tables = tables,
+                preferences = preferences,
+                activeTableIndex = active,
+                currentWeek = TimeUtils.todayWeek(tables[active].semesterStart, tables[active].totalWeeks),
+                persistentDataError = null
+            )
+            historySnapshots = repository.listSnapshots()
+            onComplete()
+        }
 
     fun backupSnapshot(): BackupData = BackupData(state.tables, state.preferences)
 

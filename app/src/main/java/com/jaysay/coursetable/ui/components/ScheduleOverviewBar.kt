@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -63,6 +64,7 @@ fun ScheduleOverviewBar(
     onAddCourseClick: () -> Unit,
     onImportClick: () -> Unit,
     onLocateToday: () -> Unit,
+    onAgendaClick: () -> Unit = {},
     onSettingsClick: () -> Unit,
     writesEnabled: Boolean = true
 ) {
@@ -151,6 +153,11 @@ fun ScheduleOverviewBar(
                             onClick = { moreActionsVisible = false; onLocateToday() }
                         )
                         DropdownMenuItem(
+                            text = { Text("日程列表") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, null) },
+                            onClick = { moreActionsVisible = false; onAgendaClick() }
+                        )
+                        DropdownMenuItem(
                             text = { Text("设置") },
                             leadingIcon = { Icon(Icons.Default.Settings, null) },
                             onClick = { moreActionsVisible = false; onSettingsClick() }
@@ -158,6 +165,9 @@ fun ScheduleOverviewBar(
                     }
                 }
             } else {
+                IconButton(onClick = onAgendaClick, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "日程列表", tint = MaterialTheme.colorScheme.primary)
+                }
                 IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.MyLocation, "定位到今天", tint = MaterialTheme.colorScheme.primary)
                 }

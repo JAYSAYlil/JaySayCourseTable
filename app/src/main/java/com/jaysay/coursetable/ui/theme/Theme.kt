@@ -36,14 +36,23 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun JaySayTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+fun JaySayTheme(
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    highContrast: Boolean = false,
+    content: @Composable () -> Unit
+) {
     val systemDark = isSystemInDarkTheme()
     val isDark = when (themeMode) {
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
         ThemeMode.SYSTEM -> systemDark
     }
-    val colors = if (isDark) DarkColors else LightColors
+    val baseColors = if (isDark) DarkColors else LightColors
+    val colors = if (highContrast) baseColors.copy(
+        onSurfaceVariant = baseColors.onSurface,
+        outline = baseColors.onSurface,
+        outlineVariant = baseColors.onSurface.copy(alpha = 0.7f)
+    ) else baseColors
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {

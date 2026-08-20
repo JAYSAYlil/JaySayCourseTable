@@ -1,7 +1,6 @@
 package com.jaysay.coursetable.data.ical
 
-import com.jaysay.coursetable.data.model.Course
-import com.jaysay.coursetable.data.preferences.PeriodTime
+import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.Instant
@@ -32,21 +31,27 @@ object IcsExporter {
         )
         val stamp = stampFormat.format(generatedAt)
 
-        table.courses.forEach { course ->
-            course.weeks.forEach weekLoop@ { week ->
-                if (week !in 1..table.totalWeeks) return@weekLoop
-                if (week in table.excludedWeeks) return@weekLoop
-                val date = runCatching { LocalDate.parse(table.semesterStart) }
-                    .getOrNull()?.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1))
-                    ?: return@weekLoop
+        val semesterStart = runCatching { LocalDate.parse(table.semesterStart) }.getOrNull()
+        val regularEnd = semesterStart?.plusDays(table.totalWeeks * 7L - 1L)
+        val exceptionDates = table.dateExceptions.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
+        val exceptionEnd = exceptionDates.maxOrNull()
+        val exportEnd = listOfNotNull(regularEnd, exceptionEnd).maxOrNull()
+        val exportStart = listOfNotNull(semesterStart, exceptionDates.minOrNull()).minOrNull()
+        if (exportStart != null && exportEnd != null) {
+            generateSequence(exportStart) { it.plusDays(1) }.takeWhile { !it.isAfter(exportEnd) }.forEach { date ->
+                ScheduleDateResolver.coursesOn(
+                    table.courses, table.semesterStart, table.totalWeeks,
+                    table.excludedWeeks.toSet(), table.dateExceptions, date
+                ).forEach courseLoop@ { resolved ->
+                val course = resolved.course
                 val start = table.periods.getOrNull(course.startPeriod - 1)?.start
-                    ?.let(TimeUtils::parseMinuteOfDay) ?: return@weekLoop
+                    ?.let(TimeUtils::parseMinuteOfDay) ?: return@courseLoop
                 val end = table.periods.getOrNull(course.endPeriod - 1)?.end
-                    ?.let(TimeUtils::parseMinuteOfDay) ?: return@weekLoop
-                if (end <= start) return@weekLoop
+                    ?.let(TimeUtils::parseMinuteOfDay) ?: return@courseLoop
+                if (end <= start) return@courseLoop
                 val datePrefix = date.format(dateFormat) + "T"
                 lines += "BEGIN:VEVENT"
-                lines += "UID:${escape(course.seriesKey)}-$week@jaysay-coursetable"
+                lines += "UID:${escape(course.seriesKey)}-${date.format(dateFormat)}@jaysay-coursetable"
                 lines += "DTSTAMP:$stamp"
                 lines += "DTSTART:$datePrefix${start.asIcsTime()}"
                 lines += "DTEND:$datePrefix${end.asIcsTime()}"
@@ -59,6 +64,7 @@ object IcsExporter {
                 }
                 lines += "TRANSP:OPAQUE"
                 lines += "END:VEVENT"
+            }
             }
         }
         lines += "END:VCALENDAR"

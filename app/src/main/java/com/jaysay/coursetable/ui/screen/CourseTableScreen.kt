@@ -87,9 +87,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseSearch
+import com.jaysay.coursetable.data.model.ScheduleDateException
+import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.AppPreferences
+import com.jaysay.coursetable.data.preferences.DisplayDensity
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
 import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
@@ -167,10 +170,15 @@ fun CourseTableScreen(
     semesterStart: String = TimeUtils.todayDate(),
     totalWeeks: Int = 20,
     excludedWeeks: List<Int> = emptyList(),
+    dateExceptions: List<ScheduleDateException> = emptyList(),
+    weekLabels: Map<Int, String> = emptyMap(),
+    displayDensity: DisplayDensity = DisplayDensity.STANDARD,
+    reduceMotion: Boolean = false,
     viewMode: ScheduleViewMode,
     onViewModeChange: (ScheduleViewMode) -> Unit,
     focusedDay: Int,
     onFocusedDayChange: (Int) -> Unit,
+    onAgendaClick: () -> Unit = {},
     readOnlyMessage: String? = null,
     onRecoveryClick: () -> Unit = {}
 ) {
@@ -188,7 +196,7 @@ fun CourseTableScreen(
     }
     val todayDow = today.dayOfWeek.value
     val excludedWeekSet = remember(excludedWeeks) { excludedWeeks.toSet() }
-    val agenda = remember(courses, periodTimes, semesterStart, totalWeeks, today, currentMinute, excludedWeekSet) {
+    val agenda = remember(courses, periodTimes, semesterStart, totalWeeks, today, currentMinute, excludedWeekSet, dateExceptions) {
         TodayAgendaCalculator.calculate(
             courses = courses,
             periods = periodTimes,
@@ -196,7 +204,8 @@ fun CourseTableScreen(
             totalWeeks = totalWeeks,
             date = today,
             minuteOfDay = currentMinute,
-            excludedWeeks = excludedWeekSet
+            excludedWeeks = excludedWeekSet,
+            exceptions = dateExceptions
         )
     }
     var searchQuery by remember { mutableStateOf("") }
@@ -217,10 +226,15 @@ fun CourseTableScreen(
     }
     // The seven-day columns are narrow, so they need more vertical room to show
     // course, teacher and classroom text without truncation.
-    val cellHeight = when (viewMode) {
+    val baseCellHeight = when (viewMode) {
         ScheduleViewMode.WEEK -> 106.dp
         ScheduleViewMode.WORK_WEEK -> 116.dp
         ScheduleViewMode.DAY -> 100.dp
+    }
+    val cellHeight = baseCellHeight * when (displayDensity) {
+        DisplayDensity.COMPACT -> 0.86f
+        DisplayDensity.STANDARD -> 1f
+        DisplayDensity.COMFORTABLE -> 1.18f
     }
     val isExcludedWeek = currentWeek in excludedWeekSet
     val weekCourses = remember(displayedCourses, currentWeek, excludedWeekSet) {
@@ -249,6 +263,7 @@ fun CourseTableScreen(
             onAddCourseClick = onAddCourseClick,
             onImportClick = onImportClick,
             onLocateToday = onLocateToday,
+            onAgendaClick = onAgendaClick,
             onSettingsClick = onSettingsClick,
             writesEnabled = readOnlyMessage == null
         )
@@ -300,7 +315,8 @@ fun CourseTableScreen(
                                 maxLines = 1
                             )
                             Text(
-                                text = "${weekCourses.size} 门课程" + if (isTodayWeek) " · 本周" else "",
+                                text = weekLabels[currentWeek]?.let { "$it · ${weekCourses.size} 门" }
+                                    ?: ("${weekCourses.size} 门课程" + if (isTodayWeek) " · 本周" else ""),
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 10.sp,
                                 color = if (isTodayWeek) MaterialTheme.colorScheme.primary
@@ -464,12 +480,14 @@ fun CourseTableScreen(
                 targetState = currentWeek,
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 transitionSpec = {
+                    val enterMs = if (reduceMotion) 0 else 210
+                    val fadeMs = if (reduceMotion) 0 else 180
                     if (targetState > initialState) {
-                        (slideInHorizontally(tween(210)) { it / 3 } + fadeIn(tween(180))) togetherWith
-                            (slideOutHorizontally(tween(180)) { -it / 4 } + fadeOut(tween(140)))
+                        (slideInHorizontally(tween(enterMs)) { it / 3 } + fadeIn(tween(fadeMs))) togetherWith
+                            (slideOutHorizontally(tween(fadeMs)) { -it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
                     } else {
-                        (slideInHorizontally(tween(210)) { -it / 3 } + fadeIn(tween(180))) togetherWith
-                            (slideOutHorizontally(tween(180)) { it / 4 } + fadeOut(tween(140)))
+                        (slideInHorizontally(tween(enterMs)) { -it / 3 } + fadeIn(tween(fadeMs))) togetherWith
+                            (slideOutHorizontally(tween(fadeMs)) { it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
                     }
                 },
                 label = "weekContent"
@@ -497,7 +515,16 @@ fun CourseTableScreen(
                         .verticalScroll(scrollState)
                 ) {
                     TableGrid(
-                        courses = displayedCourses.filter { displayedWeek in it.weeks },
+                        courses = remember(displayedCourses, displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
+                            val start = runCatching { LocalDate.parse(semesterStart) }.getOrNull()
+                            if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
+                                val date = start.plusDays((displayedWeek - 1L) * 7L + dayOffset)
+                                ScheduleDateResolver.coursesOn(
+                                    displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+                                ).filter { CourseSearch.filter(listOf(it.course), searchQuery).isNotEmpty() }
+                                    .map { resolved -> resolved.course.copy(dayOfWeek = dayOffset.toInt() + 1) }
+                            }
+                        },
                         colorMap = colorMap,
                         visibleDays = visibleDays,
                         timeWidth = timeWidth,

@@ -31,6 +31,8 @@ fun TableManageScreen(
     onDelete: (Int) -> Unit,
     onAdd: () -> Unit,
     onRename: (Int, String) -> Unit,
+    onDuplicate: (Int) -> Unit,
+    onArchive: (Int, Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
@@ -79,7 +81,9 @@ fun TableManageScreen(
                         selected = idx == activeIndex
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onSelect(idx) }.padding(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable(enabled = !table.archived) { onSelect(idx) }
+                                .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -103,12 +107,27 @@ fun TableManageScreen(
                             } else {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(table.name, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                                    Text(table.courses.size.toString() + " 门课程", fontSize = 13.sp,
+                                    Text(
+                                        table.courses.size.toString() + " 门课程" + if (table.archived) " · 已归档" else "",
+                                        fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 IconButton(onClick = {
                                     editName = table.name; editing = true
                                 }) { Icon(Icons.Outlined.Edit, "编辑", modifier = Modifier.size(20.dp)) }
+                            }
+
+                            if (!editing) {
+                                IconButton(onClick = { onDuplicate(idx) }, modifier = Modifier.size(44.dp)) {
+                                    Icon(Icons.Outlined.ContentCopy, "复制课表", modifier = Modifier.size(20.dp))
+                                }
+                                IconButton(onClick = { onArchive(idx, !table.archived) }, modifier = Modifier.size(44.dp)) {
+                                    Icon(
+                                        if (table.archived) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
+                                        if (table.archived) "取消归档" else "归档课表",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
 
                             if (tables.size > 1 && !editing) {

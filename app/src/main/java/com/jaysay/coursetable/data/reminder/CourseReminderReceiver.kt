@@ -12,12 +12,14 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.jaysay.coursetable.R
+import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.data.repository.CourseRepository
 import com.jaysay.coursetable.data.preferences.PreferencesManager
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
  * 提醒广播接收器：触发时先校验提醒仍有效（课程仍存在、该周有课、提醒仍启用），
@@ -37,31 +39,59 @@ class CourseReminderReceiver : BroadcastReceiver() {
 
     private suspend fun deliver(context: Context, intent: Intent) {
         val tableIndex = intent.getIntExtra(ReminderScheduler.EXTRA_TABLE_INDEX, -1)
-        val seriesKey = intent.getStringExtra(ReminderScheduler.EXTRA_SERIES_KEY) ?: return
         val week = intent.getIntExtra(ReminderScheduler.EXTRA_WEEK, -1)
-        val dayOfWeek = intent.getIntExtra(ReminderScheduler.EXTRA_DAY_OF_WEEK, -1)
+        val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
+        if (intent.action == ACTION_MUTE_TODAY || intent.action == ACTION_MUTE_WEEK) {
+            if (tableIndex < 0) return
+            if (intent.action == ACTION_MUTE_TODAY) ReminderSuppression.muteToday(context, tableIndex)
+            else if (week > 0) ReminderSuppression.muteWeek(context, tableIndex, week)
+            if (notificationId >= 0) NotificationManagerCompat.from(context).cancel(notificationId)
+            val preferences = runCatching { PreferencesManager(context).load() }.getOrDefault(
+                com.jaysay.coursetable.data.preferences.AppPreferences()
+            )
+            val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull() ?: return
+            ReminderScheduler.rescheduleAll(context, tables, preferences)
+            return
+        }
+        val seriesKey = intent.getStringExtra(ReminderScheduler.EXTRA_SERIES_KEY) ?: return
+        val instanceDate = intent.getStringExtra(ReminderScheduler.EXTRA_DATE)
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return
         val title = intent.getStringExtra(ReminderScheduler.EXTRA_TITLE) ?: return
         val info = intent.getStringExtra(ReminderScheduler.EXTRA_INFO).orEmpty()
         val startMinute = intent.getIntExtra(ReminderScheduler.EXTRA_START_MINUTE, -1)
+        val endMinute = intent.getIntExtra(ReminderScheduler.EXTRA_END_MINUTE, -1)
+        val eventKind = runCatching {
+            ReminderEventKind.valueOf(intent.getStringExtra(ReminderScheduler.EXTRA_EVENT_KIND).orEmpty())
+        }.getOrDefault(ReminderEventKind.START)
 
         val preferences = runCatching { PreferencesManager(context).load() }.getOrDefault(
             com.jaysay.coursetable.data.preferences.AppPreferences()
         )
         val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull() ?: return
-        if (!preferences.reminderEnabled) return
         if (preferences.activeTableIndex != tableIndex) return
         val table = tables.getOrNull(tableIndex) ?: return
         // 校验该课程在本周确实仍有课（用户删除/修改后旧闹钟不得再打扰）。
-        val stillValid = table.courses.any { course ->
+        val resolvedCourses = ScheduleDateResolver.coursesOn(
+            table.courses,
+            table.semesterStart,
+            table.totalWeeks,
+            table.excludedWeeks.toSet(),
+            table.dateExceptions,
+            instanceDate
+        ).map { it.course }
+        val validCourse = resolvedCourses.firstOrNull { course ->
             val currentStartMinute = table.periods.getOrNull(course.startPeriod - 1)?.start
                 ?.let(TimeUtils::parseMinuteOfDay)
+            val currentEndMinute = table.periods.getOrNull(course.endPeriod - 1)?.end
+                ?.let(TimeUtils::parseMinuteOfDay)
             course.seriesKey == seriesKey &&
-                week in course.weeks &&
-                week !in table.excludedWeeks &&
-                course.dayOfWeek == dayOfWeek &&
-                currentStartMinute == startMinute
+                currentStartMinute == startMinute &&
+                currentEndMinute == endMinute &&
+                ReminderPolicy.isEnabled(course, preferences) &&
+                (eventKind != ReminderEventKind.END || course.endReminderEnabled)
         }
-        if (!stillValid) return
+        if (validCourse == null) return
+        if (ReminderSuppression.isSuppressed(context, tableIndex, week, instanceDate)) return
 
         // 滚动续排：保证不打开应用也能持续收到后续提醒。
         ReminderScheduler.extendWindow(context, tables, preferences)
@@ -73,20 +103,76 @@ class CourseReminderReceiver : BroadcastReceiver() {
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
         if (canNotify) {
-            val notification = buildNotification(context, title, info, startMinute)
-            runCatching { NotificationManagerCompat.from(context).notify(intent.hashCode(), notification) }
+            val id = notificationId(tableIndex, seriesKey, week, eventKind)
+            val notification = buildNotification(
+                context, title, info, startMinute, endMinute, eventKind, tableIndex, seriesKey, week, id
+            )
+            runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
         }
     }
 
-    private fun buildNotification(context: Context, title: String, info: String, startMinute: Int): Notification {
-        val timeText = if (startMinute >= 0) " ${TimeUtils.formatMinuteOfDay(startMinute)} 开始" else ""
+    private fun buildNotification(
+        context: Context,
+        title: String,
+        info: String,
+        startMinute: Int,
+        endMinute: Int,
+        eventKind: ReminderEventKind,
+        tableIndex: Int,
+        seriesKey: String,
+        week: Int,
+        notificationId: Int
+    ): Notification {
+        val timeText = when (eventKind) {
+            ReminderEventKind.START -> if (startMinute >= 0) " ${TimeUtils.formatMinuteOfDay(startMinute)} 开始" else ""
+            ReminderEventKind.END -> if (endMinute >= 0) " ${TimeUtils.formatMinuteOfDay(endMinute)} 结束" else ""
+        }
+        val prefix = if (eventKind == ReminderEventKind.START) "即将上课" else "课程已结束"
         return NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText("即将上课$timeText" + if (info.isNotBlank()) " · $info" else "")
-            .setContentIntent(ReminderScheduler.buildOpenAppIntent(context))
+            .setContentText(prefix + timeText + if (info.isNotBlank()) " · $info" else "")
+            .setContentIntent(ReminderScheduler.buildOpenAppIntent(context, tableIndex, seriesKey))
+            .addAction(0, "今天不再提醒", suppressionIntent(
+                context, ACTION_MUTE_TODAY, tableIndex, week, seriesKey, notificationId
+            ))
+            .addAction(0, "本周暂停", suppressionIntent(
+                context, ACTION_MUTE_WEEK, tableIndex, week, seriesKey, notificationId
+            ))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
+    }
+
+    private fun suppressionIntent(
+        context: Context,
+        action: String,
+        tableIndex: Int,
+        week: Int,
+        seriesKey: String,
+        notificationId: Int
+    ): PendingIntent = PendingIntent.getBroadcast(
+        context,
+        "$action|$tableIndex|$week|$seriesKey".hashCode(),
+        Intent(context, CourseReminderReceiver::class.java).apply {
+            this.action = action
+            putExtra(ReminderScheduler.EXTRA_TABLE_INDEX, tableIndex)
+            putExtra(ReminderScheduler.EXTRA_WEEK, week)
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+        },
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun notificationId(
+        tableIndex: Int,
+        seriesKey: String,
+        week: Int,
+        eventKind: ReminderEventKind
+    ): Int = "$tableIndex|$seriesKey|$week|$eventKind".hashCode()
+
+    private companion object {
+        const val ACTION_MUTE_TODAY = "com.jaysay.coursetable.action.MUTE_REMINDERS_TODAY"
+        const val ACTION_MUTE_WEEK = "com.jaysay.coursetable.action.MUTE_REMINDERS_WEEK"
+        const val EXTRA_NOTIFICATION_ID = "extra_notification_id"
     }
 }

@@ -21,6 +21,7 @@ fun defaultPeriodTimes() = listOf(
 )
 
 enum class ThemeMode { LIGHT, DARK, SYSTEM }
+enum class DisplayDensity { COMPACT, STANDARD, COMFORTABLE }
 
 /** 全局设置只保存真正跨课表的状态；学期与节次属于各自课表。 */
 @Immutable
@@ -30,7 +31,11 @@ data class AppPreferences(
     /** 是否启用上课提醒。 */
     val reminderEnabled: Boolean = false,
     /** 上课前提前提醒分钟数（5/10/15/30）。 */
-    val reminderMinutes: Int = 10
+    val reminderMinutes: Int = 10,
+    val displayDensity: DisplayDensity = DisplayDensity.STANDARD,
+    val reduceMotion: Boolean = false,
+    val highContrast: Boolean = false,
+    val widgetHideDetails: Boolean = false
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -51,6 +56,10 @@ class PreferencesManager(context: Context) {
             .put("activeTableIndex", prefs.activeTableIndex.coerceAtLeast(0))
             .put("reminderEnabled", prefs.reminderEnabled)
             .put("reminderMinutes", prefs.reminderMinutes.coerceIn(1, 60))
+            .put("displayDensity", prefs.displayDensity.name)
+            .put("reduceMotion", prefs.reduceMotion)
+            .put("highContrast", prefs.highContrast)
+            .put("widgetHideDetails", prefs.widgetHideDetails)
         store.write(obj.toString(2))
     }
 
@@ -62,11 +71,17 @@ class PreferencesManager(context: Context) {
             themeMode = theme,
             activeTableIndex = obj.optInt("activeTableIndex", 0).coerceAtLeast(0),
             reminderEnabled = obj.optBoolean("reminderEnabled", false),
-            reminderMinutes = obj.optInt("reminderMinutes", 10).coerceIn(1, 60)
+            reminderMinutes = obj.optInt("reminderMinutes", 10).coerceIn(1, 60),
+            displayDensity = runCatching {
+                DisplayDensity.valueOf(obj.optString("displayDensity", DisplayDensity.STANDARD.name))
+            }.getOrDefault(DisplayDensity.STANDARD),
+            reduceMotion = obj.optBoolean("reduceMotion", false),
+            highContrast = obj.optBoolean("highContrast", false),
+            widgetHideDetails = obj.optBoolean("widgetHideDetails", false)
         )
     }
 
     private companion object {
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
     }
 }

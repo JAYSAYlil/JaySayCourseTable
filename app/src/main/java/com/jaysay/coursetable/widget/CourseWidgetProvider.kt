@@ -7,6 +7,8 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
+import android.view.View
 import android.widget.RemoteViews
 import com.jaysay.coursetable.MainActivity
 import com.jaysay.coursetable.R
@@ -15,6 +17,8 @@ import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PreferencesManager
+import com.jaysay.coursetable.data.reminder.ReminderCalculator
+import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import com.jaysay.coursetable.data.repository.CourseRepository
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +56,15 @@ class CourseWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle
+    ) {
+        onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
+    }
+
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         cancelScheduledRefresh(context)
@@ -61,41 +74,88 @@ class CourseWidgetProvider : AppWidgetProvider() {
         if (appWidgetIds.isEmpty()) return
         val preferences = runCatching { PreferencesManager(context).load() }.getOrDefault(AppPreferences())
         val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull()
-        val table = tables?.getOrNull(preferences.activeTableIndex.coerceIn(tables.indices))
+        val preferredIndex = tables?.let { preferences.activeTableIndex.coerceIn(it.indices) } ?: -1
+        val activeIndex = tables?.let { list ->
+            preferredIndex.takeIf { it in list.indices && !list[it].archived }
+                ?: list.indexOfFirst { !it.archived }
+        } ?: -1
+        val table = tables?.getOrNull(activeIndex)
 
-        val views = RemoteViews(context.packageName, R.layout.widget_course)
         var agenda: TodayAgenda? = null
+        var tableName = "JaySay 课表"
+        var summary = "暂无课表数据"
+        var detail = "点击打开应用"
+        var targetSeries: String? = null
         if (table == null) {
-            views.setTextViewText(R.id.widget_table_name, "JaySay 课表")
-            views.setTextViewText(R.id.widget_summary, "暂无课表数据")
-            views.setTextViewText(R.id.widget_detail, "点击打开应用")
+            // 保留默认占位文案。
         } else {
             val nowMinute = Calendar.getInstance().let {
                 it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE)
             }
-            agenda = TodayAgendaCalculator.calculate(
+            val todayAgenda = TodayAgendaCalculator.calculate(
                 courses = table.courses,
                 periods = table.periods,
                 semesterStart = table.semesterStart,
                 totalWeeks = table.totalWeeks,
                 date = LocalDate.now(),
                 minuteOfDay = nowMinute,
-                excludedWeeks = table.excludedWeeks.toSet()
+                excludedWeeks = table.excludedWeeks.toSet(),
+                exceptions = table.dateExceptions
             )
-            views.setTextViewText(R.id.widget_table_name, table.name)
-            views.setTextViewText(R.id.widget_summary, agenda.widgetSummary())
-            views.setTextViewText(R.id.widget_detail, agenda.widgetDetail())
+            agenda = todayAgenda
+            val future = if (todayAgenda.current == null && todayAgenda.next == null) {
+                ReminderCalculator.upcomingInstances(
+                    courses = table.courses,
+                    semesterStart = table.semesterStart,
+                    totalWeeks = table.totalWeeks,
+                    periods = table.periods,
+                    fromDate = LocalDate.now().plusDays(1),
+                    days = 31,
+                    excludedWeeks = table.excludedWeeks.toSet(),
+                    exceptions = table.dateExceptions
+                ).firstOrNull()
+            } else null
+            tableName = table.name
+            summary = future?.let {
+                "下次 · ${it.course.courseName} ${it.date.monthValue}月${it.date.dayOfMonth}日 ${it.startMinute.asTime()}"
+            } ?: todayAgenda.widgetSummary()
+            detail = if (preferences.widgetHideDetails) "详情已隐藏 · 点击打开应用"
+            else future?.let { instance ->
+                listOfNotNull(
+                    instance.course.classroom.takeIf(String::isNotBlank),
+                    instance.course.teacher.takeIf(String::isNotBlank)
+                ).joinToString(" · ").ifEmpty { "点击查看详情" }
+            } ?: todayAgenda.widgetDetail()
+            targetSeries = (todayAgenda.current ?: todayAgenda.next)?.course?.seriesKey ?: future?.course?.seriesKey
         }
-        views.setOnClickPendingIntent(
-            R.id.widget_root,
-            PendingIntent.getActivity(
-                context,
-                0,
-                Intent(context, MainActivity::class.java),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        appWidgetIds.forEach { widgetId ->
+            val views = RemoteViews(context.packageName, R.layout.widget_course)
+            views.setTextViewText(R.id.widget_table_name, tableName)
+            views.setTextViewText(R.id.widget_summary, summary)
+            views.setTextViewText(R.id.widget_detail, detail)
+            val minHeight = appWidgetManager.getAppWidgetOptions(widgetId)
+                .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 72)
+            views.setViewVisibility(
+                R.id.widget_detail,
+                if (minHeight < 76) View.GONE else View.VISIBLE
             )
-        )
-        appWidgetManager.updateAppWidget(appWidgetIds, views)
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                targetSeries?.let {
+                    putExtra(ReminderScheduler.EXTRA_TABLE_INDEX, activeIndex)
+                    putExtra(ReminderScheduler.EXTRA_SERIES_KEY, it)
+                }
+            }
+            views.setOnClickPendingIntent(
+                R.id.widget_root,
+                PendingIntent.getActivity(
+                    context,
+                    widgetId,
+                    openIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            appWidgetManager.updateAppWidget(widgetId, views)
+        }
         scheduleNextRefresh(context, agenda)
     }
 

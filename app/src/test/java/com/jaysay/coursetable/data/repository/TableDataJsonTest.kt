@@ -1,6 +1,8 @@
 package com.jaysay.coursetable.data.repository
 
 import com.jaysay.coursetable.data.model.ScheduleViewMode
+import com.jaysay.coursetable.data.model.ScheduleDateException
+import com.jaysay.coursetable.data.model.ScheduleExceptionType
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -27,5 +29,28 @@ class TableDataJsonTest {
         val restored = TableDataJson.fromJson(oldJson).single()
 
         assertEquals(ScheduleViewMode.WEEK, restored.viewMode)
+    }
+
+    @Test
+    fun calendarMetadataAndArchiveSurviveRoundTrip() {
+        val original = TableData.placeholder().copy(
+            dateExceptions = listOf(
+                ScheduleDateException(id = "exception-1", date = "2026-03-02", type = ScheduleExceptionType.DAY_OFF)
+            ),
+            weekLabels = mapOf(3 to "考试周"),
+            archived = true,
+            archivedAt = "2026-08-20T08:00:00Z"
+        )
+
+        // 唯一课表不能全部归档，规范化会自动恢复为活动状态；加一张活动课表验证归档字段。
+        val restored = TableDataJson.fromJson(
+            TableDataJson.toJson(listOf(TableData.placeholder(), original)), true
+        )[1]
+
+        assertEquals("2026-03-02", restored.dateExceptions.single().date)
+        assertEquals(ScheduleExceptionType.DAY_OFF, restored.dateExceptions.single().type)
+        assertEquals("考试周", restored.weekLabels[3])
+        assertEquals(true, restored.archived)
+        assertEquals("2026-08-20T08:00:00Z", restored.archivedAt)
     }
 }

@@ -1,6 +1,8 @@
 package com.jaysay.coursetable.data.ical
 
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.ScheduleDateException
+import com.jaysay.coursetable.data.model.ScheduleExceptionType
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.data.repository.TableData
 import org.junit.Assert.assertEquals
@@ -122,5 +124,32 @@ class IcsExporterTest {
         val ics = IcsExporter.export(table)
 
         assertEquals(0, Regex("BEGIN:VEVENT").findAll(ics).count())
+    }
+
+    @Test
+    fun appliesCancelledDayAndMakeupToCalendar() {
+        val table = TableData(
+            name = "我的课表",
+            courses = listOf(course.copy(weeks = listOf(1))),
+            periods = listOf(PeriodTime("08:00", "08:45")),
+            semesterStart = "2026-02-23",
+            totalWeeks = 1,
+            dateExceptions = listOf(
+                ScheduleDateException(
+                    id = "cancel", date = "2026-02-23", type = ScheduleExceptionType.COURSE_CANCELLED,
+                    courseSeriesKey = course.seriesKey
+                ),
+                ScheduleDateException(
+                    id = "makeup", date = "2026-02-24", type = ScheduleExceptionType.MAKEUP,
+                    courseSeriesKey = course.seriesKey, makeupCourse = course
+                )
+            )
+        )
+
+        val ics = IcsExporter.export(table)
+
+        assertEquals(1, Regex("BEGIN:VEVENT").findAll(ics).count())
+        assertTrue(!ics.contains("DTSTART:20260223T080000"))
+        assertTrue(ics.contains("DTSTART:20260224T080000"))
     }
 }

@@ -41,12 +41,14 @@ object TodayAgendaCalculator {
         totalWeeks: Int,
         date: LocalDate,
         minuteOfDay: Int,
-        excludedWeeks: Set<Int> = emptySet()
+        excludedWeeks: Set<Int> = emptySet(),
+        exceptions: List<ScheduleDateException> = emptyList()
     ): TodayAgenda {
         val week = semesterWeek(semesterStart, totalWeeks, date)
-            ?: return TodayAgenda(TodayAgendaPhase.OUTSIDE_SEMESTER)
-        if (week in excludedWeeks) return TodayAgenda(TodayAgendaPhase.NO_COURSES, week = week)
-        val todayCourses = courses.filter { week in it.weeks && it.dayOfWeek == date.dayOfWeek.value }
+        val todayCourses = ScheduleDateResolver.coursesOn(
+            courses, semesterStart, totalWeeks, excludedWeeks, exceptions, date
+        ).map(ResolvedDateCourse::course)
+        if (week == null && todayCourses.isEmpty()) return TodayAgenda(TodayAgendaPhase.OUTSIDE_SEMESTER)
         if (todayCourses.isEmpty()) return TodayAgenda(TodayAgendaPhase.NO_COURSES, week = week)
 
         var invalidCount = 0
