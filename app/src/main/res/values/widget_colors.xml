@@ -5,4 +5,6 @@
     <color name="widget_accent">#0D7F76</color>
     <color name="widget_text_primary">#1C1B1F</color>
     <color name="widget_text_secondary">#626262</color>
+    <color name="widget_status_background">#DDF5E7</color>
+    <color name="widget_status_text">#155238</color>
 </resources>

@@ -167,7 +167,7 @@ fun CourseTableScreen(
     onTableMenuClick: () -> Unit = {},
     tableName: String = "课表1",
     periodTimes: List<PeriodTime> = AppPreferences.defaultPeriods(),
-    semesterStart: String = TimeUtils.todayDate(),
+    semesterStart: String = TimeUtils.currentWeekStartDate(),
     totalWeeks: Int = 20,
     excludedWeeks: List<Int> = emptyList(),
     dateExceptions: List<ScheduleDateException> = emptyList(),
@@ -516,7 +516,7 @@ fun CourseTableScreen(
                 ) {
                     TableGrid(
                         courses = remember(displayedCourses, displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
-                            val start = runCatching { LocalDate.parse(semesterStart) }.getOrNull()
+                            val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
                             if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
                                 val date = start.plusDays((displayedWeek - 1L) * 7L + dayOffset)
                                 ScheduleDateResolver.coursesOn(

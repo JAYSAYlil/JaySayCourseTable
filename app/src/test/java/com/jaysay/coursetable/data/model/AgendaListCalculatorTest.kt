@@ -38,17 +38,18 @@ class AgendaListCalculatorTest {
     }
 
     @Test
-    fun calculatesDatesRelativeToSemesterStartEvenWhenItIsNotMonday() {
+    fun alignsLegacyMidweekSemesterStartBeforeCalculatingDates() {
         val wednesdayStart = LocalDate.parse("2026-02-25")
+        val monday = LocalDate.parse("2026-02-23")
         val result = AgendaListCalculator.calculate(
             courses = listOf(course("relative", "相对开学日", day = 1, weeks = listOf(1, 2))),
             periods = periods,
             semesterStart = wednesdayStart.toString(),
             totalWeeks = 2,
-            fromDate = wednesdayStart
+            fromDate = monday
         )
 
-        assertEquals(listOf(wednesdayStart, wednesdayStart.plusDays(7)), result.map { it.date })
+        assertEquals(listOf(monday, monday.plusDays(7)), result.map { it.date })
         assertEquals(listOf(1, 2), result.map { it.week })
     }
 

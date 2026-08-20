@@ -3,6 +3,7 @@ package com.jaysay.coursetable.util
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDate
 import java.util.Locale
 
 class TimeUtilsTest {
@@ -58,5 +59,14 @@ class TimeUtilsTest {
         assertEquals("3/2", TimeUtils.refDate(2, 1, "2026-02-23", Locale.US))
         // 非法开学日期回退到 2026-02-23，不抛异常
         assertEquals("2/23", TimeUtils.refDate(1, 1, "not-a-date", Locale.US))
+    }
+
+    @Test
+    fun legacyMidweekSemesterStartIsAutomaticallyAlignedToMonday() {
+        // 2026-08-20 是周四；旧版本若把它直接保存为开学日期，所有列都会整体偏移。
+        assertEquals(LocalDate.parse("2026-08-17"), TimeUtils.semesterWeekStartOrNull("2026-08-20"))
+        assertEquals(LocalDate.parse("2026-08-20"), TimeUtils.semesterDateOrNull("2026-08-20", 1, 4))
+        assertEquals("8/20", TimeUtils.refDate(1, 4, "2026-08-20", Locale.US))
+        assertEquals("8/21", TimeUtils.refDate(1, 5, "2026-08-20", Locale.US))
     }
 }

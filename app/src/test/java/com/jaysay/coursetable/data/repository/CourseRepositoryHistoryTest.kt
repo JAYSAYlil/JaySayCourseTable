@@ -96,7 +96,7 @@ class CourseRepositoryHistoryTest {
     }
 
     private fun table(vararg courses: Course) = TableData.placeholder().copy(
-        semesterStart = "2026-09-01",
+        semesterStart = "2026-08-31",
         courses = courses.toList()
     )
 

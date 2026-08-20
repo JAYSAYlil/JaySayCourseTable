@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -155,6 +157,7 @@ class MainActivity : ComponentActivity() {
             var scheduleFocusedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
+            val screenStateHolder = rememberSaveableStateHolder()
             val state = model.state
 
             JaySayTheme(
@@ -210,6 +213,23 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val activeTable = state.activeTable
+                val navigateBack: () -> Unit = {
+                    when (currentScreen()) {
+                        Screen.HISTORY, Screen.CALENDAR -> currentScreenOrdinal = Screen.SETTINGS.ordinal
+                        Screen.IMPORT_CONFIRM -> {
+                            model.clearStagedCourseImport()
+                            currentScreenOrdinal = Screen.MAIN.ordinal
+                        }
+                        Screen.MAIN -> {
+                            selectedCourse = null
+                            selectedCourseKey = null
+                        }
+                        else -> currentScreenOrdinal = Screen.MAIN.ordinal
+                    }
+                }
+                BackHandler(enabled = currentScreen() != Screen.MAIN || selectedCourse != null) {
+                    navigateBack()
+                }
                 val runAfterConflictCheck: (Course, List<Course>, () -> Unit) -> Unit =
                     { candidate, comparisonCourses, action ->
                         val conflicts = CourseImportAnalyzer.findConflicts(comparisonCourses, candidate)
@@ -614,6 +634,7 @@ class MainActivity : ComponentActivity() {
                         },
                         label = "screen"
                     ) { screen ->
+                        screenStateHolder.SaveableStateProvider(screen.name) {
                         when (screen) {
                             Screen.SETTINGS -> SettingsScreen(
                                 tableData = state.activeTable,
@@ -660,7 +681,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
-                                onBack = { locateToday(); currentScreenOrdinal = Screen.MAIN.ordinal }
+                                onBack = navigateBack
                             )
 
                             Screen.IMPORT_CONFIRM -> {
@@ -704,7 +725,7 @@ class MainActivity : ComponentActivity() {
                                 onRename = { idx, name -> model.renameTable(idx, name, ::showSaveError) },
                                 onDuplicate = { model.duplicateTable(it, ::showSaveError) },
                                 onArchive = { index, archived -> model.setTableArchived(index, archived, ::showSaveError) },
-                                onBack = { locateToday(); currentScreenOrdinal = Screen.MAIN.ordinal }
+                                onBack = navigateBack
                             )
 
                             Screen.AGENDA -> Scaffold(
@@ -712,7 +733,7 @@ class MainActivity : ComponentActivity() {
                                     AppTopBar(
                                         title = "日程列表",
                                         navigationIcon = {
-                                            IconButton(onClick = { currentScreenOrdinal = Screen.MAIN.ordinal }) {
+                                            IconButton(onClick = navigateBack) {
                                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                                             }
                                         }
@@ -826,6 +847,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             }
+                        }
                         }
                     }
                     SnackbarHost(

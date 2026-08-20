@@ -2,15 +2,37 @@
 package com.jaysay.coursetable.util
 
 import java.time.LocalDate
+import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 object TimeUtils {
 
     /** 今天的日期，格式 YYYY-MM-DD */
     fun todayDate(): String = LocalDate.now().toString()
+
+    /** 课表周统一从周一开始；用于兼容旧版曾保存的周中“开学日期”。 */
+    fun weekStart(date: LocalDate): LocalDate =
+        date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+    fun currentWeekStartDate(): String = weekStart(LocalDate.now()).toString()
+
+    /** 解析并归一化学期起点；非法日期返回 null。 */
+    fun semesterWeekStartOrNull(value: String): LocalDate? = try {
+        weekStart(LocalDate.parse(value))
+    } catch (_: DateTimeParseException) {
+        null
+    }
+
+    /** 某学期周次、星期对应的自然日。 */
+    fun semesterDateOrNull(semesterStart: String, week: Int, dayOfWeek: Int): LocalDate? {
+        if (week < 1 || dayOfWeek !in 1..7) return null
+        return semesterWeekStartOrNull(semesterStart)
+            ?.plusDays((week - 1L) * 7L + dayOfWeek - 1L)
+    }
 
     /**
      * 解析 "HH:mm" 为当天分钟数；非法输入返回 null。
@@ -36,23 +58,15 @@ object TimeUtils {
      * 开学日期非法时回退到 2026-02-23（与原实现一致的兜底日期）。
      */
     fun refDate(week: Int, dayOfWeek: Int, semesterStart: String, locale: Locale = Locale.getDefault()): String {
-        val start = try {
-            LocalDate.parse(semesterStart)
-        } catch (_: DateTimeParseException) {
-            LocalDate.of(2026, 2, 23)
-        }
-        val date = start.plusDays((week - 1).toLong() * 7 + dayOfWeek - 1)
+        val date = semesterDateOrNull(semesterStart, week, dayOfWeek)
+            ?: LocalDate.of(2026, 2, 23).plusDays((week - 1L) * 7L + dayOfWeek - 1L)
         return date.format(DateTimeFormatter.ofPattern("M/d", locale))
     }
 
     /** 根据开学日期计算今天是第几周，超出范围则夹紧 */
     fun todayWeek(semesterStart: String, totalWeeks: Int): Int {
         val safeTotalWeeks = totalWeeks.coerceAtLeast(1)
-        val start = try {
-            LocalDate.parse(semesterStart)
-        } catch (_: DateTimeParseException) {
-            return 1
-        }
+        val start = semesterWeekStartOrNull(semesterStart) ?: return 1
         val days = ChronoUnit.DAYS.between(start, LocalDate.now())
         return if (days >= 0) (days / 7L + 1L).toInt().coerceIn(1, safeTotalWeeks) else 1
     }

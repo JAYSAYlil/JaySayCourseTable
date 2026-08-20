@@ -1,5 +1,6 @@
 package com.jaysay.coursetable.data.model
 
+import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -27,7 +28,7 @@ object ScheduleDateResolver {
         exceptions: List<ScheduleDateException>,
         date: LocalDate
     ): List<ResolvedDateCourse> {
-        val start = runCatching { LocalDate.parse(semesterStart) }.getOrNull() ?: return emptyList()
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart) ?: return emptyList()
         val dayOffset = ChronoUnit.DAYS.between(start, date)
         if (dayOffset < 0) return makeupOnly(exceptions, date)
         val week = (dayOffset / 7 + 1).toInt()

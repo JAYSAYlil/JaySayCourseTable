@@ -18,6 +18,7 @@ import com.jaysay.coursetable.data.model.TodayAgendaPhase
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PreferencesManager
 import com.jaysay.coursetable.data.reminder.ReminderCalculator
+import com.jaysay.coursetable.data.reminder.CourseInstance
 import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import com.jaysay.coursetable.data.repository.CourseRepository
 import com.jaysay.coursetable.util.TimeUtils
@@ -82,9 +83,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
         val table = tables?.getOrNull(activeIndex)
 
         var agenda: TodayAgenda? = null
-        var tableName = "JaySay 课表"
-        var summary = "暂无课表数据"
-        var detail = "点击打开应用"
+        var presentation = WidgetPresentation.empty(LocalDate.now())
         var targetSeries: String? = null
         if (table == null) {
             // 保留默认占位文案。
@@ -115,29 +114,34 @@ class CourseWidgetProvider : AppWidgetProvider() {
                     exceptions = table.dateExceptions
                 ).firstOrNull()
             } else null
-            tableName = table.name
-            summary = future?.let {
-                "下次 · ${it.course.courseName} ${it.date.monthValue}月${it.date.dayOfMonth}日 ${it.startMinute.asTime()}"
-            } ?: todayAgenda.widgetSummary()
-            detail = if (preferences.widgetHideDetails) "详情已隐藏 · 点击打开应用"
-            else future?.let { instance ->
-                listOfNotNull(
-                    instance.course.classroom.takeIf(String::isNotBlank),
-                    instance.course.teacher.takeIf(String::isNotBlank)
-                ).joinToString(" · ").ifEmpty { "点击查看详情" }
-            } ?: todayAgenda.widgetDetail()
+            presentation = WidgetPresentation.create(
+                tableName = table.name,
+                agenda = todayAgenda,
+                future = future,
+                hideDetails = preferences.widgetHideDetails,
+                today = LocalDate.now()
+            )
             targetSeries = (todayAgenda.current ?: todayAgenda.next)?.course?.seriesKey ?: future?.course?.seriesKey
         }
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.widget_course)
-            views.setTextViewText(R.id.widget_table_name, tableName)
-            views.setTextViewText(R.id.widget_summary, summary)
-            views.setTextViewText(R.id.widget_detail, detail)
-            val minHeight = appWidgetManager.getAppWidgetOptions(widgetId)
-                .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 72)
+            views.setTextViewText(R.id.widget_table_name, presentation.tableName)
+            views.setTextViewText(R.id.widget_date, presentation.dateLabel)
+            views.setTextViewText(R.id.widget_status, presentation.status)
+            views.setTextViewText(R.id.widget_course_name, presentation.courseName)
+            views.setTextViewText(R.id.widget_time, presentation.timeLabel)
+            views.setTextViewText(R.id.widget_detail, presentation.detail)
+            val options = appWidgetManager.getAppWidgetOptions(widgetId)
+            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 72)
+            val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 180)
+            views.setViewVisibility(R.id.widget_date, if (minWidth < 180) View.GONE else View.VISIBLE)
+            views.setViewVisibility(
+                R.id.widget_bottom_row,
+                if (minHeight < 70 || (presentation.timeLabel.isBlank() && presentation.detail.isBlank())) View.GONE else View.VISIBLE
+            )
             views.setViewVisibility(
                 R.id.widget_detail,
-                if (minHeight < 76) View.GONE else View.VISIBLE
+                if (minHeight < 78 || presentation.detail.isBlank()) View.GONE else View.VISIBLE
             )
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 targetSeries?.let {
@@ -215,23 +219,72 @@ class CourseWidgetProvider : AppWidgetProvider() {
     }
 }
 
-private fun TodayAgenda.widgetSummary(): String = when (phase) {
-    TodayAgendaPhase.OUTSIDE_SEMESTER -> "当前不在学期周次"
-    TodayAgendaPhase.NO_COURSES -> "今天没有课程"
-    TodayAgendaPhase.BEFORE_FIRST -> "下一节 · ${next?.course?.courseName.orEmpty()} ${next?.startMinute?.asTime()}"
-    TodayAgendaPhase.IN_CLASS -> "正在上 · ${current?.course?.courseName.orEmpty()} 至 ${current?.endMinute?.asTime()}"
-    TodayAgendaPhase.BETWEEN_CLASSES -> "课间 · 下一节 ${next?.course?.courseName.orEmpty()} ${next?.startMinute?.asTime()}"
-    TodayAgendaPhase.FINISHED -> "今日课程已结束"
-    TodayAgendaPhase.INVALID_TIME -> "节次时间异常，请在设置中检查"
+internal data class WidgetPresentation(
+    val tableName: String,
+    val dateLabel: String,
+    val status: String,
+    val courseName: String,
+    val timeLabel: String,
+    val detail: String
+) {
+    companion object {
+        fun empty(today: LocalDate) = WidgetPresentation(
+            tableName = "JaySay 课表",
+            dateLabel = today.asDateLabel(),
+            status = "未设置",
+            courseName = "暂无课表数据",
+            timeLabel = "点击打开应用",
+            detail = ""
+        )
+
+        fun create(
+            tableName: String,
+            agenda: TodayAgenda,
+            future: CourseInstance?,
+            hideDetails: Boolean,
+            today: LocalDate
+        ): WidgetPresentation {
+            val slot = agenda.current ?: agenda.next
+            val course = slot?.course ?: future?.course
+            val targetDate = if (slot != null) today else future?.date ?: today
+            val status = when {
+                agenda.current != null -> "正在上课"
+                agenda.next != null -> "下一节"
+                future != null -> "后续课程"
+                agenda.phase == TodayAgendaPhase.FINISHED -> "今日完成"
+                agenda.phase == TodayAgendaPhase.NO_COURSES -> "今日无课"
+                agenda.phase == TodayAgendaPhase.OUTSIDE_SEMESTER -> "学期之外"
+                agenda.phase == TodayAgendaPhase.INVALID_TIME -> "时间异常"
+                else -> "课程状态"
+            }
+            val courseName = course?.courseName ?: when (agenda.phase) {
+                TodayAgendaPhase.FINISHED -> "今天的课程已结束"
+                TodayAgendaPhase.NO_COURSES -> "今天没有课程"
+                TodayAgendaPhase.OUTSIDE_SEMESTER -> "当前不在学期周次"
+                TodayAgendaPhase.INVALID_TIME -> "请检查节次时间"
+                else -> "暂无后续课程"
+            }
+            val timeLabel = when {
+                agenda.current != null -> "${agenda.current.startMinute.asTime()}–${agenda.current.endMinute.asTime()}"
+                agenda.next != null -> "${agenda.next.startMinute.asTime()} 开始"
+                future != null -> "${future.startMinute.asTime()} 开始"
+                agenda.week != null -> "第 ${agenda.week} 周"
+                else -> "点击查看课表"
+            }
+            val detail = when {
+                course == null -> ""
+                hideDetails -> "课程详情已隐藏"
+                else -> listOfNotNull(
+                    course.classroom.takeIf(String::isNotBlank),
+                    course.teacher.takeIf(String::isNotBlank)
+                ).joinToString(" · ").ifEmpty { "点击查看详情" }
+            }
+            return WidgetPresentation(tableName, targetDate.asDateLabel(), status, courseName, timeLabel, detail)
+        }
+    }
 }
 
-private fun TodayAgenda.widgetDetail(): String {
-    val slot = current ?: next
-    if (slot == null) return "点击打开应用"
-    return listOfNotNull(
-        slot.course.classroom.takeIf { it.isNotBlank() },
-        slot.course.teacher.takeIf { it.isNotBlank() }
-    ).joinToString(" · ").ifEmpty { "点击查看详情" }
-}
+private fun LocalDate.asDateLabel(): String =
+    "${monthValue}月${dayOfMonth}日 · ${TimeUtils.getDayName(dayOfWeek.value)}"
 
 private fun Int?.asTime(): String = this?.let(TimeUtils::formatMinuteOfDay).orEmpty()

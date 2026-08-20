@@ -5,7 +5,7 @@
 - Android 应用模块：`app/`
 - 包名与 applicationId：`com.jaysay.coursetable`
 - 最低/目标系统：Android 8.0（API 26）/ Android 14（API 34）
-- 当前候选版本：2.9.0，versionCode 82
+- 当前候选版本：2.10.0，versionCode 83
 - 应用不声明 `INTERNET` 权限，不包含联网客户端；课程、备份、提醒和日历均在本机处理。
 
 ## 主要结构
@@ -30,6 +30,7 @@
 - `files/import_draft.json`：待确认导入草稿，确认或取消后删除。
 - 文件写入通过 `AtomicFileStore` 执行，保留上一有效副本；主文件和副本均损坏时进入只读保护。
 - 旧数据缺少 `seriesId` 时由 `CourseSeriesIds` 自动生成稳定匿名 ID，保证“应用到全部周”可用。
+- 旧数据中的 `semesterStart` 无论落在周几，读取时都会归一化为当周周一；所有日期消费者必须继续通过 `TimeUtils` 的学期日期入口计算，避免升级后星期偏移。
 - Android 系统云备份和设备迁移均禁用；换机必须使用应用内完整备份。
 
 ## 隐私与发布安全

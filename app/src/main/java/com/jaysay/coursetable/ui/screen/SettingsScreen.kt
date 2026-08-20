@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,7 +42,7 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    tableData: TableData = TableData("课表1", emptyList(), semesterStart = com.jaysay.coursetable.util.TimeUtils.todayDate()),
+    tableData: TableData = TableData("课表1", emptyList(), semesterStart = TimeUtils.currentWeekStartDate()),
     preferences: AppPreferences,
     onUpdatePrefs: (AppPreferences) -> Unit,
     onUpdateTable: ((TableData) -> Unit)? = null,
@@ -384,7 +387,9 @@ fun SettingsScreen(
                 // ===== 停课周（校历）=====
                 var showExcludedWeeksDialog by remember { mutableStateOf(false) }
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable(enabled = readOnlyMessage == null) { showExcludedWeeksDialog = true }
+                    modifier = Modifier.fillMaxWidth()
+                        .testTag("excluded-weeks-setting")
+                        .clickable(enabled = readOnlyMessage == null) { showExcludedWeeksDialog = true }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -409,24 +414,31 @@ fun SettingsScreen(
                         onDismissRequest = { showExcludedWeeksDialog = false },
                         title = { Text("选择停课周") },
                         text = {
-                            Column(modifier = Modifier.verticalScroll(rememberScrollState()).heightIn(max = 360.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
                                     "这些周不显示课程、不触发上课提醒（如节假日、考试周）",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                (1..totalWeeks).forEach { week ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().clickable {
-                                            selected = if (week in selected) selected - week else selected + week
-                                        }.padding(vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(checked = week in selected, onCheckedChange = {
-                                            selected = if (week in selected) selected - week else selected + week
-                                        })
-                                        Text("第 $week 周", fontSize = 14.sp)
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 360.dp)
+                                        .testTag("excluded-weeks-list")
+                                ) {
+                                    items((1..totalWeeks).toList(), key = { it }) { week ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clickable {
+                                                selected = if (week in selected) selected - week else selected + week
+                                            }.padding(vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Checkbox(checked = week in selected, onCheckedChange = {
+                                                selected = if (week in selected) selected - week else selected + week
+                                            })
+                                            Text("第 $week 周", fontSize = 14.sp)
+                                        }
                                     }
                                 }
                             }

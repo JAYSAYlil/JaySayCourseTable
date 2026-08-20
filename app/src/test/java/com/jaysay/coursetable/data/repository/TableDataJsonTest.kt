@@ -32,6 +32,20 @@ class TableDataJsonTest {
     }
 
     @Test
+    fun legacyMidweekSemesterStartMigratesToMondayWithoutUserReset() {
+        val oldJson = JSONArray().put(
+            JSONObject()
+                .put("name", "旧课表")
+                .put("semesterStart", "2026-08-20")
+                .put("courses", JSONArray())
+        )
+
+        val restored = TableDataJson.fromJson(oldJson, requireEveryRowValid = true).single()
+
+        assertEquals("2026-08-17", restored.semesterStart)
+    }
+
+    @Test
     fun calendarMetadataAndArchiveSurviveRoundTrip() {
         val original = TableData.placeholder().copy(
             dateExceptions = listOf(

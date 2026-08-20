@@ -52,7 +52,7 @@ fun AgendaScreen(
     onCourseClick: (Course) -> Unit,
     modifier: Modifier = Modifier,
     periodTimes: List<PeriodTime> = AppPreferences.defaultPeriods(),
-    semesterStart: String = TimeUtils.todayDate(),
+    semesterStart: String = TimeUtils.currentWeekStartDate(),
     totalWeeks: Int = 20,
     excludedWeeks: List<Int> = emptyList(),
     dateExceptions: List<ScheduleDateException> = emptyList(),

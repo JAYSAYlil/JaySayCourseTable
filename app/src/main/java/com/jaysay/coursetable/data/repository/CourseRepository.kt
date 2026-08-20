@@ -29,7 +29,7 @@ data class TableData(
     val name: String,
     val courses: List<Course>,
     val periods: List<PeriodTime> = defaultPeriods(),
-    val semesterStart: String = TimeUtils.todayDate(),
+    val semesterStart: String = TimeUtils.currentWeekStartDate(),
     val totalWeeks: Int = 20,
     val viewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
     /** 校历停课周（节假日/考试周），这些周不显示课程、不触发提醒。 */
@@ -47,7 +47,7 @@ data class TableData(
 
         /** 活动课表下标越界时的占位课表。 */
         fun placeholder(name: String = "课表1") =
-            TableData(name, emptyList(), semesterStart = TimeUtils.todayDate())
+            TableData(name, emptyList(), semesterStart = TimeUtils.currentWeekStartDate())
     }
 }
 
@@ -230,7 +230,9 @@ object TableDataJson {
             name = obj.optString("name", "课表"),
             courses = courses,
             periods = periods,
-            semesterStart = obj.optString("semesterStart", TimeUtils.todayDate()),
+            semesterStart = TimeUtils.semesterWeekStartOrNull(
+                obj.optString("semesterStart", TimeUtils.currentWeekStartDate())
+            )?.toString() ?: if (strict) error("开学日期格式错误") else TimeUtils.currentWeekStartDate(),
             totalWeeks = obj.optInt("totalWeeks", 20),
             viewMode = viewMode,
             excludedWeeks = excludedWeeks,
@@ -351,6 +353,8 @@ object TableDataJson {
                 .ifEmpty { TableData.defaultPeriods() }
             table.copy(
                 name = table.name.trim().ifEmpty { "课表${index + 1}" },
+                semesterStart = TimeUtils.semesterWeekStartOrNull(table.semesterStart)?.toString()
+                    ?: TimeUtils.currentWeekStartDate(),
                 periods = periods,
                 totalWeeks = table.totalWeeks.coerceIn(1, MAX_WEEKS),
                 excludedWeeks = table.excludedWeeks.filter { it in 1..MAX_WEEKS }.distinct().sorted(),

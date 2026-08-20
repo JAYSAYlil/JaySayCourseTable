@@ -214,7 +214,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val tables = state.tables + TableData(
             name = "课表${state.tables.size + 1}",
             courses = emptyList(),
-            semesterStart = TimeUtils.todayDate()
+            semesterStart = TimeUtils.currentWeekStartDate()
         )
         repository.saveAllTables(tables)
         state = state.copy(tables = tables)

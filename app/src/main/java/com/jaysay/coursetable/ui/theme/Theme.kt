@@ -18,16 +18,24 @@ import com.jaysay.coursetable.data.preferences.ThemeMode
 private val LightColors = lightColorScheme(
     primary = Primary, onPrimary = Color.White,
     primaryContainer = PrimaryLight, onPrimaryContainer = PrimaryDark,
+    secondary = Secondary, onSecondary = Color.White,
+    secondaryContainer = SecondaryLight, onSecondaryContainer = SecondaryDark,
+    tertiary = Tertiary, onTertiary = Color.White,
+    tertiaryContainer = TertiaryLight, onTertiaryContainer = TertiaryDark,
     surface = Surface, onSurface = OnSurface,
-    surfaceVariant = Color(0xFFF5F5F5), onSurfaceVariant = OnSurfaceVariant,
+    surfaceVariant = Color(0xFFEEF5F1), onSurfaceVariant = OnSurfaceVariant,
     background = Background, onBackground = OnSurface,
+    outline = Color(0xFF789087), outlineVariant = Color(0xFFD3E2DC),
     error = Error
 )
 
 private val DarkColors = darkColorScheme(
     primary = DarkPrimary, onPrimary = Color(0xFF1A1A1A),
     primaryContainer = DarkPrimaryLight, onPrimaryContainer = DarkPrimaryDark,
-    secondary = Color(0xFF80CBC4),
+    secondary = DarkSecondary, onSecondary = Color(0xFF0A261B),
+    secondaryContainer = DarkSecondaryLight, onSecondaryContainer = DarkSecondaryDark,
+    tertiary = DarkTertiary, onTertiary = Color(0xFF1A280D),
+    tertiaryContainer = DarkTertiaryLight, onTertiaryContainer = DarkTertiaryDark,
     surface = DarkSurface, onSurface = DarkOnSurface,
     surfaceVariant = DarkSurfaceVariant, onSurfaceVariant = DarkOnSurfaceVariant,
     background = DarkBackground, onBackground = DarkOnSurface,

@@ -2,7 +2,6 @@ package com.jaysay.coursetable.data.model
 
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.util.TimeUtils
-import java.time.DateTimeException
 import java.time.LocalDate
 
 /** 日程列表的日期分区。只包含从查询起始日开始、实际有课的日期。 */
@@ -50,11 +49,7 @@ object AgendaListCalculator {
         searchQuery: String = ""
     ): List<AgendaDateGroup> {
         if (totalWeeks <= 0) return emptyList()
-        val start = try {
-            LocalDate.parse(semesterStart)
-        } catch (_: DateTimeException) {
-            return emptyList()
-        }
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart) ?: return emptyList()
         val visibleCourseKeys = CourseSearch.filter(
             courses + exceptions.mapNotNull(ScheduleDateException::makeupCourse), searchQuery
         ).map(Course::uniqueKey).toSet()

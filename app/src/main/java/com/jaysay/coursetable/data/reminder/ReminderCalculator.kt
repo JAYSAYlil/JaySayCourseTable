@@ -36,7 +36,7 @@ object ReminderCalculator {
         excludedWeeks: Set<Int> = emptySet(),
         exceptions: List<ScheduleDateException> = emptyList()
     ): List<CourseInstance> {
-        val start = runCatching { LocalDate.parse(semesterStart) }.getOrNull() ?: return emptyList()
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart) ?: return emptyList()
         return (0L..6L).flatMap { dayOffset ->
             val date = start.plusDays((week - 1L) * 7L + dayOffset)
             ScheduleDateResolver.coursesOn(courses, semesterStart, Int.MAX_VALUE, excludedWeeks, exceptions, date)

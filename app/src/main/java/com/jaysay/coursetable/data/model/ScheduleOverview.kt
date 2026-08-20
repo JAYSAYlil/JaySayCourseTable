@@ -2,7 +2,6 @@ package com.jaysay.coursetable.data.model
 
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.util.TimeUtils
-import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -92,11 +91,7 @@ object TodayAgendaCalculator {
 
     fun semesterWeek(semesterStart: String, totalWeeks: Int, date: LocalDate): Int? {
         if (totalWeeks <= 0) return null
-        val start = try {
-            LocalDate.parse(semesterStart)
-        } catch (_: DateTimeException) {
-            return null
-        }
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart) ?: return null
         val days = ChronoUnit.DAYS.between(start, date)
         if (days < 0 || days >= totalWeeks.toLong() * 7L) return null
         return (days / 7L + 1L).toInt()

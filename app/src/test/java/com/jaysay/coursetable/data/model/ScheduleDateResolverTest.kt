@@ -37,4 +37,15 @@ class ScheduleDateResolverTest {
         )
         assertEquals(listOf("英语"), result.map { it.course.courseName })
     }
+
+    @Test fun legacyThursdayStartStillMapsThursdayCourseToTheSameCalendarThursday() {
+        val thursdayCourse = course("thursday", "周四课程", day = 4)
+        val thursday = LocalDate.parse("2026-08-20")
+
+        val result = ScheduleDateResolver.coursesOn(
+            listOf(thursdayCourse), "2026-08-20", 20, emptySet(), emptyList(), thursday
+        )
+
+        assertEquals(listOf("周四课程"), result.map { it.course.courseName })
+    }
 }

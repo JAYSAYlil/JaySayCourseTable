@@ -31,7 +31,7 @@ object IcsExporter {
         )
         val stamp = stampFormat.format(generatedAt)
 
-        val semesterStart = runCatching { LocalDate.parse(table.semesterStart) }.getOrNull()
+        val semesterStart = TimeUtils.semesterWeekStartOrNull(table.semesterStart)
         val regularEnd = semesterStart?.plusDays(table.totalWeeks * 7L - 1L)
         val exceptionDates = table.dateExceptions.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
         val exceptionEnd = exceptionDates.maxOrNull()
