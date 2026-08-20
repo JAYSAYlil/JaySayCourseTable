@@ -92,7 +92,6 @@ import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.AppPreferences
-import com.jaysay.coursetable.data.preferences.DisplayDensity
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
 import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
@@ -172,7 +171,6 @@ fun CourseTableScreen(
     excludedWeeks: List<Int> = emptyList(),
     dateExceptions: List<ScheduleDateException> = emptyList(),
     weekLabels: Map<Int, String> = emptyMap(),
-    displayDensity: DisplayDensity = DisplayDensity.STANDARD,
     reduceMotion: Boolean = false,
     viewMode: ScheduleViewMode,
     onViewModeChange: (ScheduleViewMode) -> Unit,
@@ -226,15 +224,10 @@ fun CourseTableScreen(
     }
     // The seven-day columns are narrow, so they need more vertical room to show
     // course, teacher and classroom text without truncation.
-    val baseCellHeight = when (viewMode) {
+    val cellHeight = when (viewMode) {
         ScheduleViewMode.WEEK -> 106.dp
         ScheduleViewMode.WORK_WEEK -> 116.dp
         ScheduleViewMode.DAY -> 100.dp
-    }
-    val cellHeight = baseCellHeight * when (displayDensity) {
-        DisplayDensity.COMPACT -> 0.86f
-        DisplayDensity.STANDARD -> 1f
-        DisplayDensity.COMFORTABLE -> 1.18f
     }
     val isExcludedWeek = currentWeek in excludedWeekSet
     val weekCourses = remember(displayedCourses, currentWeek, excludedWeekSet) {

@@ -134,25 +134,6 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             SettingsSection(title = "显示与无障碍") {
-                Text("课程信息密度", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(
-                        DisplayDensity.COMPACT to "紧凑",
-                        DisplayDensity.STANDARD to "标准",
-                        DisplayDensity.COMFORTABLE to "完整"
-                    ).forEach { (density, label) ->
-                        FilterChip(
-                            selected = preferences.displayDensity == density,
-                            onClick = { save(preferences.copy(displayDensity = density)) },
-                            label = { Text(label) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
                 PreferenceSwitchRow(
                     title = "增强对比度",
                     subtitle = "提高次要文字、边框和控件的可见度",
@@ -164,12 +145,6 @@ fun SettingsScreen(
                     subtitle = "缩短页面与周次切换动画",
                     checked = preferences.reduceMotion,
                     onCheckedChange = { save(preferences.copy(reduceMotion = it)) }
-                )
-                PreferenceSwitchRow(
-                    title = "小组件隐私模式",
-                    subtitle = "桌面不显示教师和教室",
-                    checked = preferences.widgetHideDetails,
-                    onCheckedChange = { save(preferences.copy(widgetHideDetails = it)) }
                 )
             }
 

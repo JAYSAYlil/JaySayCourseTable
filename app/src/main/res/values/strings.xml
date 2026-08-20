@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">JaySay课程表</string>
-    <string name="widget_description">显示当前课表与今日/下一节课摘要</string>
+    <string name="widget_description">显示今日与明日课程、教室和教师</string>
 </resources>

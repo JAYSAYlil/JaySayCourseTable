@@ -835,7 +835,6 @@ class MainActivity : ComponentActivity() {
                                         excludedWeeks = activeTable.excludedWeeks,
                                         dateExceptions = activeTable.dateExceptions,
                                         weekLabels = activeTable.weekLabels,
-                                        displayDensity = state.preferences.displayDensity,
                                         reduceMotion = state.preferences.reduceMotion,
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },

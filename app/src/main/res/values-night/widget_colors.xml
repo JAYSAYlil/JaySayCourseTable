@@ -7,4 +7,6 @@
     <color name="widget_text_secondary">#C8C5CC</color>
     <color name="widget_status_background">#173E2D</color>
     <color name="widget_status_text">#B6F2D3</color>
+    <color name="widget_item_background">#22312C</color>
+    <color name="widget_divider">#3A4A44</color>
 </resources>

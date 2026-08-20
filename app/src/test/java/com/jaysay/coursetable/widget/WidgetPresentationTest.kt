@@ -1,41 +1,127 @@
 package com.jaysay.coursetable.widget
 
-import com.jaysay.coursetable.data.model.AgendaCourseSlot
 import com.jaysay.coursetable.data.model.Course
-import com.jaysay.coursetable.data.model.TodayAgenda
-import com.jaysay.coursetable.data.model.TodayAgendaPhase
+import com.jaysay.coursetable.data.model.ScheduleDateException
+import com.jaysay.coursetable.data.model.ScheduleExceptionType
+import com.jaysay.coursetable.data.repository.TableData
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.time.LocalDate
 
 class WidgetPresentationTest {
     @Test
-    fun nextCourseUsesCompactStructuredFieldsAndRespectsPrivacy() {
-        val presentation = WidgetPresentation.create(
-            tableName = "绿色课表",
-            agenda = TodayAgenda(
-                phase = TodayAgendaPhase.BEFORE_FIRST,
-                week = 1,
-                next = AgendaCourseSlot(course(), 10 * 60 + 10, 11 * 60 + 55)
-            ),
-            future = null,
-            hideDetails = true,
-            today = LocalDate.parse("2026-08-20")
-        )
-
-        assertEquals("8月20日 · 周四", presentation.dateLabel)
-        assertEquals("下一节", presentation.status)
-        assertEquals("虚构课程", presentation.courseName)
-        assertEquals("10:10 开始", presentation.timeLabel)
-        assertEquals("课程详情已隐藏", presentation.detail)
-        assertFalse(presentation.detail.contains("A101"))
+    fun widthModesMatchThreeFourAndFiveColumnLayouts() {
+        assertEquals(WidgetWidthMode.COMPACT, WidgetWidthMode.fromMinWidth(180))
+        assertEquals(WidgetWidthMode.COMPACT, WidgetWidthMode.fromMinWidth(219))
+        assertEquals(WidgetWidthMode.MEDIUM, WidgetWidthMode.fromMinWidth(220))
+        assertEquals(WidgetWidthMode.MEDIUM, WidgetWidthMode.fromMinWidth(269))
+        assertEquals(WidgetWidthMode.EXPANDED, WidgetWidthMode.fromMinWidth(270))
+        assertEquals(WidgetWidthMode.EXPANDED, WidgetWidthMode.fromMinWidth(320))
     }
 
-    private fun course() = Course(
-        courseId = "fictional", courseName = "虚构课程", classNumber = "", department = "", credits = 0f,
-        weeks = listOf(1), dayOfWeek = 4, startPeriod = 1, endPeriod = 2, teacher = "虚构教师",
-        classroom = "A101", courseType = "", courseCategory = "", isOnline = false,
-        assessmentMethod = "", seriesId = "fictional"
+    @Test
+    fun scheduleKeepsCompleteImportantFieldsAndSortsByPeriod() {
+        val longName = "移动应用程序设计与跨平台开发综合实践课程"
+        val longClassroom = "博学楼东区十二层智慧互动实验室A1208"
+        val longTeacher = "欧阳示例教师与联合授课教师"
+        val table = table(
+            courses = listOf(
+                course("later", "第二节课", startPeriod = 3, endPeriod = 4),
+                course(
+                    "first",
+                    longName,
+                    startPeriod = 1,
+                    endPeriod = 2,
+                    classroom = longClassroom,
+                    teacher = longTeacher
+                )
+            )
+        )
+
+        val result = WidgetScheduleBuilder.build(table, tableIndex = 2, date = LocalDate.parse("2026-08-20"))
+
+        assertEquals(listOf(longName, "第二节课"), result.courses.map { it.courseName })
+        assertEquals(longClassroom, result.courses.first().classroom)
+        assertEquals(longTeacher, result.courses.first().teacher)
+        assertEquals("08:00–09:35", result.courses.first().timeLabel)
+        assertEquals(2, result.courses.first().tableIndex)
+    }
+
+    @Test
+    fun missingImportantFieldsUseVisibleFallbacks() {
+        val result = WidgetScheduleBuilder.build(
+            table(courses = listOf(course("blank", " ", classroom = "", teacher = "  "))),
+            tableIndex = 0,
+            date = LocalDate.parse("2026-08-20")
+        ).courses.single()
+
+        assertEquals("未命名课程", result.courseName)
+        assertEquals("未填写教室", result.classroom)
+        assertEquals("未填写教师", result.teacher)
+    }
+
+    @Test
+    fun dateExceptionsAreReflectedInWidgetSchedule() {
+        val date = LocalDate.parse("2026-08-20")
+        val regular = course("regular", "常规课程")
+        val makeup = course("makeup", "补课课程", startPeriod = 5, endPeriod = 6)
+        val table = table(
+            courses = listOf(regular),
+            exceptions = listOf(
+                ScheduleDateException(date = date.toString(), type = ScheduleExceptionType.DAY_OFF),
+                ScheduleDateException(
+                    date = date.toString(),
+                    type = ScheduleExceptionType.MAKEUP,
+                    makeupCourse = makeup
+                )
+            )
+        )
+
+        assertEquals(
+            listOf("补课课程"),
+            WidgetScheduleBuilder.build(table, 0, date).courses.map { it.courseName }
+        )
+    }
+
+    private fun table(
+        courses: List<Course>,
+        exceptions: List<ScheduleDateException> = emptyList()
+    ) = TableData(
+        name = "测试课表",
+        courses = courses,
+        periods = TableData.defaultPeriods().mapIndexed { index, period ->
+            if (index == 0) period.copy(start = "08:00")
+            else if (index == 1) period.copy(end = "09:35")
+            else period
+        },
+        semesterStart = "2026-08-17",
+        totalWeeks = 20,
+        dateExceptions = exceptions
+    )
+
+    private fun course(
+        series: String,
+        name: String,
+        startPeriod: Int = 1,
+        endPeriod: Int = 2,
+        classroom: String = "示例教室",
+        teacher: String = "示例教师"
+    ) = Course(
+        courseId = series,
+        courseName = name,
+        classNumber = "",
+        department = "",
+        credits = 0f,
+        weeks = listOf(1),
+        dayOfWeek = 4,
+        startPeriod = startPeriod,
+        endPeriod = endPeriod,
+        teacher = teacher,
+        classroom = classroom,
+        courseType = "",
+        courseCategory = "",
+        isOnline = false,
+        assessmentMethod = "",
+        seriesId = series
     )
 }

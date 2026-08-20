@@ -1,122 +1,157 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:background="@drawable/widget_background">
+    android:background="@drawable/widget_background"
+    android:paddingStart="12dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="10dp">
+
+    <RelativeLayout
+        android:id="@+id/widget_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/widget_weekday"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:background="@drawable/widget_status_background"
+            android:paddingStart="8dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="3dp"
+            android:textColor="@color/widget_status_text"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            tools:text="星期四" />
+
+        <TextView
+            android:id="@+id/widget_date"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:layout_toStartOf="@id/widget_weekday"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            tools:text="8月20日" />
+    </RelativeLayout>
 
     <FrameLayout
-        android:layout_width="5dp"
-        android:layout_height="match_parent"
-        android:background="@color/widget_accent" />
+        android:id="@+id/widget_header_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_below="@id/widget_header"
+        android:layout_marginTop="7dp"
+        android:background="@color/widget_divider" />
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:id="@+id/widget_columns"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center_vertical"
-        android:paddingStart="11dp"
-        android:paddingTop="9dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="9dp">
+        android:layout_below="@id/widget_header_divider"
+        android:layout_marginTop="6dp"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+        <RelativeLayout
+            android:id="@+id/widget_today_column"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
 
             <TextView
-                android:id="@+id/widget_table_name"
-                android:layout_width="0dp"
+                android:id="@+id/widget_today_title"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_alignParentTop="true"
                 android:textColor="@color/widget_accent"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end"
-                tools:text="我的课表" />
-
-            <TextView
-                android:id="@+id/widget_date"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:textColor="@color/widget_text_secondary"
                 android:textSize="11sp"
-                android:maxLines="1"
-                tools:text="8月20日 · 周四" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/widget_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/widget_status_background"
-                android:paddingStart="7dp"
-                android:paddingTop="3dp"
-                android:paddingEnd="7dp"
-                android:paddingBottom="3dp"
-                android:textColor="@color/widget_status_text"
-                android:textSize="10sp"
                 android:textStyle="bold"
-                tools:text="下一节" />
+                tools:text="今日课程 · 3 节" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_below="@id/widget_today_title"
+                android:layout_marginTop="4dp">
+
+                <ListView
+                    android:id="@+id/widget_today_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:divider="@android:color/transparent"
+                    android:dividerHeight="5dp"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="vertical" />
+
+                <TextView
+                    android:id="@+id/widget_today_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="12sp"
+                    tools:text="今日无课" />
+            </FrameLayout>
+        </RelativeLayout>
+
+        <FrameLayout
+            android:id="@+id/widget_column_divider"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="9dp"
+            android:layout_marginEnd="9dp"
+            android:background="@color/widget_divider" />
+
+        <RelativeLayout
+            android:id="@+id/widget_tomorrow_column"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
 
             <TextView
-                android:id="@+id/widget_course_name"
-                android:layout_width="0dp"
+                android:id="@+id/widget_tomorrow_title"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end"
-                tools:text="高等数学" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/widget_bottom_row"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/widget_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
                 android:textColor="@color/widget_accent"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                tools:text="10:10 开始" />
-
-            <TextView
-                android:id="@+id/widget_detail"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:gravity="end"
-                android:textColor="@color/widget_text_secondary"
                 android:textSize="11sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                tools:text="教1-101 · 张老师" />
-        </LinearLayout>
+                android:textStyle="bold"
+                tools:text="明日课程 · 2 节" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_below="@id/widget_tomorrow_title"
+                android:layout_marginTop="4dp">
+
+                <ListView
+                    android:id="@+id/widget_tomorrow_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:divider="@android:color/transparent"
+                    android:dividerHeight="5dp"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="vertical" />
+
+                <TextView
+                    android:id="@+id/widget_tomorrow_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="12sp"
+                    tools:text="明日无课" />
+            </FrameLayout>
+        </RelativeLayout>
     </LinearLayout>
-</LinearLayout>
+</RelativeLayout>

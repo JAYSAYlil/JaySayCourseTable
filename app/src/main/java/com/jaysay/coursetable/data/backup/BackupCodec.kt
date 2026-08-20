@@ -2,7 +2,6 @@ package com.jaysay.coursetable.data.backup
 
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.ThemeMode
-import com.jaysay.coursetable.data.preferences.DisplayDensity
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.data.repository.TableDataJson
 import org.json.JSONObject
@@ -45,10 +44,8 @@ object BackupCodec {
                 .put("activeTableIndex", data.preferences.activeTableIndex)
                 .put("reminderEnabled", data.preferences.reminderEnabled)
                 .put("reminderMinutes", data.preferences.reminderMinutes)
-                .put("displayDensity", data.preferences.displayDensity.name)
                 .put("reduceMotion", data.preferences.reduceMotion)
-                .put("highContrast", data.preferences.highContrast)
-                .put("widgetHideDetails", data.preferences.widgetHideDetails))
+                .put("highContrast", data.preferences.highContrast))
             .put("tables", TableDataJson.toJson(tables))
             .toString(2)
     }
@@ -76,12 +73,8 @@ object BackupCodec {
                 activeTableIndex = activeIndex,
                 reminderEnabled = prefsJson.optBoolean("reminderEnabled", false),
                 reminderMinutes = prefsJson.optInt("reminderMinutes", 10).coerceIn(1, 60),
-                displayDensity = runCatching {
-                    DisplayDensity.valueOf(prefsJson.optString("displayDensity", DisplayDensity.STANDARD.name))
-                }.getOrDefault(DisplayDensity.STANDARD),
                 reduceMotion = prefsJson.optBoolean("reduceMotion", false),
-                highContrast = prefsJson.optBoolean("highContrast", false),
-                widgetHideDetails = prefsJson.optBoolean("widgetHideDetails", false)
+                highContrast = prefsJson.optBoolean("highContrast", false)
             )
         )
     }
