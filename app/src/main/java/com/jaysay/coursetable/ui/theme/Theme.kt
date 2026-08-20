@@ -67,6 +67,8 @@ fun JaySayTheme(
         SideEffect {
             val window = (view.context as Activity).window
             val systemBarColor = if (transparentSystemBars) Color.Transparent else colors.background
+            // 自定义课表背景启用时让 Compose 画布延伸到系统栏，内容本身仍由页面 Insets 避让。
+            WindowCompat.setDecorFitsSystemWindows(window, !transparentSystemBars)
             window.statusBarColor = systemBarColor.toArgb()
             window.navigationBarColor = systemBarColor.toArgb()
             WindowCompat.getInsetsController(window, view).apply {

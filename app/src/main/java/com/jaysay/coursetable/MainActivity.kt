@@ -676,7 +676,11 @@ class MainActivity : ComponentActivity() {
                         transitionSpec = {
                             val enterMs = if (state.preferences.reduceMotion) 0 else 220
                             val fadeMs = if (state.preferences.reduceMotion) 0 else 180
-                            if (targetState.ordinal > initialState.ordinal) {
+                            if (initialState == Screen.COURSE_DETAIL) {
+                                // 详情返回只做短淡入淡出，避免大幅横向滑动干扰原课表位置感。
+                                fadeIn(tween(if (state.preferences.reduceMotion) 0 else 150)) togetherWith
+                                    fadeOut(tween(if (state.preferences.reduceMotion) 0 else 90))
+                            } else if (targetState.ordinal > initialState.ordinal) {
                                 (slideInHorizontally(tween(enterMs)) { it / 4 } + fadeIn(tween(fadeMs))) togetherWith
                                     (slideOutHorizontally(tween(fadeMs)) { -it / 5 } + fadeOut(tween(if (state.preferences.reduceMotion) 0 else 130)))
                             } else {
