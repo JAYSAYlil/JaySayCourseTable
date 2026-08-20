@@ -168,7 +168,7 @@ fun CourseEditDialog(
                             val f = v.filter { it.isDigit() }.take(2)
                             sText = f; f.toIntOrNull()?.let { startPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1)) }
                             errorMsg = null
-                        }, modifier = Modifier.width(60.dp), singleLine = true,
+                        }, modifier = Modifier.width(60.dp).testTag("course-start-period-input"), singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         Text(" 节 ～ 第 ", fontSize = 14.sp)
                         var eText by remember(course, initialKey) { mutableStateOf(endPeriod.toString()) }
@@ -176,7 +176,7 @@ fun CourseEditDialog(
                             val f = v.filter { it.isDigit() }.take(2)
                             eText = f; f.toIntOrNull()?.let { endPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1)) }
                             errorMsg = null
-                        }, modifier = Modifier.width(60.dp), singleLine = true,
+                        }, modifier = Modifier.width(60.dp).testTag("course-end-period-input"), singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         Text(" 节", fontSize = 14.sp)
                     }

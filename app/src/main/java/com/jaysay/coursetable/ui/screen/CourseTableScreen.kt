@@ -31,7 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -64,6 +64,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -499,7 +500,8 @@ fun CourseTableScreen(
                 },
                 label = "weekContent"
             ) { displayedWeek ->
-                val scrollState = remember(displayedWeek) { androidx.compose.foundation.ScrollState(0) }
+                // 课表进入详情页时会离开组合；使用可保存状态才能在返回后精确回到原纵向位置。
+                val scrollState = rememberSaveable(displayedWeek, saver = ScrollState.Saver) { ScrollState(0) }
                 var dragDistance by remember(displayedWeek) { mutableFloatStateOf(0f) }
                 Column(
                     modifier = Modifier.fillMaxSize()
@@ -520,6 +522,7 @@ fun CourseTableScreen(
                             }
                         }
                         .verticalScroll(scrollState)
+                        .testTag("schedule-scroll")
                 ) {
                     TableGrid(
                         courses = remember(displayedCourses, displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {

@@ -71,7 +71,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
-private enum class Screen { MAIN, SETTINGS, IMPORT_CONFIRM, TABLE_MANAGE, AGENDA, HISTORY, CALENDAR }
+internal enum class Screen { MAIN, SETTINGS, IMPORT_CONFIRM, TABLE_MANAGE, AGENDA, HISTORY, CALENDAR, COURSE_DETAIL }
+
+internal fun Screen.backDestination(detailOrigin: Screen = Screen.MAIN): Screen? = when (this) {
+    Screen.MAIN -> null
+    Screen.HISTORY, Screen.CALENDAR -> Screen.SETTINGS
+    Screen.COURSE_DETAIL -> detailOrigin.takeIf { it == Screen.MAIN || it == Screen.AGENDA } ?: Screen.MAIN
+    Screen.SETTINGS, Screen.IMPORT_CONFIRM, Screen.TABLE_MANAGE, Screen.AGENDA -> Screen.MAIN
+}
 
 private data class PendingConflictChange(
     val courseName: String,
@@ -165,8 +172,9 @@ class MainActivity : ComponentActivity() {
             // 屏幕位置持久化，Activity 重建（旋转/进程回收）后不会跳回主界面。
             var currentScreenOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
             fun currentScreen(): Screen = Screen.values().getOrNull(currentScreenOrdinal) ?: Screen.MAIN
-            // 详情页用 uniqueKey 保存恢复依据，数据加载完成后在 LaunchedEffect 中还原课程实例。
-            var selectedCourseKey by rememberSaveable { mutableStateOf<String?>(null) }
+            // 详情页使用跨编辑稳定的 seriesKey 保存恢复依据，并记录从主课表还是日程列表进入。
+            var selectedCourseSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
+            var detailOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
             var selectedCourse by remember { mutableStateOf<Course?>(null) }
             var showAddDialog by rememberSaveable { mutableStateOf(false) }
             var showEditDialog by rememberSaveable { mutableStateOf(false) }
@@ -193,11 +201,30 @@ class MainActivity : ComponentActivity() {
             ) {
                 if (state.isLoading) return@JaySayTheme
 
-                // 数据就绪后按保存的 uniqueKey 还原详情页课程；课程已不存在则关闭详情。
-                LaunchedEffect(state.isLoading, selectedCourseKey) {
-                    if (!state.isLoading && selectedCourseKey != null) {
-                        selectedCourse = state.courses.firstOrNull { it.uniqueKey == selectedCourseKey }
-                            ?: run { selectedCourseKey = null; null }
+                fun detailOrigin(): Screen = Screen.entries.getOrNull(detailOriginOrdinal)
+                    ?.takeIf { it == Screen.MAIN || it == Screen.AGENDA }
+                    ?: Screen.MAIN
+                val closeCourseDetail: () -> Unit = {
+                    selectedCourse = null
+                    selectedCourseSeriesKey = null
+                    currentScreenOrdinal = detailOrigin().ordinal
+                }
+                val openCourseDetail: (Course, Screen) -> Unit = { course, origin ->
+                    selectedCourse = course
+                    selectedCourseSeriesKey = course.seriesKey
+                    detailOriginOrdinal = origin.ordinal
+                    currentScreenOrdinal = Screen.COURSE_DETAIL.ordinal
+                }
+
+                // 数据就绪后按稳定系列标识还原/刷新详情；课程已不存在则回到真实来源页。
+                LaunchedEffect(state.isLoading, state.courses, selectedCourseSeriesKey, currentScreenOrdinal) {
+                    if (state.isLoading) return@LaunchedEffect
+                    val seriesKey = selectedCourseSeriesKey
+                    if (seriesKey != null) {
+                        selectedCourse = state.courses.firstOrNull { it.seriesKey == seriesKey }
+                        if (selectedCourse == null) closeCourseDetail()
+                    } else if (currentScreen() == Screen.COURSE_DETAIL) {
+                        closeCourseDetail()
                     }
                 }
 
@@ -209,9 +236,7 @@ class MainActivity : ComponentActivity() {
                         model.selectTable(targetTable, ::showSaveError)
                     } else {
                         state.courses.firstOrNull { it.seriesKey == requestedSeries }?.let { course ->
-                            selectedCourse = course
-                            selectedCourseKey = course.uniqueKey
-                            currentScreenOrdinal = Screen.MAIN.ordinal
+                            openCourseDetail(course, Screen.MAIN)
                         }
                         requestedCourseSeries.value = null
                         requestedTableIndex.intValue = -1
@@ -241,20 +266,17 @@ class MainActivity : ComponentActivity() {
 
                 val activeTable = state.activeTable
                 val navigateBack: () -> Unit = {
-                    when (currentScreen()) {
-                        Screen.HISTORY, Screen.CALENDAR -> currentScreenOrdinal = Screen.SETTINGS.ordinal
+                    val screen = currentScreen()
+                    when (screen) {
                         Screen.IMPORT_CONFIRM -> {
                             model.clearStagedCourseImport()
                             currentScreenOrdinal = Screen.MAIN.ordinal
                         }
-                        Screen.MAIN -> {
-                            selectedCourse = null
-                            selectedCourseKey = null
-                        }
-                        else -> currentScreenOrdinal = Screen.MAIN.ordinal
+                        Screen.COURSE_DETAIL -> closeCourseDetail()
+                        else -> screen.backDestination(detailOrigin())?.let { currentScreenOrdinal = it.ordinal }
                     }
                 }
-                BackHandler(enabled = currentScreen() != Screen.MAIN || selectedCourse != null) {
+                BackHandler(enabled = currentScreen().backDestination(detailOrigin()) != null) {
                     navigateBack()
                 }
                 val runAfterConflictCheck: (Course, List<Course>, () -> Unit) -> Unit =
@@ -311,8 +333,7 @@ class MainActivity : ComponentActivity() {
                                 model.updateCourses(
                                     transform = { courses -> CourseSeriesOperations.deleteWeek(courses, seriesKey, week) },
                                     onComplete = {
-                                        selectedCourse = null
-                                        selectedCourseKey = null
+                                        closeCourseDetail()
                                         offerUndo(
                                             CourseSeriesUndo.capture(previous, after, seriesKey),
                                             "已从第 $week 周移除 ${deleting.courseName}"
@@ -479,6 +500,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }, onComplete = {
                                 showEditDialog = false; editingCourse = null
+                                if (currentScreen() == Screen.COURSE_DETAIL) closeCourseDetail()
                                 offerUndo(
                                     CourseSeriesUndo.capture(previous, after, oldSeriesKey),
                                     if (applyToAll) "已删除 $deletedName 的全部周次" else "已从第 $week 周移除 $deletedName"
@@ -799,9 +821,8 @@ class MainActivity : ComponentActivity() {
                                     excludedWeeks = activeTable.excludedWeeks,
                                     dateExceptions = activeTable.dateExceptions,
                                     onCourseClick = { course ->
-                                        selectedCourse = state.courses.firstOrNull { it.seriesKey == course.seriesKey } ?: course
-                                        selectedCourseKey = selectedCourse?.uniqueKey
-                                        currentScreenOrdinal = Screen.MAIN.ordinal
+                                        val selected = state.courses.firstOrNull { it.seriesKey == course.seriesKey } ?: course
+                                        openCourseDetail(selected, Screen.AGENDA)
                                     },
                                     modifier = Modifier.padding(padding)
                                 )
@@ -826,37 +847,20 @@ class MainActivity : ComponentActivity() {
                                 onBack = { currentScreenOrdinal = Screen.SETTINGS.ordinal }
                             )
 
-                            Screen.MAIN -> AnimatedContent(
-                                targetState = selectedCourse,
-                                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                                transitionSpec = {
-                                    val enterMs = if (state.preferences.reduceMotion) 0 else 220
-                                    val fadeMs = if (state.preferences.reduceMotion) 0 else 180
-                                    if (targetState != null) {
-                                        (slideInHorizontally(tween(enterMs)) { it / 3 } + fadeIn(tween(fadeMs))) togetherWith
-                                            (slideOutHorizontally(tween(fadeMs)) { -it / 5 } + fadeOut(tween(if (state.preferences.reduceMotion) 0 else 140)))
-                                    } else {
-                                        (slideInHorizontally(tween(enterMs)) { -it / 5 } + fadeIn(tween(fadeMs))) togetherWith
-                                            (slideOutHorizontally(tween(fadeMs)) { it / 3 } + fadeOut(tween(if (state.preferences.reduceMotion) 0 else 140)))
-                                    }
-                                },
-                                label = "courseDetail"
-                            ) { course ->
-                                if (course != null) {
-                                    CourseDetailScreen(
-                                        course = course,
-                                        allCourses = state.courses,
-                                        onClose = { selectedCourse = null; selectedCourseKey = null },
-                                        onEdit = { editing ->
-                                            selectedCourse = null
-                                            selectedCourseKey = null
-                                            editingCourse = editing
-                                            showEditDialog = true
-                                        },
-                                        onDelete = { pendingDetailDelete = course }
-                                    )
-                                } else {
-                                    CourseTableScreen(
+                            Screen.COURSE_DETAIL -> selectedCourse?.let { course ->
+                                CourseDetailScreen(
+                                    course = course,
+                                    allCourses = state.courses,
+                                    onClose = closeCourseDetail,
+                                    onEdit = { editing ->
+                                        editingCourse = editing
+                                        showEditDialog = true
+                                    },
+                                    onDelete = { pendingDetailDelete = course }
+                                )
+                            }
+
+                            Screen.MAIN -> CourseTableScreen(
                                         courses = state.courses,
                                         currentWeek = state.currentWeek,
                                         tableName = activeTable.name,
@@ -869,7 +873,7 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             )
                                         },
-                                        onCourseClick = { selectedCourse = it; selectedCourseKey = it.uniqueKey },
+                                        onCourseClick = { openCourseDetail(it, Screen.MAIN) },
                                         onWeekChange = model::setWeek,
                                         onSettingsClick = { currentScreenOrdinal = Screen.SETTINGS.ordinal },
                                         onTableMenuClick = { currentScreenOrdinal = Screen.TABLE_MANAGE.ordinal },
@@ -896,8 +900,6 @@ class MainActivity : ComponentActivity() {
                                         readOnlyMessage = state.persistentDataError,
                                         onRecoveryClick = { currentScreenOrdinal = Screen.SETTINGS.ordinal }
                                     )
-                                }
-                            }
                         }
                         }
                     }
