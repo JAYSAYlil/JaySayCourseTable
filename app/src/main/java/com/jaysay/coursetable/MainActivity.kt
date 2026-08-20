@@ -11,8 +11,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -665,10 +670,27 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                    Crossfade(
+                    AnimatedContent(
                         targetState = currentScreen(),
-                        modifier = Modifier.fillMaxSize(),
-                        animationSpec = tween(if (state.preferences.reduceMotion) 0 else 100),
+                        modifier = Modifier.fillMaxSize().background(
+                            if (customBackgroundActive && currentScreen() == Screen.MAIN) Color.Transparent
+                            else MaterialTheme.colorScheme.background
+                        ),
+                        transitionSpec = {
+                            val enterMs = if (state.preferences.reduceMotion) 0 else 220
+                            val fadeMs = if (state.preferences.reduceMotion) 0 else 180
+                            if (initialState == Screen.COURSE_DETAIL) {
+                                // 仅课程详情返回一级课表/日程时使用短淡化，避免详情页返回时产生明显位移。
+                                fadeIn(tween(if (state.preferences.reduceMotion) 0 else 150)) togetherWith
+                                    fadeOut(tween(if (state.preferences.reduceMotion) 0 else 90))
+                            } else if (targetState.ordinal > initialState.ordinal) {
+                                (slideInHorizontally(tween(enterMs)) { it / 4 } + fadeIn(tween(fadeMs))) togetherWith
+                                    (slideOutHorizontally(tween(fadeMs)) { -it / 5 } + fadeOut(tween(if (state.preferences.reduceMotion) 0 else 130)))
+                            } else {
+                                (slideInHorizontally(tween(enterMs)) { -it / 4 } + fadeIn(tween(fadeMs))) togetherWith
+                                    (slideOutHorizontally(tween(fadeMs)) { it / 5 } + fadeOut(tween(if (state.preferences.reduceMotion) 0 else 130)))
+                            }
+                        },
                         label = "screen"
                     ) { screen ->
                         screenStateHolder.SaveableStateProvider(screen.name) {
