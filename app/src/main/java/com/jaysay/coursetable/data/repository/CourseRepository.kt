@@ -113,13 +113,6 @@ class CourseRepository private constructor(
         }
     }
 
-    suspend fun deleteTable(index: Int): List<TableData> {
-        val tables = loadAllTables().toMutableList()
-        if (tables.size > 1 && index in tables.indices) tables.removeAt(index)
-        saveAllTables(tables)
-        return tables
-    }
-
     private fun parseTables(text: String): List<TableData> {
         val trimmed = text.trimStart()
         val array = if (trimmed.startsWith("[")) {

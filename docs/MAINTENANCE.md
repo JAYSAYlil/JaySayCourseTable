@@ -5,7 +5,7 @@
 - Android 应用模块：`app/`
 - 包名与 applicationId：`com.jaysay.coursetable`
 - 最低/目标系统：Android 8.0（API 26）/ Android 14（API 34）
-- 当前候选版本：2.12.1，versionCode 86
+- 当前候选版本：2.12.2，versionCode 87
 - 应用不声明 `INTERNET` 权限，不包含联网客户端；课程、备份、提醒和日历均在本机处理。
 
 ## 主要结构

@@ -171,7 +171,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 屏幕位置持久化，Activity 重建（旋转/进程回收）后不会跳回主界面。
             var currentScreenOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
-            fun currentScreen(): Screen = Screen.values().getOrNull(currentScreenOrdinal) ?: Screen.MAIN
+            fun currentScreen(): Screen = Screen.entries.getOrNull(currentScreenOrdinal) ?: Screen.MAIN
             // 详情页使用跨编辑稳定的 seriesKey 保存恢复依据，并记录从主课表还是日程列表进入。
             var selectedCourseSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
             var detailOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }

@@ -67,8 +67,6 @@ object MappedTextScheduleParser {
         return TextScheduleParser.ParseResult(courses, errors)
     }
 
-    fun previewColumns(firstNonBlankLine: String): List<String> = split(firstNonBlankLine).map(String::trim)
-
     private fun split(line: String): List<String> = when {
         '\t' in line -> line.split('\t')
         '|' in line -> line.split('|')

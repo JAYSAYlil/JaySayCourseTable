@@ -11,9 +11,6 @@ import java.util.Locale
 
 object TimeUtils {
 
-    /** 今天的日期，格式 YYYY-MM-DD */
-    fun todayDate(): String = LocalDate.now().toString()
-
     /** 课表周统一从周一开始；用于兼容旧版曾保存的周中“开学日期”。 */
     fun weekStart(date: LocalDate): LocalDate =
         date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -88,15 +85,11 @@ object TimeUtils {
         }
     }
 
-    fun parseDayOfWeek(dayStr: String): Int = parseDayOfWeekOrNull(dayStr) ?: 1
-
     /** Parse period string like "第7小节" to Int */
     fun parsePeriodOrNull(periodStr: String): Int? {
         val digits = periodStr.filter { it.isDigit() }
         return digits.toIntOrNull()?.takeIf { it > 0 }
     }
-
-    fun parsePeriod(periodStr: String): Int = parsePeriodOrNull(periodStr) ?: 1
 
     /** Parse week string to list of week numbers.
      *  Examples: "7-8周", "6周,9周", "2周,4-5周,7周,10周,17周", "1-3周(单),6周", "1-18周".
