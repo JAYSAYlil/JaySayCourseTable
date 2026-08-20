@@ -26,5 +26,15 @@ object ReminderSuppression {
         return values.getString(MUTED_DATE, null) == date.toString() || values.getInt(MUTED_WEEK, -1) == week
     }
 
+    fun activeLabel(context: Context, tableIndex: Int, week: Int, date: LocalDate): String? {
+        val values = prefs(context)
+        if (values.getInt(MUTED_TABLE, -1) != tableIndex) return null
+        return when {
+            values.getString(MUTED_DATE, null) == date.toString() -> "今天的课程提醒已暂停"
+            values.getInt(MUTED_WEEK, -1) == week -> "本周的课程提醒已暂停"
+            else -> null
+        }
+    }
+
     private fun prefs(context: Context) = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 }

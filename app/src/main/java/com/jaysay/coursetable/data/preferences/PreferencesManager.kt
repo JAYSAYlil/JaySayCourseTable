@@ -32,7 +32,9 @@ data class AppPreferences(
     /** 上课前提前提醒分钟数（5/10/15/30）。 */
     val reminderMinutes: Int = 10,
     val reduceMotion: Boolean = false,
-    val highContrast: Boolean = false
+    val highContrast: Boolean = false,
+    /** 0 表示使用默认背景；正数同时用作图片缓存刷新标记。 */
+    val customBackgroundRevision: Long = 0L
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -55,6 +57,7 @@ class PreferencesManager(context: Context) {
             .put("reminderMinutes", prefs.reminderMinutes.coerceIn(1, 60))
             .put("reduceMotion", prefs.reduceMotion)
             .put("highContrast", prefs.highContrast)
+            .put("customBackgroundRevision", prefs.customBackgroundRevision.coerceAtLeast(0L))
         store.write(obj.toString(2))
     }
 
@@ -68,11 +71,12 @@ class PreferencesManager(context: Context) {
             reminderEnabled = obj.optBoolean("reminderEnabled", false),
             reminderMinutes = obj.optInt("reminderMinutes", 10).coerceIn(1, 60),
             reduceMotion = obj.optBoolean("reduceMotion", false),
-            highContrast = obj.optBoolean("highContrast", false)
+            highContrast = obj.optBoolean("highContrast", false),
+            customBackgroundRevision = obj.optLong("customBackgroundRevision", 0L).coerceAtLeast(0L)
         )
     }
 
     private companion object {
-        const val SCHEMA_VERSION = 3
+        const val SCHEMA_VERSION = 4
     }
 }

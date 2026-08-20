@@ -108,6 +108,24 @@ class MainActivitySmokeTest {
     }
 
     @Test
+    fun customBackgroundControlsAreReachableFromSettings() {
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (composeRule.onAllNodesWithTag("more-actions-button").fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onNodeWithTag("more-actions-button").performClick()
+            composeRule.onNodeWithText("设置").performClick()
+        } else {
+            composeRule.onNodeWithContentDescription("设置").performClick()
+        }
+
+        composeRule.onNodeWithTag("choose-custom-background")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("课表背景").assertExists()
+    }
+
+    @Test
     fun systemBackFromAgendaReturnsToScheduleInsteadOfExiting() {
         composeRule.waitUntil(timeoutMillis = 8_000) {
             composeRule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty()

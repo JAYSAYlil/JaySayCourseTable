@@ -11,6 +11,7 @@ import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
+import java.time.LocalTime
 
 /** 为小组件的今日/明日课程列表提供可滚动条目。 */
 class CourseWidgetRemoteViewsService : RemoteViewsService() {
@@ -39,7 +40,15 @@ private class CourseWidgetRemoteViewsFactory(
         date = LocalDate.now().plusDays(dayOffset.toLong())
         rows = runBlocking(Dispatchers.IO) {
             WidgetScheduleLoader.loadActive(context)?.let { active ->
-                WidgetScheduleBuilder.build(active.table, active.tableIndex, date).courses
+                val afterMinute = if (dayOffset == 0) {
+                    LocalTime.now().let { it.hour * 60 + it.minute }
+                } else null
+                WidgetScheduleBuilder.build(
+                    active.table,
+                    active.tableIndex,
+                    date,
+                    afterMinute = afterMinute
+                ).courses
             }.orEmpty()
         }
     }

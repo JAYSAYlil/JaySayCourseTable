@@ -112,7 +112,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         state = state.copy(currentWeek = TimeUtils.todayWeek(table.semesterStart, table.totalWeeks))
     }
 
-    fun updatePreferences(preferences: AppPreferences, onError: (Throwable) -> Unit = {}) = launchWrite(onError) {
+    fun updatePreferences(preferences: AppPreferences, onError: (Throwable) -> Unit = {}) =
+        launchWrite(onError, allowWhenReadOnly = true) {
+        // 设置页在只读保护时只开放外观类入口，使用独立偏好文件保存。
         val safe = preferences.copy(activeTableIndex = state.activeTableIndex)
         preferencesManager.save(safe)
         state = state.copy(preferences = safe)

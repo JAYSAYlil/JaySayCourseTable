@@ -71,6 +71,20 @@ class BackupCodecTest {
         assertThrows(IllegalArgumentException::class.java) { BackupCodec.decode(root.toString()) }
     }
 
+    @Test
+    fun localBackgroundMarkerAndImageAreNotCarriedByCourseBackups() {
+        val source = BackupData(
+            listOf(TableData("课表", listOf(course()))),
+            AppPreferences(customBackgroundRevision = 123456L)
+        )
+
+        val encoded = BackupCodec.encode(source)
+        val restored = BackupCodec.decode(encoded)
+
+        assertFalse(encoded.contains("customBackgroundRevision"))
+        assertEquals(0L, restored.preferences.customBackgroundRevision)
+    }
+
     private fun course() = Course(
         courseId = "C001",
         courseName = "课程",

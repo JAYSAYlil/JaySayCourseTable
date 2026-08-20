@@ -29,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import com.jaysay.coursetable.data.backup.BackupData
 import com.jaysay.coursetable.data.backup.BackupDiff
 import com.jaysay.coursetable.data.model.Course
@@ -47,6 +49,7 @@ import com.jaysay.coursetable.data.parser.ExcelParser
 import com.jaysay.coursetable.data.parser.MappedTextScheduleParser
 import com.jaysay.coursetable.data.parser.TextScheduleParser
 import com.jaysay.coursetable.data.parser.TextColumnMapping
+import com.jaysay.coursetable.data.preferences.CustomBackgroundStore
 import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import com.jaysay.coursetable.data.reminder.ReminderSuppression
 import com.jaysay.coursetable.data.transfer.ImportExportCoordinator
@@ -62,6 +65,7 @@ import com.jaysay.coursetable.ui.screen.TableManageScreen
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.widget.CourseWidgetProvider
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.rememberCustomBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -122,6 +126,26 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { /* 结果不强制处理：用户可在系统设置中开启通知权限 */ }
 
+    private val backgroundImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri ?: return@registerForActivityResult
+        lifecycleScope.launch {
+            runCatching { CustomBackgroundStore.import(this@MainActivity, uri) }
+                .onSuccess { storedRevision ->
+                    val current = model.state.preferences.customBackgroundRevision
+                    model.updatePreferences(
+                        model.state.preferences.copy(
+                            customBackgroundRevision = maxOf(storedRevision, current + 1L)
+                        ),
+                        ::showSaveError
+                    )
+                    Toast.makeText(this@MainActivity, "已应用全屏自定义背景", Toast.LENGTH_SHORT).show()
+                }
+                .onFailure { showError("背景图设置失败", it) }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         model = ViewModelProvider(this)[MainViewModel::class.java]
@@ -159,10 +183,13 @@ class MainActivity : ComponentActivity() {
             val coroutineScope = rememberCoroutineScope()
             val screenStateHolder = rememberSaveableStateHolder()
             val state = model.state
+            val customBackground = rememberCustomBackground(state.preferences.customBackgroundRevision)
+            val customBackgroundActive = customBackground != null
 
             JaySayTheme(
                 themeMode = state.preferences.themeMode,
-                highContrast = state.preferences.highContrast
+                highContrast = state.preferences.highContrast,
+                transparentSystemBars = customBackgroundActive && currentScreen() == Screen.MAIN
             ) {
                 if (state.isLoading) return@JaySayTheme
 
@@ -620,7 +647,10 @@ class MainActivity : ComponentActivity() {
                 Box(modifier = Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = currentScreen(),
-                        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                        modifier = Modifier.fillMaxSize().background(
+                            if (customBackgroundActive && currentScreen() == Screen.MAIN) Color.Transparent
+                            else MaterialTheme.colorScheme.background
+                        ),
                         transitionSpec = {
                             val enterMs = if (state.preferences.reduceMotion) 0 else 220
                             val fadeMs = if (state.preferences.reduceMotion) 0 else 180
@@ -652,6 +682,21 @@ class MainActivity : ComponentActivity() {
                                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     }
                                 },
+                                customBackground = customBackground,
+                                onChooseCustomBackground = { backgroundImageLauncher.launch("image/*") },
+                                onClearCustomBackground = {
+                                    coroutineScope.launch {
+                                        runCatching { CustomBackgroundStore.clear(this@MainActivity) }
+                                            .onSuccess {
+                                                model.updatePreferences(
+                                                    state.preferences.copy(customBackgroundRevision = 0L),
+                                                    ::showSaveError
+                                                )
+                                                Toast.makeText(this@MainActivity, "已恢复默认背景", Toast.LENGTH_SHORT).show()
+                                            }
+                                            .onFailure { showError("恢复默认背景失败", it) }
+                                    }
+                                },
                                 onUpdateTable = { model.updateActiveTable(it, ::showSaveError) },
                                 onExportBackup = { sanitized ->
                                     val suffix = if (sanitized) "脱敏副本" else "完整备份"
@@ -672,6 +717,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenHistory = { currentScreenOrdinal = Screen.HISTORY.ordinal },
                                 onOpenCalendarExceptions = { currentScreenOrdinal = Screen.CALENDAR.ordinal },
+                                reminderPauseStatus = ReminderSuppression.activeLabel(
+                                    this@MainActivity,
+                                    state.activeTableIndex,
+                                    state.currentWeek,
+                                    LocalDate.now()
+                                ),
                                 onClearReminderPause = {
                                     ReminderSuppression.clear(this@MainActivity)
                                     coroutineScope.launch(Dispatchers.IO) {
@@ -836,6 +887,7 @@ class MainActivity : ComponentActivity() {
                                         dateExceptions = activeTable.dateExceptions,
                                         weekLabels = activeTable.weekLabels,
                                         reduceMotion = state.preferences.reduceMotion,
+                                        customBackground = customBackground,
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,

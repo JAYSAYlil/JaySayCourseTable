@@ -77,12 +77,14 @@ class CourseWidgetProvider : AppWidgetProvider() {
         val active = WidgetScheduleLoader.loadActive(context)
         val today = LocalDate.now()
         val tomorrow = today.plusDays(1)
-        val todaySchedule = active?.let { WidgetScheduleBuilder.build(it.table, it.tableIndex, today) }
+        val nowMinute = Calendar.getInstance().let {
+            it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE)
+        }
+        val todaySchedule = active?.let {
+            WidgetScheduleBuilder.build(it.table, it.tableIndex, today, afterMinute = nowMinute)
+        }
         val tomorrowSchedule = active?.let { WidgetScheduleBuilder.build(it.table, it.tableIndex, tomorrow) }
         val agenda = active?.let { item ->
-            val nowMinute = Calendar.getInstance().let {
-                it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE)
-            }
             TodayAgendaCalculator.calculate(
                 courses = item.table.courses,
                 periods = item.table.periods,
@@ -292,7 +294,12 @@ internal object WidgetScheduleLoader {
 }
 
 internal object WidgetScheduleBuilder {
-    fun build(table: TableData, tableIndex: Int, date: LocalDate): WidgetDaySchedule {
+    fun build(
+        table: TableData,
+        tableIndex: Int,
+        date: LocalDate,
+        afterMinute: Int? = null
+    ): WidgetDaySchedule {
         val courses = ScheduleDateResolver.coursesOn(
             courses = table.courses,
             semesterStart = table.semesterStart,
@@ -300,7 +307,14 @@ internal object WidgetScheduleBuilder {
             excludedWeeks = table.excludedWeeks.toSet(),
             exceptions = table.dateExceptions,
             date = date
-        ).map { resolved ->
+        ).filter { resolved ->
+            if (afterMinute == null) true else {
+                val endMinute = table.periods.getOrNull(resolved.course.endPeriod - 1)
+                    ?.end
+                    ?.let(TimeUtils::parseMinuteOfDay)
+                endMinute == null || endMinute > afterMinute
+            }
+        }.map { resolved ->
             val course = resolved.course
             val start = table.periods.getOrNull(course.startPeriod - 1)?.start
             val end = table.periods.getOrNull(course.endPeriod - 1)?.end

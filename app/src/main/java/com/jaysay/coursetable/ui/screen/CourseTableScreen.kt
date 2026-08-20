@@ -73,6 +73,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
@@ -85,6 +86,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseSearch
 import com.jaysay.coursetable.data.model.ScheduleDateException
@@ -95,6 +97,7 @@ import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
 import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
+import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.CourseColors
 import com.jaysay.coursetable.ui.theme.CourseSubTextColor
 import com.jaysay.coursetable.ui.theme.CourseTextColor
@@ -172,6 +175,7 @@ fun CourseTableScreen(
     dateExceptions: List<ScheduleDateException> = emptyList(),
     weekLabels: Map<Int, String> = emptyMap(),
     reduceMotion: Boolean = false,
+    customBackground: ImageBitmap? = null,
     viewMode: ScheduleViewMode,
     onViewModeChange: (ScheduleViewMode) -> Unit,
     focusedDay: Int,
@@ -239,10 +243,20 @@ fun CourseTableScreen(
     val weekDisabledTint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (dark) 0.38f else 0.3f)
 
     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
-        Column(
+        Box(modifier = Modifier.fillMaxSize().background(bgColor)) {
+            if (customBackground != null) {
+                CustomBackgroundImage(customBackground)
+                Box(
+                    Modifier.fillMaxSize().background(
+                        if (dark) Color.Black.copy(alpha = 0.48f)
+                        else Color.White.copy(alpha = 0.42f)
+                    )
+                )
+            }
+            Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(bgColor)
+                .background(Color.Transparent)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .testTag("course-table-screen")
@@ -531,13 +545,15 @@ fun CourseTableScreen(
                         cSubColor = cSubColor,
                         todayWeek = todayWeek,
                         todayDow = todayDow,
-                        viewMode = viewMode
+                        viewMode = viewMode,
+                        hasCustomBackground = customBackground != null
                     )
                     // Lets the final period scroll clear of rounded display corners and
                     // gesture navigation areas on compact phones.
                     Spacer(Modifier.height(48.dp))
                 }
             }
+        }
         }
     }
     }
@@ -674,11 +690,14 @@ private fun TableGrid(
     cSubColor: Color,
     todayWeek: Int,
     todayDow: Int,
-    viewMode: ScheduleViewMode
+    viewMode: ScheduleViewMode,
+    hasCustomBackground: Boolean
 ) {
     val sections = remember(periodTimes) { buildSections(periodTimes) }
     val currentMinute = rememberCurrentMinute()
-    val gridBackground = if (dark) DarkBackground else MaterialTheme.colorScheme.background
+    val gridBackground = if (hasCustomBackground) {
+        MaterialTheme.colorScheme.background.copy(alpha = if (dark) 0.38f else 0.30f)
+    } else if (dark) DarkBackground else MaterialTheme.colorScheme.background
     val sectionBackground = if (dark) Color(0xFF17201D) else Color(0xFFF3F7F6)
     val sectionText = if (dark) DarkPrimaryDark.copy(alpha = 0.72f) else PrimaryDark.copy(alpha = 0.72f)
     val isTodayVisible = currentWeek == todayWeek
@@ -787,30 +806,6 @@ private fun TableGrid(
                             Offset(size.width, size.height - stroke / 2f),
                             strokeWidth = stroke
                         )
-                        if (isTodayColumn) {
-                            val activeIndex = periodTimes.indexOfFirst { period ->
-                                val start = TimeUtils.parseMinuteOfDay(period.start)
-                                val end = TimeUtils.parseMinuteOfDay(period.end)
-                                start != null && end != null && currentMinute >= start && currentMinute < end
-                            }
-                            if (activeIndex >= 0) {
-                                val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
-                                val end = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].end) ?: currentMinute + 1
-                                val fraction = ((currentMinute - start).toFloat() / (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
-                                val lineY = (periodOffset(activeIndex + 1, sections, cellHeight) + cellHeight * fraction).toPx()
-                                drawCircle(
-                                    gridError,
-                                    radius = 3.5.dp.toPx(),
-                                    center = Offset(3.5.dp.toPx(), lineY)
-                                )
-                                drawLine(
-                                    gridError,
-                                    Offset(7.dp.toPx(), lineY),
-                                    Offset(size.width, lineY),
-                                    strokeWidth = 1.dp.toPx()
-                                )
-                            }
-                        }
                     }
 
                     // 网格视觉元素由 Canvas 批量绘制；空白节次仍保留独立可点击语义节点，
@@ -858,6 +853,41 @@ private fun TableGrid(
                             viewMode = viewMode,
                             onClick = { onCourseClick(course) }
                         )
+                    }
+
+                    // 当前时间线必须在课程卡片之后绘制，否则会被卡片完全遮挡。
+                    if (isTodayColumn) {
+                        Canvas(modifier = Modifier.fillMaxSize().zIndex(3f)) {
+                            val activeIndex = periodTimes.indexOfFirst { period ->
+                                val start = TimeUtils.parseMinuteOfDay(period.start)
+                                val end = TimeUtils.parseMinuteOfDay(period.end)
+                                start != null && end != null && currentMinute >= start && currentMinute < end
+                            }
+                            if (activeIndex >= 0) {
+                                val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
+                                val end = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].end) ?: currentMinute + 1
+                                val fraction = ((currentMinute - start).toFloat() /
+                                    (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
+                                val lineY = (periodOffset(activeIndex + 1, sections, cellHeight) +
+                                    cellHeight * fraction).toPx()
+                                val halo = if (dark) Color.Black.copy(alpha = 0.78f)
+                                    else Color.White.copy(alpha = 0.9f)
+                                drawCircle(halo, radius = 6.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
+                                drawLine(
+                                    halo,
+                                    Offset(10.dp.toPx(), lineY),
+                                    Offset(size.width, lineY),
+                                    strokeWidth = 4.dp.toPx()
+                                )
+                                drawCircle(gridError, radius = 4.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
+                                drawLine(
+                                    gridError,
+                                    Offset(10.dp.toPx(), lineY),
+                                    Offset(size.width, lineY),
+                                    strokeWidth = 2.dp.toPx()
+                                )
+                            }
+                        }
                     }
                 }
             }

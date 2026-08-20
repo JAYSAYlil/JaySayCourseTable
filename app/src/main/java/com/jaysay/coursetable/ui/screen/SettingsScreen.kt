@@ -20,6 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +34,7 @@ import com.jaysay.coursetable.data.reminder.ReminderPolicy
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
 import java.util.*
@@ -45,6 +48,9 @@ fun SettingsScreen(
     tableData: TableData = TableData("课表1", emptyList(), semesterStart = TimeUtils.currentWeekStartDate()),
     preferences: AppPreferences,
     onUpdatePrefs: (AppPreferences) -> Unit,
+    customBackground: ImageBitmap? = null,
+    onChooseCustomBackground: () -> Unit = {},
+    onClearCustomBackground: () -> Unit = {},
     onUpdateTable: ((TableData) -> Unit)? = null,
     onExportBackup: (sanitized: Boolean) -> Unit,
     onExportEncryptedBackup: () -> Unit = {},
@@ -54,6 +60,7 @@ fun SettingsScreen(
     onExportDiagnostics: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenCalendarExceptions: () -> Unit = {},
+    reminderPauseStatus: String? = null,
     onClearReminderPause: () -> Unit = {},
     tablesCount: Int = 1,
     readOnlyMessage: String? = null,
@@ -64,7 +71,8 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     var table by remember(tableData) { mutableStateOf(tableData) }
-    fun save(new: AppPreferences) { if (readOnlyMessage == null) onUpdatePrefs(new) }
+    // 外观和背景不修改课表文件，数据保护模式下仍可正常使用。
+    fun save(new: AppPreferences) { onUpdatePrefs(new) }
     fun saveTable(new: TableData) {
         if (readOnlyMessage == null) {
             table = new
@@ -101,7 +109,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text("课表数据处于只读保护", fontWeight = FontWeight.Bold)
-                        Text("$message\n普通设置已停用，请使用下方“从备份恢复”。", fontSize = 12.sp)
+                        Text("$message\n课表结构编辑、导入与提醒已停用；外观和背景仍可调整。", fontSize = 12.sp)
                     }
                 }
             }
@@ -129,6 +137,76 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SettingsSection(title = "课表背景") {
+                val backgroundActive = preferences.customBackgroundRevision > 0L && customBackground != null
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(156.dp)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                        .testTag("custom-background-preview")
+                ) {
+                    if (customBackground != null) {
+                        CustomBackgroundImage(customBackground)
+                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
+                    } else {
+                        Icon(
+                            Icons.Outlined.Wallpaper,
+                            contentDescription = null,
+                            modifier = Modifier.size(42.dp).align(Alignment.Center),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                    ) {
+                        Text(
+                            if (backgroundActive) "自定义背景已启用" else "默认课表背景",
+                            color = if (customBackground != null) Color.White else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "图片会全屏铺在课表下方，并自动加入可读遮罩",
+                            color = if (customBackground != null) Color.White.copy(alpha = 0.86f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onChooseCustomBackground,
+                        modifier = Modifier.weight(1f).testTag("choose-custom-background")
+                    ) {
+                        Icon(Icons.Outlined.Image, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (backgroundActive) "更换图片" else "选择图片")
+                    }
+                    if (preferences.customBackgroundRevision > 0L) {
+                        OutlinedButton(
+                            onClick = onClearCustomBackground,
+                            modifier = Modifier.testTag("clear-custom-background")
+                        ) {
+                            Text("恢复默认")
+                        }
+                    }
+                }
+                Text(
+                    "图片经压缩并去除元数据后仅保存在本机应用私有目录，不会进入课表备份。",
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -187,7 +265,7 @@ fun SettingsScreen(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                .clickable { showStartPicker = true }
+                                .clickable(enabled = readOnlyMessage == null) { showStartPicker = true }
                                 .padding(horizontal = 10.dp, vertical = 8.dp)
                         ) {
                             Text(period.start, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -201,14 +279,14 @@ fun SettingsScreen(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                .clickable { showEndPicker = true }
+                                .clickable(enabled = readOnlyMessage == null) { showEndPicker = true }
                                 .padding(horizontal = 10.dp, vertical = 8.dp)
                         ) {
                             Text(period.end, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
 
                         if (periodCount > 1) {
-                            IconButton(onClick = {
+                            IconButton(enabled = readOnlyMessage == null, onClick = {
                                 val np = table.periods.toMutableList()
                                 np.removeAt(idx)
                                 saveTable(table.copy(periods = np))
@@ -250,7 +328,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(onClick = {
+                    OutlinedButton(enabled = readOnlyMessage == null, onClick = {
                         val last = table.periods.lastOrNull()
                         val startMinute = if (last != null) {
                             val p = last.end.split(":")
@@ -275,7 +353,9 @@ fun SettingsScreen(
                         Text("添加节次", fontSize = 13.sp)
                     }
 
-                    OutlinedButton(onClick = { saveTable(table.copy(periods = TableData.defaultPeriods())) },
+                    OutlinedButton(
+                        enabled = readOnlyMessage == null,
+                        onClick = { saveTable(table.copy(periods = TableData.defaultPeriods())) },
                         modifier = Modifier.height(48.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                         Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp))
@@ -298,7 +378,7 @@ fun SettingsScreen(
             SettingsSection(title = "学期设置") {
                 var showDatePicker by remember { mutableStateOf(false) }
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = readOnlyMessage == null) { showDatePicker = true }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -349,11 +429,17 @@ fun SettingsScreen(
                     Icon(Icons.Outlined.ViewWeek, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(12.dp))
                     Text("总周数", fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { if (totalWeeks > 1) saveTable(table.copy(totalWeeks = table.totalWeeks - 1)) }) {
+                    IconButton(
+                        onClick = { if (totalWeeks > 1) saveTable(table.copy(totalWeeks = table.totalWeeks - 1)) },
+                        enabled = readOnlyMessage == null && totalWeeks > 1
+                    ) {
                         Icon(Icons.Default.Remove, "减少总周数", modifier = Modifier.size(18.dp))
                     }
                     Text("" + totalWeeks, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
-                    IconButton(onClick = { if (totalWeeks < 30) saveTable(table.copy(totalWeeks = table.totalWeeks + 1)) }) {
+                    IconButton(
+                        onClick = { if (totalWeeks < 30) saveTable(table.copy(totalWeeks = table.totalWeeks + 1)) },
+                        enabled = readOnlyMessage == null && totalWeeks < 30
+                    ) {
                         Icon(Icons.Default.Add, "增加总周数", modifier = Modifier.size(18.dp))
                     }
                 }
@@ -443,6 +529,7 @@ fun SettingsScreen(
 
             // ===== 上课提醒 =====
             SettingsSection(title = "上课提醒") {
+                var visiblePauseStatus by remember(reminderPauseStatus) { mutableStateOf(reminderPauseStatus) }
                 val nextReminder = remember(table, preferences) {
                     if (!preferences.reminderEnabled) null else {
                         val now = LocalDateTime.now()
@@ -522,8 +609,21 @@ fun SettingsScreen(
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    TextButton(onClick = onClearReminderPause, contentPadding = PaddingValues(0.dp)) {
-                        Text("清除“今天/本周暂停”状态")
+                    if (visiblePauseStatus != null) {
+                        Text(
+                            visiblePauseStatus.orEmpty(),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        TextButton(
+                            onClick = {
+                                onClearReminderPause()
+                                visiblePauseStatus = null
+                            },
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("恢复提醒")
+                        }
                     }
                 }
             }
@@ -581,6 +681,7 @@ fun SettingsScreen(
                     icon = Icons.Outlined.CalendarMonth,
                     title = "导出日历（.ics）",
                     subtitle = "生成 iCal 文件，可导入系统日历或分享",
+                    enabled = readOnlyMessage == null,
                     onClick = onExportCalendar
                 )
             }

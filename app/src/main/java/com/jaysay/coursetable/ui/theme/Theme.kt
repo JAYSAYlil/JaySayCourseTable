@@ -47,6 +47,7 @@ private val DarkColors = darkColorScheme(
 fun JaySayTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     highContrast: Boolean = false,
+    transparentSystemBars: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -65,8 +66,9 @@ fun JaySayTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colors.background.toArgb()
-            window.navigationBarColor = colors.background.toArgb()
+            val systemBarColor = if (transparentSystemBars) Color.Transparent else colors.background
+            window.statusBarColor = systemBarColor.toArgb()
+            window.navigationBarColor = systemBarColor.toArgb()
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !isDark
                 isAppearanceLightNavigationBars = !isDark

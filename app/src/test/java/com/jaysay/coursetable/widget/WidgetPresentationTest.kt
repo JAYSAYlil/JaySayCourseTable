@@ -83,6 +83,40 @@ class WidgetPresentationTest {
         )
     }
 
+    @Test
+    fun todayScheduleHidesEndedCoursesButKeepsCurrentAndUpcomingCourses() {
+        val table = table(
+            courses = listOf(
+                course("ended", "已结束", startPeriod = 1, endPeriod = 2),
+                course("current", "进行中", startPeriod = 3, endPeriod = 4),
+                course("upcoming", "未开始", startPeriod = 5, endPeriod = 6)
+            )
+        )
+
+        val result = WidgetScheduleBuilder.build(
+            table,
+            tableIndex = 0,
+            date = LocalDate.parse("2026-08-20"),
+            afterMinute = 10 * 60
+        )
+
+        assertEquals(listOf("进行中", "未开始"), result.courses.map { it.courseName })
+    }
+
+    @Test
+    fun courseDisappearsExactlyAtItsEndTime() {
+        val table = table(courses = listOf(course("ended", "已结束", startPeriod = 1, endPeriod = 2)))
+
+        val result = WidgetScheduleBuilder.build(
+            table,
+            tableIndex = 0,
+            date = LocalDate.parse("2026-08-20"),
+            afterMinute = 9 * 60 + 35
+        )
+
+        assertEquals(emptyList<WidgetCourseRow>(), result.courses)
+    }
+
     private fun table(
         courses: List<Course>,
         exceptions: List<ScheduleDateException> = emptyList()
