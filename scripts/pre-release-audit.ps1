@@ -1,7 +1,7 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$ExpectedVersionName = "2.12.3",
-    [int]$ExpectedVersionCode = 88,
+    [string]$ExpectedVersionName = "2.12.4",
+    [int]$ExpectedVersionCode = 89,
     [switch]$AllowDirty
 )
 

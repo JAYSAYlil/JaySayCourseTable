@@ -854,6 +854,7 @@ private fun TableGrid(
                             subTextColor = cSubColor,
                             isCurrent = isCurrent,
                             viewMode = viewMode,
+                            hasCustomBackground = hasCustomBackground,
                             onClick = { onCourseClick(course) }
                         )
                     }
@@ -908,6 +909,7 @@ private fun CourseCard(
     subTextColor: Color,
     isCurrent: Boolean,
     viewMode: ScheduleViewMode,
+    hasCustomBackground: Boolean,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(if (viewMode == ScheduleViewMode.WEEK) 14.dp else 16.dp)
@@ -951,12 +953,19 @@ private fun CourseCard(
         .filter { it.isNotBlank() }
         .plus("点击查看详情")
         .joinToString("，")
-    val highlight = if (background.luminance() < 0.35f) Color.White.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.3f)
+    val isDarkCourseCard = background.luminance() < 0.35f
+    val highlight = if (isDarkCourseCard) Color.White.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.3f)
+    val backgroundAlpha = when {
+        !hasCustomBackground && isDarkCourseCard -> 0.96f
+        !hasCustomBackground -> 0.82f
+        isDarkCourseCard -> 0.86f
+        else -> 0.74f
+    }
     Box(
         modifier = modifier
             .shadow(if (isCurrent) 4.dp else 2.dp, shape, clip = false)
             .clip(shape)
-            .background(background.copy(alpha = if (background.luminance() < 0.35f) 0.96f else 0.82f))
+            .background(background.copy(alpha = backgroundAlpha))
             .background(
                 Brush.linearGradient(
                     colors = listOf(highlight, Color.Transparent),
