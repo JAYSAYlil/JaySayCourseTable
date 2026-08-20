@@ -1,13 +1,8 @@
 package com.jaysay.coursetable.ui.screen
 
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -484,20 +479,10 @@ fun CourseTableScreen(
                 TextButton(onClick = { searchQuery = "" }) { Text("清空搜索") }
             }
         } else {
-            AnimatedContent(
+            Crossfade(
                 targetState = currentWeek,
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                transitionSpec = {
-                    val enterMs = if (reduceMotion) 0 else 210
-                    val fadeMs = if (reduceMotion) 0 else 180
-                    if (targetState > initialState) {
-                        (slideInHorizontally(tween(enterMs)) { it / 3 } + fadeIn(tween(fadeMs))) togetherWith
-                            (slideOutHorizontally(tween(fadeMs)) { -it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
-                    } else {
-                        (slideInHorizontally(tween(enterMs)) { -it / 3 } + fadeIn(tween(fadeMs))) togetherWith
-                            (slideOutHorizontally(tween(fadeMs)) { it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
-                    }
-                },
+                animationSpec = tween(if (reduceMotion) 0 else 100),
                 label = "weekContent"
             ) { displayedWeek ->
                 // 课表进入详情页时会离开组合；使用可保存状态才能在返回后精确回到原纵向位置。

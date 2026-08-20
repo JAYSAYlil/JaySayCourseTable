@@ -98,7 +98,7 @@ fun SettingsScreen(
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
                 .background(MaterialTheme.colorScheme.background)
-                .padding(bottom = 80.dp) // 底部留空间避免遮挡
+                .padding(bottom = 24.dp)
         ) {
             readOnlyMessage?.let { message ->
                 Surface(

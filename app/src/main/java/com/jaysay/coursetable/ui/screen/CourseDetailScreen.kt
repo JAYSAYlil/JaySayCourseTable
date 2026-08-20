@@ -61,7 +61,6 @@ fun CourseDetailScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
         ) {
             // Course header card
             Surface(
