@@ -1,5 +1,6 @@
 package com.jaysay.coursetable.data.reminder
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.jaysay.coursetable.MainActivity
-import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.repository.TableData
 import java.time.LocalDateTime
@@ -24,12 +24,13 @@ object ReminderScheduler {
     const val EXTRA_TABLE_INDEX = "extra_table_index"
     const val EXTRA_SERIES_KEY = "extra_series_key"
     const val EXTRA_WEEK = "extra_week"
+    const val EXTRA_DAY_OF_WEEK = "extra_day_of_week"
     const val EXTRA_TITLE = "extra_title"
     const val EXTRA_INFO = "extra_info"
     const val EXTRA_START_MINUTE = "extra_start_minute"
 
-    /** 每次调度未来 7 天的提醒；每次触发后滚动续排。 */
-    private const val SCHEDULE_WINDOW_DAYS = 7L
+    /** 覆盖今天至下周同一天，保证每周一次的课程也能接续下一条提醒。 */
+    private const val SCHEDULE_WINDOW_DAYS = 8L
 
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -45,50 +46,78 @@ object ReminderScheduler {
 
     /** 基于当前课表与偏好重新调度活动课表未来 7 天的提醒（覆盖式，可重复调用）。 */
     fun rescheduleAll(context: Context, tables: List<TableData>, preferences: AppPreferences) {
-        ensureChannel(context)
+        scheduleWindow(context, tables, preferences, replaceExisting = true)
+    }
+
+    /**
+     * 某条提醒触发后只向后补齐调度窗口，不取消同一时刻尚未送达的其他提醒。
+     * 这样冲突课程或系统批量派发广播时不会因互相覆盖而漏通知。
+     */
+    fun extendWindow(context: Context, tables: List<TableData>, preferences: AppPreferences) {
+        scheduleWindow(context, tables, preferences, replaceExisting = false)
+    }
+
+    @SuppressLint("ApplySharedPref")
+    private fun scheduleWindow(
+        context: Context,
+        tables: List<TableData>,
+        preferences: AppPreferences,
+        replaceExisting: Boolean
+    ) {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
+        if (replaceExisting) cancelRegistered(context, alarmManager)
+        if (!preferences.reminderEnabled || tables.isEmpty()) return
+
         val activeIndex = preferences.activeTableIndex.coerceIn(tables.indices)
         val table = tables.getOrNull(activeIndex) ?: return
-        if (!preferences.reminderEnabled) return
+        ensureChannel(context)
 
         val now = LocalDateTime.now()
         val nowMillis = System.currentTimeMillis()
-        val weeks = (0 until SCHEDULE_WINDOW_DAYS).mapNotNull { dayOffset ->
-            TodayAgendaCalculator.semesterWeek(
-                table.semesterStart,
-                table.totalWeeks,
-                now.toLocalDate().plusDays(dayOffset)
-            )
-        }.toSet()
+        val plans = ReminderCalculator.upcomingInstances(
+            courses = table.courses,
+            semesterStart = table.semesterStart,
+            totalWeeks = table.totalWeeks,
+            periods = table.periods,
+            fromDate = now.toLocalDate(),
+            days = SCHEDULE_WINDOW_DAYS,
+            excludedWeeks = table.excludedWeeks.toSet()
+        ).mapNotNull { instance ->
+            val triggerMillis = ReminderCalculator.reminderAt(instance, preferences.reminderMinutes)
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            if (triggerMillis > nowMillis) {
+                ScheduledAlarm(activeIndex, instance, triggerMillis, requestCode(activeIndex, instance))
+            } else null
+        }
 
-        weeks.forEach { week ->
-            ReminderCalculator.courseInstances(
-                courses = table.courses,
-                semesterStart = table.semesterStart,
-                periods = table.periods,
-                week = week,
-                excludedWeeks = table.excludedWeeks.toSet()
-            ).forEach { instance ->
-                val triggerMillis = ReminderCalculator.reminderAt(instance, preferences.reminderMinutes)
-                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                if (triggerMillis > nowMillis) {
-                    scheduleOne(context, alarmManager, activeIndex, instance, triggerMillis)
-                }
-            }
+        // 先登记再调度；即使进程在中途终止，下次仍能取消已经提交给系统的部分闹钟。
+        val registeredCodes = if (replaceExisting) {
+            emptySet()
+        } else {
+            registry(context).getStringSet(REGISTRY_CODES, emptySet()).orEmpty()
+        }
+        registry(context).edit()
+            .putStringSet(
+                REGISTRY_CODES,
+                registeredCodes + plans.map { it.requestCode.toString() }
+            )
+            .commit()
+        plans.forEach { plan ->
+            scheduleOne(context, alarmManager, plan)
         }
     }
 
     private fun scheduleOne(
         context: Context,
         alarmManager: AlarmManager,
-        tableIndex: Int,
-        instance: CourseInstance,
-        triggerMillis: Long
+        plan: ScheduledAlarm
     ) {
+        val instance = plan.instance
         val intent = Intent(context, CourseReminderReceiver::class.java).apply {
-            putExtra(EXTRA_TABLE_INDEX, tableIndex)
+            putExtra(EXTRA_TABLE_INDEX, plan.tableIndex)
             putExtra(EXTRA_SERIES_KEY, instance.course.seriesKey)
             putExtra(EXTRA_WEEK, instance.week)
+            putExtra(EXTRA_DAY_OF_WEEK, instance.course.dayOfWeek)
             putExtra(EXTRA_TITLE, instance.course.courseName)
             putExtra(
                 EXTRA_INFO,
@@ -99,20 +128,55 @@ object ReminderScheduler {
             )
             putExtra(EXTRA_START_MINUTE, instance.startMinute)
         }
-        // 同表同课程同周同天的提醒用同一请求码，重新调度时直接覆盖旧闹钟。
-        val requestCode = "$tableIndex|${instance.course.seriesKey}|${instance.week}|${instance.course.dayOfWeek}".hashCode()
         val pending = PendingIntent.getBroadcast(
             context,
-            requestCode,
+            plan.requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pending)
-        } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pending)
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
+            } else {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
+            }
+        } catch (_: SecurityException) {
+            // 精确闹钟权限可能在检查后被系统撤销；立即降级，提醒功能仍可用。
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
         }
     }
+
+    @SuppressLint("ApplySharedPref")
+    private fun cancelRegistered(context: Context, alarmManager: AlarmManager) {
+        val prefs = registry(context)
+        prefs.getStringSet(REGISTRY_CODES, emptySet()).orEmpty().forEach { rawCode ->
+            val code = rawCode.toIntOrNull() ?: return@forEach
+            val pending = PendingIntent.getBroadcast(
+                context,
+                code,
+                Intent(context, CourseReminderReceiver::class.java),
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (pending != null) {
+                alarmManager.cancel(pending)
+                pending.cancel()
+            }
+        }
+        prefs.edit().remove(REGISTRY_CODES).commit()
+    }
+
+    private fun requestCode(tableIndex: Int, instance: CourseInstance): Int =
+        "$tableIndex|${instance.course.seriesKey}|${instance.week}|${instance.course.dayOfWeek}".hashCode()
+
+    private fun registry(context: Context) =
+        context.getSharedPreferences(REGISTRY_NAME, Context.MODE_PRIVATE)
+
+    private data class ScheduledAlarm(
+        val tableIndex: Int,
+        val instance: CourseInstance,
+        val triggerMillis: Long,
+        val requestCode: Int
+    )
 
     /** 打开应用的通知：点击回到主界面。 */
     fun buildOpenAppIntent(context: Context): PendingIntent =
@@ -122,4 +186,7 @@ object ReminderScheduler {
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+    private const val REGISTRY_NAME = "course_reminder_alarms"
+    private const val REGISTRY_CODES = "request_codes"
 }

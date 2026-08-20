@@ -64,18 +64,20 @@ private data class PendingConflictChange(
 
 class MainActivity : ComponentActivity() {
     private lateinit var model: MainViewModel
-    private val pendingImport = mutableStateOf<ExcelParser.ParseResult?>(null)
     private val pendingBackupRestore = mutableStateOf<BackupData?>(null)
-    private var exportSanitized = false
     private lateinit var fileTransfer: ImportExportCoordinator
 
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? -> uri?.let { fileTransfer.handleFileImport(it) } }
 
-    private val backupExportLauncher = registerForActivityResult(
+    private val fullBackupExportLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? -> uri?.let { fileTransfer.handleBackupExport(it, exportSanitized) } }
+    ) { uri: Uri? -> uri?.let { fileTransfer.handleBackupExport(it, sanitized = false) } }
+
+    private val sanitizedBackupExportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? -> uri?.let { fileTransfer.handleBackupExport(it, sanitized = true) } }
 
     private val backupImportLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -95,7 +97,7 @@ class MainActivity : ComponentActivity() {
         fileTransfer = ImportExportCoordinator(
             activity = this,
             model = model,
-            onPendingImport = { pendingImport.value = it },
+            onPendingImport = model::stageCourseImport,
             onPendingBackupRestore = { pendingBackupRestore.value = it },
             showError = ::showError,
             showToast = { message -> Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
@@ -108,7 +110,6 @@ class MainActivity : ComponentActivity() {
             // 详情页用 uniqueKey 保存恢复依据，数据加载完成后在 LaunchedEffect 中还原课程实例。
             var selectedCourseKey by rememberSaveable { mutableStateOf<String?>(null) }
             var selectedCourse by remember { mutableStateOf<Course?>(null) }
-            var importResult by remember { mutableStateOf(ExcelParser.ParseResult(emptyList(), emptyList())) }
             var showAddDialog by rememberSaveable { mutableStateOf(false) }
             var showEditDialog by rememberSaveable { mutableStateOf(false) }
             var editingCourse by remember { mutableStateOf<Course?>(null) }
@@ -145,12 +146,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val pend = pendingImport.value
-                LaunchedEffect(pend) {
-                    if (pend != null) {
-                        importResult = pend
+                val stagedImport = model.stagedCourseImport
+                LaunchedEffect(stagedImport, currentScreenOrdinal) {
+                    if (stagedImport != null) {
                         currentScreenOrdinal = Screen.IMPORT_CONFIRM.ordinal
-                        pendingImport.value = null
+                    } else if (currentScreen() == Screen.IMPORT_CONFIRM) {
+                        // 进程重建不会保存大批课程到 Bundle；没有暂存数据时安全返回主界面。
+                        currentScreenOrdinal = Screen.MAIN.ordinal
                     }
                 }
 
@@ -354,7 +356,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (showPasteImportDialog) {
-                    var pasteText by remember { mutableStateOf("") }
+                    var pasteText by rememberSaveable { mutableStateOf("") }
                     AlertDialog(
                         onDismissRequest = { showPasteImportDialog = false },
                         icon = { Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.primary) },
@@ -374,7 +376,7 @@ class MainActivity : ComponentActivity() {
                                 Spacer(Modifier.height(10.dp))
                                 OutlinedTextField(
                                     value = pasteText,
-                                    onValueChange = { pasteText = it },
+                                    onValueChange = { if (it.length <= 50_000) pasteText = it },
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp).testTag("paste-import-input"),
                                     placeholder = { Text("粘贴课表文本…") },
                                     maxLines = 8
@@ -383,12 +385,15 @@ class MainActivity : ComponentActivity() {
                         },
                         confirmButton = {
                             TextButton(onClick = {
-                                val result = TextScheduleParser.parse(pasteText)
+                                val result = TextScheduleParser.parse(
+                                    pasteText,
+                                    totalWeeks = state.activeTable.totalWeeks
+                                )
                                 if (result.courses.isEmpty()) {
                                     val reason = result.errors.firstOrNull() ?: "请检查格式"
                                     Toast.makeText(this@MainActivity, "未解析到课程：$reason", Toast.LENGTH_LONG).show()
                                 } else {
-                                    pendingImport.value = ExcelParser.ParseResult(result.courses, result.errors)
+                                    model.stageCourseImport(ExcelParser.ParseResult(result.courses, result.errors))
                                     showPasteImportDialog = false
                                 }
                             }, modifier = Modifier.testTag("paste-import-confirm")) { Text("解析并导入") }
@@ -433,9 +438,10 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onUpdateTable = { model.updateActiveTable(it, ::showSaveError) },
                                 onExportBackup = { sanitized ->
-                                    exportSanitized = sanitized
                                     val suffix = if (sanitized) "脱敏副本" else "完整备份"
-                                    backupExportLauncher.launch("JaySay课表-$suffix-${LocalDate.now()}.json")
+                                    val fileName = "JaySay课表-$suffix-${LocalDate.now()}.json"
+                                    if (sanitized) sanitizedBackupExportLauncher.launch(fileName)
+                                    else fullBackupExportLauncher.launch(fileName)
                                 },
                                 onImportBackup = {
                                     backupImportLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
@@ -450,25 +456,32 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.IMPORT_CONFIRM -> {
-                                val preview = remember(importResult, state.courses) {
-                                    CourseImportAnalyzer.analyze(state.courses, importResult.courses)
-                                }
-                                ImportConfirmScreen(
-                                    preview = preview,
-                                    warnings = importResult.errors,
-                                    onConfirm = { selected ->
-                                        model.importCourses(selected, onComplete = { result ->
+                                stagedImport?.let { importResult ->
+                                    val preview = remember(importResult, state.courses) {
+                                        CourseImportAnalyzer.analyze(state.courses, importResult.courses)
+                                    }
+                                    ImportConfirmScreen(
+                                        preview = preview,
+                                        warnings = importResult.errors,
+                                        onConfirm = { selected ->
+                                            model.importCourses(selected, onComplete = { result ->
+                                                model.clearStagedCourseImport()
+                                                locateToday()
+                                                currentScreenOrdinal = Screen.MAIN.ordinal
+                                                Toast.makeText(
+                                                    this@MainActivity,
+                                                    "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }, onError = ::showSaveError)
+                                        },
+                                        onCancel = {
+                                            model.clearStagedCourseImport()
                                             locateToday()
                                             currentScreenOrdinal = Screen.MAIN.ordinal
-                                            Toast.makeText(
-                                                this@MainActivity,
-                                                "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }, onError = ::showSaveError)
-                                    },
-                                    onCancel = { locateToday(); currentScreenOrdinal = Screen.MAIN.ordinal }
-                                )
+                                        }
+                                    )
+                                }
                             }
 
                             Screen.TABLE_MANAGE -> TableManageScreen(

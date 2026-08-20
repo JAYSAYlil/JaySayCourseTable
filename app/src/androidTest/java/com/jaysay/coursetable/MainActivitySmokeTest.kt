@@ -3,12 +3,16 @@ package com.jaysay.coursetable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -98,5 +102,27 @@ class MainActivitySmokeTest {
         composeRule.waitUntil(timeoutMillis = 8_000) {
             composeRule.onAllNodesWithText("外观模式").fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    @Test
+    fun pastedScheduleTextSurvivesActivityRecreation() {
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (composeRule.onAllNodesWithTag("more-actions-button").fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onNodeWithTag("more-actions-button").performClick()
+            composeRule.onNodeWithText("设置").performClick()
+        } else {
+            composeRule.onNodeWithContentDescription("设置").performClick()
+        }
+        composeRule.onNodeWithText("粘贴导入课程").performScrollTo().performClick()
+        composeRule.onNodeWithTag("paste-import-input")
+            .performTextInput("周一 1-2节 虚构课程 1-16周")
+
+        composeRule.activityRule.scenario.recreate()
+
+        val restoredText = composeRule.onNodeWithTag("paste-import-input")
+            .fetchSemanticsNode().config[SemanticsProperties.EditableText].text
+        assertTrue(restoredText.contains("虚构课程"))
     }
 }

@@ -128,8 +128,12 @@ object TableDataJson {
             ScheduleViewMode.WEEK
         }
         val excludedWeeks = obj.optJSONArray("excludedWeeks")?.let { array ->
-            (0 until array.length()).mapNotNull { index ->
-                runCatching { array.getInt(index) }.getOrNull()
+            if (strict) {
+                (0 until array.length()).map(array::getInt)
+            } else {
+                (0 until array.length()).mapNotNull { index ->
+                    runCatching { array.getInt(index) }.getOrNull()
+                }
             }
         } ?: emptyList()
         return TableData(

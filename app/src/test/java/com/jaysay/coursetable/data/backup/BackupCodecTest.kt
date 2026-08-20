@@ -58,6 +58,19 @@ class BackupCodecTest {
         assertThrows(IllegalArgumentException::class.java) { BackupCodec.decode(root.toString()) }
     }
 
+    @Test
+    fun malformedExcludedWeekIsRejectedInsteadOfSilentlyDropped() {
+        val root = JSONObject(
+            BackupCodec.encode(
+                BackupData(listOf(TableData("课表", listOf(course()))), AppPreferences())
+            )
+        )
+        root.getJSONArray("tables").getJSONObject(0)
+            .put("excludedWeeks", org.json.JSONArray().put(3).put("损坏").put(5))
+
+        assertThrows(IllegalArgumentException::class.java) { BackupCodec.decode(root.toString()) }
+    }
+
     private fun course() = Course(
         courseId = "C001",
         courseName = "课程",

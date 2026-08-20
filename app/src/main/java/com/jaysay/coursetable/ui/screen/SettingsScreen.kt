@@ -351,7 +351,7 @@ fun SettingsScreen(
                 }
                 if (showExcludedWeeksDialog) {
                     var selected by remember(table.excludedWeeks) {
-                        mutableStateOf(table.excludedWeeks.toMutableSet())
+                        mutableStateOf(table.excludedWeeks.toSet())
                     }
                     AlertDialog(
                         onDismissRequest = { showExcludedWeeksDialog = false },
@@ -367,12 +367,12 @@ fun SettingsScreen(
                                 (1..totalWeeks).forEach { week ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth().clickable {
-                                            if (!selected.add(week)) selected.remove(week)
+                                            selected = if (week in selected) selected - week else selected + week
                                         }.padding(vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(checked = week in selected, onCheckedChange = {
-                                            if (week in selected) selected.remove(week) else selected.add(week)
+                                            selected = if (week in selected) selected - week else selected + week
                                         })
                                         Text("第 $week 周", fontSize = 14.sp)
                                     }
@@ -403,7 +403,7 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("提醒上课", fontSize = 15.sp)
                         Text(
-                            "按节次时间提前通知，需要通知与精确闹钟权限",
+                            "按节次时间提前通知；精确闹钟不可用时自动采用近似提醒",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

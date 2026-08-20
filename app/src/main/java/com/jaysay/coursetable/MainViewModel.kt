@@ -12,6 +12,7 @@ import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseMerger
 import com.jaysay.coursetable.data.model.ImportMergeResult
 import com.jaysay.coursetable.data.model.ScheduleViewMode
+import com.jaysay.coursetable.data.parser.ExcelParser
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PreferencesManager
 import com.jaysay.coursetable.data.repository.CourseRepository
@@ -50,6 +51,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var state by mutableStateOf(MainUiState())
         private set
 
+    /** 配置变更期间保留待确认导入；不写入磁盘，也不塞进系统 Bundle。 */
+    var stagedCourseImport by mutableStateOf<ExcelParser.ParseResult?>(null)
+        private set
+
     init {
         viewModelScope.launch {
             val tablesResult = runCatching { repository.loadAllTables() }
@@ -77,6 +82,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setWeek(week: Int) {
         state = state.copy(currentWeek = week.coerceIn(1, state.activeTable.totalWeeks))
+    }
+
+    fun stageCourseImport(result: ExcelParser.ParseResult) {
+        stagedCourseImport = result
+    }
+
+    fun clearStagedCourseImport() {
+        stagedCourseImport = null
     }
 
     fun locateToday() {

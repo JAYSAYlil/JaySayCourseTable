@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.data.reminder
 
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
@@ -37,13 +38,42 @@ object ReminderCalculator {
         return courses
             .filter { week in it.weeks }
             .mapNotNull { course ->
-                val period = periods.getOrNull(course.startPeriod - 1) ?: return@mapNotNull null
-                val startMinute = TimeUtils.parseMinuteOfDay(period.start) ?: return@mapNotNull null
-                val endMinute = TimeUtils.parseMinuteOfDay(period.end) ?: return@mapNotNull null
+                val startPeriod = periods.getOrNull(course.startPeriod - 1) ?: return@mapNotNull null
+                val endPeriod = periods.getOrNull(course.endPeriod - 1) ?: return@mapNotNull null
+                val startMinute = TimeUtils.parseMinuteOfDay(startPeriod.start) ?: return@mapNotNull null
+                val endMinute = TimeUtils.parseMinuteOfDay(endPeriod.end) ?: return@mapNotNull null
                 if (endMinute <= startMinute) return@mapNotNull null
                 val date = start.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1))
                 CourseInstance(course, week, date, startMinute, endMinute)
             }
+            .sortedWith(compareBy<CourseInstance> { it.date }.thenBy { it.startMinute })
+    }
+
+    /**
+     * 计算从 [fromDate] 开始、严格落在未来 [days] 个自然日内的课程实例。
+     * 用日期边界过滤，避免跨周时把第 8～14 天的课程提前排进本轮闹钟窗口。
+     */
+    fun upcomingInstances(
+        courses: List<Course>,
+        semesterStart: String,
+        totalWeeks: Int,
+        periods: List<PeriodTime>,
+        fromDate: LocalDate,
+        days: Long,
+        excludedWeeks: Set<Int> = emptySet()
+    ): List<CourseInstance> {
+        if (days <= 0) return emptyList()
+        val lastDate = fromDate.plusDays(days - 1)
+        val weeks = (0 until days).mapNotNull { offset ->
+            TodayAgendaCalculator.semesterWeek(
+                semesterStart = semesterStart,
+                totalWeeks = totalWeeks,
+                date = fromDate.plusDays(offset)
+            )
+        }.distinct()
+        return weeks.flatMap { week ->
+            courseInstances(courses, semesterStart, periods, week, excludedWeeks)
+        }.filter { it.date in fromDate..lastDate }
             .sortedWith(compareBy<CourseInstance> { it.date }.thenBy { it.startMinute })
     }
 

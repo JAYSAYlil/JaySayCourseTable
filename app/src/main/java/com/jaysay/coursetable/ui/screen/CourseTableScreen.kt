@@ -14,7 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -51,11 +50,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -132,20 +133,6 @@ private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): 
         offset += cellHeight * section.periods.size
     }
     return offset
-}
-
-/** 由点击的 Y 像素反算节次；落在分区标题条上返回 null。 */
-private fun periodAtY(yPx: Float, sections: List<Section>, headerPx: Float, cellHeightPx: Float): Int? {
-    var offset = 0f
-    for (section in sections) {
-        offset += headerPx
-        if (yPx < offset) return null
-        val inSection = yPx - offset
-        val index = (inSection / cellHeightPx).toInt()
-        if (index in section.periods.indices) return section.periods[index]
-        offset += cellHeightPx * section.periods.size
-    }
-    return null
 }
 
 @Composable
@@ -244,14 +231,15 @@ fun CourseTableScreen(
     val weekControlTint = MaterialTheme.colorScheme.primary
     val weekDisabledTint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (dark) 0.38f else 0.3f)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(bgColor)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .testTag("course-table-screen")
-    ) {
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(bgColor)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .testTag("course-table-screen")
+        ) {
         ScheduleOverviewBar(
             tableName = tableName,
             agenda = agenda,
@@ -532,6 +520,7 @@ fun CourseTableScreen(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -753,22 +742,7 @@ private fun TableGrid(
                 Box(modifier = Modifier.weight(1f).height(totalHeight)) {
                     // 背景高亮、分区标题条、网格线与当前时间线一次绘制，
                     // 避免为每个节次格创建组合节点；时间线只重绘不重组。
-                    Canvas(
-                        modifier = Modifier.fillMaxSize()
-                            .semantics {
-                                contentDescription = "${TimeUtils.getDayName(day)}课表，点击空白节次可添加课程"
-                            }
-                            .pointerInput(day, sections, occupiedPeriods, cellHeight) {
-                                val headerPx = with(density) { 20.dp.toPx() }
-                                val cellPx = with(density) { cellHeight.toPx() }
-                                detectTapGestures { offset ->
-                                    val period = periodAtY(offset.y, sections, headerPx, cellPx)
-                                    if (period != null && period !in occupiedPeriods) {
-                                        onEmptyCellClick(day, period)
-                                    }
-                                }
-                            }
-                    ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
                         if (isTodayColumn) {
                             drawRect(todayHighlight)
                         }
@@ -797,7 +771,7 @@ private fun TableGrid(
                             val activeIndex = periodTimes.indexOfFirst { period ->
                                 val start = TimeUtils.parseMinuteOfDay(period.start)
                                 val end = TimeUtils.parseMinuteOfDay(period.end)
-                                start != null && end != null && currentMinute in start..end
+                                start != null && end != null && currentMinute >= start && currentMinute < end
                             }
                             if (activeIndex >= 0) {
                                 val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
@@ -819,6 +793,24 @@ private fun TableGrid(
                         }
                     }
 
+                    // 网格视觉元素由 Canvas 批量绘制；空白节次仍保留独立可点击语义节点，
+                    // 确保 TalkBack 用户能定位到具体星期和节次，而不是只能读到整列。
+                    periodTimes.indices.forEach { index ->
+                        val period = index + 1
+                        if (period !in occupiedPeriods) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(cellHeight)
+                                    .offset(y = periodOffset(period, sections, cellHeight))
+                                    .clickable { onEmptyCellClick(day, period) }
+                                    .semantics {
+                                        contentDescription = "${TimeUtils.getDayName(day)}第${period}节空白，点击添加课程"
+                                    }
+                            )
+                        }
+                    }
+
                     dayCourses.forEach { course ->
                         val start = course.startPeriod.coerceIn(1, periodTimes.size.coerceAtLeast(1))
                         val end = course.endPeriod.coerceIn(start, periodTimes.size.coerceAtLeast(start))
@@ -833,7 +825,8 @@ private fun TableGrid(
                         val accent = lerp(cardColor, if (dark) Color.White else Color.Black, if (dark) 0.28f else 0.22f)
                         val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
-                        val isCurrent = isTodayColumn && startMinute != null && endMinute != null && currentMinute in startMinute..endMinute
+                        val isCurrent = isTodayColumn && startMinute != null && endMinute != null &&
+                            currentMinute >= startMinute && currentMinute < endMinute
                         CourseCard(
                             course = course,
                             modifier = Modifier.fillMaxWidth().height(bottom - y).offset(y = y).padding(1.dp),

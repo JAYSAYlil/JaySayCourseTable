@@ -11,6 +11,8 @@ class TimeUtilsTest {
         assertEquals(1, TimeUtils.parseDayOfWeekOrNull("\u661f\u671f\u4e00"))
         assertEquals(7, TimeUtils.parseDayOfWeekOrNull("\u5468\u65e5"))
         assertNull(TimeUtils.parseDayOfWeekOrNull("unknown"))
+        assertNull(TimeUtils.parseDayOfWeekOrNull("大学英语二"))
+        assertNull(TimeUtils.parseDayOfWeekOrNull("周一课程"))
         assertEquals(12, TimeUtils.parsePeriodOrNull("\u7b2c12\u8282"))
         assertNull(TimeUtils.parsePeriodOrNull("none"))
     }

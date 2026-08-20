@@ -58,6 +58,50 @@ class ReminderCalculatorTest {
     }
 
     @Test
+    fun multiPeriodCourseUsesLastPeriodsEndTime() {
+        val instance = ReminderCalculator.courseInstances(
+            courses = listOf(course("高数", weeks = listOf(1), dayOfWeek = 1, startPeriod = 1, endPeriod = 2)),
+            semesterStart = "2026-02-23",
+            periods = periods,
+            week = 1
+        ).single()
+
+        assertEquals(8 * 60, instance.startMinute)
+        assertEquals(9 * 60 + 40, instance.endMinute)
+    }
+
+    @Test
+    fun upcomingWindowDoesNotIncludeEighthDayAcrossWeekBoundary() {
+        val instances = ReminderCalculator.upcomingInstances(
+            courses = listOf(
+                course("本周日", weeks = listOf(1), dayOfWeek = 7),
+                course("下周日", weeks = listOf(2), dayOfWeek = 7)
+            ),
+            semesterStart = "2026-02-23",
+            totalWeeks = 20,
+            periods = periods,
+            fromDate = LocalDate.of(2026, 3, 1),
+            days = 7
+        )
+
+        assertEquals(listOf("本周日"), instances.map { it.course.courseName })
+    }
+
+    @Test
+    fun eightDayRollingWindowIncludesNextWeeklyOccurrence() {
+        val instances = ReminderCalculator.upcomingInstances(
+            courses = listOf(course("每周一", weeks = listOf(1, 2), dayOfWeek = 1)),
+            semesterStart = "2026-02-23",
+            totalWeeks = 20,
+            periods = periods,
+            fromDate = LocalDate.of(2026, 2, 23),
+            days = 8
+        )
+
+        assertEquals(listOf(1, 2), instances.map { it.week })
+    }
+
+    @Test
     fun filtersWeeksWithoutCourses() {
         val instances = ReminderCalculator.courseInstances(
             courses = listOf(course("高数", weeks = listOf(1), dayOfWeek = 1)),

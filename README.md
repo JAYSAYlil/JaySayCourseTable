@@ -1,6 +1,6 @@
 # JaySay 课程表
 
-一款本地优先的 Android 课程表应用，支持 Excel 导入、多课表管理、单双周显示、课程编辑、完整备份恢复和脱敏副本导出。
+一款本地优先的 Android 课程表应用，支持 Excel/文本导入、多课表管理、上课提醒、桌面小组件、日历导出、完整备份恢复和脱敏副本导出。
 
 ## 主要能力
 
@@ -10,6 +10,10 @@
 - 使用原子文件替换、上一版本备份和串行写入降低数据损坏风险。
 - 主文件与回退副本同时损坏时进入只读保护，只有严格校验的完整备份恢复成功后才解除。
 - 支持完整 JSON 备份、严格校验后的恢复以及不可恢复的脱敏副本。
+- 支持粘贴网页课表文本导入，并按当前学期周数补全缺省周次。
+- 支持上课前 5/10/15/30 分钟本地提醒；重启、升级和系统时间变化后自动恢复，精确闹钟不可用时安全降级。
+- 支持深浅色桌面小组件，在上课、下课和跨日状态边界主动刷新。
+- 支持停课周设置和标准 iCalendar（`.ics`）导出。
 - 提供七天、五天和单日三种响应式视图，可点按空白节次快速添加课程。
 - 顶部提供不占用网格空间的今日/下一节课摘要，并可按课程名、教师或教室本地搜索。
 - 支持方向明确的周切换与详情动画，删除课程前确认，并可在提示条中撤销。
@@ -47,7 +51,7 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 - Android 系统云备份和设备迁移均排除应用数据；换机请使用应用内“导出完整备份”。
 - 请勿在 Issue、日志或提交中上传真实课表、完整备份、签名密钥或本机路径。
 
-当前稳定版本：`2.7.0`（versionCode 80），公开 Release 见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
+当前开发候选版本：`2.8.0`（versionCode 81）；正式发布版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
 
 ## 自动化测试策略
 
@@ -60,3 +64,4 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 正式签名 APK、版本说明和 SHA-256 校验值请从 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases) 获取。
 
 版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+后续维护、数据格式和发布检查见 [docs/MAINTENANCE.md](docs/MAINTENANCE.md)。

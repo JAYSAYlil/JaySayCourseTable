@@ -1,5 +1,6 @@
 package com.jaysay.coursetable.widget
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -20,6 +21,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.Calendar
 
 /**
@@ -42,11 +45,16 @@ class CourseWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_UPDATE) {
+        if (intent.action in REFRESH_ACTIONS) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, CourseWidgetProvider::class.java))
             onUpdate(context, manager, ids)
         }
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        cancelScheduledRefresh(context)
     }
 
     private suspend fun updateWidgets(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -56,6 +64,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
         val table = tables?.getOrNull(preferences.activeTableIndex.coerceIn(tables.indices))
 
         val views = RemoteViews(context.packageName, R.layout.widget_course)
+        var agenda: TodayAgenda? = null
         if (table == null) {
             views.setTextViewText(R.id.widget_table_name, "JaySay 课表")
             views.setTextViewText(R.id.widget_summary, "暂无课表数据")
@@ -64,7 +73,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
             val nowMinute = Calendar.getInstance().let {
                 it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE)
             }
-            val agenda = TodayAgendaCalculator.calculate(
+            agenda = TodayAgendaCalculator.calculate(
                 courses = table.courses,
                 periods = table.periods,
                 semesterStart = table.semesterStart,
@@ -87,16 +96,62 @@ class CourseWidgetProvider : AppWidgetProvider() {
             )
         )
         appWidgetManager.updateAppWidget(appWidgetIds, views)
+        scheduleNextRefresh(context, agenda)
     }
 
     companion object {
         const val ACTION_UPDATE = "com.jaysay.coursetable.action.WIDGET_UPDATE"
+        private const val REFRESH_REQUEST_CODE = 28_001
+        private val REFRESH_ACTIONS = setOf(
+            ACTION_UPDATE,
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED
+        )
 
         /** 供主应用在数据变化后定向刷新小组件。 */
         fun requestUpdate(context: Context) {
             val intent = Intent(context, CourseWidgetProvider::class.java).setAction(ACTION_UPDATE)
             context.sendBroadcast(intent)
         }
+
+        /** 在下一次上课、下课或跨日边界刷新，避免只依赖系统半小时轮询。 */
+        private fun scheduleNextRefresh(context: Context, agenda: TodayAgenda?) {
+            val now = LocalDateTime.now()
+            val transitionMinute = when (agenda?.phase) {
+                TodayAgendaPhase.BEFORE_FIRST, TodayAgendaPhase.BETWEEN_CLASSES -> agenda.next?.startMinute
+                TodayAgendaPhase.IN_CLASS -> agenda.current?.endMinute
+                else -> null
+            }
+            val target = transitionMinute?.let {
+                now.toLocalDate().atStartOfDay().plusMinutes(it.toLong()).plusSeconds(2)
+            }?.takeIf { it.isAfter(now) }
+                ?: now.toLocalDate().plusDays(1).atStartOfDay().plusSeconds(2)
+            val pending = refreshPendingIntent(context, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
+            context.getSystemService(AlarmManager::class.java).apply {
+                cancel(pending)
+                setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    target.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    pending
+                )
+            }
+        }
+
+        private fun cancelScheduledRefresh(context: Context) {
+            val pending = refreshPendingIntent(context, PendingIntent.FLAG_NO_CREATE) ?: return
+            context.getSystemService(AlarmManager::class.java).cancel(pending)
+            pending.cancel()
+        }
+
+        private fun refreshPendingIntent(context: Context, flags: Int): PendingIntent? =
+            PendingIntent.getBroadcast(
+                context,
+                REFRESH_REQUEST_CODE,
+                Intent(context, CourseWidgetProvider::class.java).setAction(ACTION_UPDATE),
+                flags or PendingIntent.FLAG_IMMUTABLE
+            )
     }
 }
 

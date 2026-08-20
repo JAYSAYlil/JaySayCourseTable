@@ -24,13 +24,14 @@ object TextScheduleParser {
     private const val MAX_REPORTED_ERRORS = 20
     private const val DEFAULT_TOTAL_WEEKS = 20
 
-    fun parse(text: String): ParseResult {
+    fun parse(text: String, totalWeeks: Int = DEFAULT_TOTAL_WEEKS): ParseResult {
+        val safeTotalWeeks = totalWeeks.coerceIn(1, 30)
         val courses = mutableListOf<Course>()
         val errors = mutableListOf<String>()
         text.lines().forEachIndexed { index, raw ->
             val line = raw.trim()
             if (line.isBlank() || line.startsWith("#")) return@forEachIndexed
-            runCatching { parseLine(line) }
+            runCatching { parseLine(line, safeTotalWeeks) }
                 .onSuccess { course -> if (course != null) courses.add(course) }
                 .onFailure { error ->
                     if (errors.size < MAX_REPORTED_ERRORS) {
@@ -38,15 +39,16 @@ object TextScheduleParser {
                     }
                 }
         }
-        return ParseResult(courses.distinctBy { it.uniqueKey }, errors)
+        // 不在解析阶段按时段去重：同一时段可能确实存在不同课程，交给导入预览展示冲突。
+        return ParseResult(courses, errors)
     }
 
-    private fun parseLine(line: String): Course? {
+    private fun parseLine(line: String, totalWeeks: Int): Course? {
         var rest = line
 
         // 周次：整体提取 "1-16周" / "1,3,5,7周" / "2-8周(单)"，避免枚举逗号被字段分隔符切散
-        val weekMatch = Regex("\\d[\\d,，、~～\\-至]*周(?:\\([单双]\\)|（[单双]）)?").find(line)
-        val weeks = weekMatch?.value?.let { TimeUtils.parseWeeks(it) } ?: (1..DEFAULT_TOTAL_WEEKS).toList()
+        val weekMatch = Regex("\\d[\\d\\s,，、~～\\-至]*周(?:\\([单双]\\)|（[单双]）)?").find(line)
+        val weeks = weekMatch?.value?.let { TimeUtils.parseWeeks(it) } ?: (1..totalWeeks).toList()
         if (weeks.isEmpty()) error("无法识别上课周次")
         if (weekMatch != null) rest = rest.replace(weekMatch.value, " ")
 
@@ -65,14 +67,19 @@ object TextScheduleParser {
         rest = rest.replace(periodMatch.value, " ")
 
         // 星期：支持 "周一/星期一/1"
-        val day = tokenize(rest).firstNotNullOfOrNull(TimeUtils::parseDayOfWeekOrNull)
+        val tokens = tokenize(rest)
+        val dayTokenIndex = tokens.indexOfFirst { TimeUtils.parseDayOfWeekOrNull(it) != null }
+        val day = tokens.getOrNull(dayTokenIndex)?.let(TimeUtils::parseDayOfWeekOrNull)
             ?: error("无法识别星期（如 周一、星期一、1）")
 
         // 剩余 token 按顺序：课程名、教室、教师
-        val remaining = tokenize(rest).filterNot { TimeUtils.parseDayOfWeekOrNull(it) != null }
+        val remaining = tokens.filterIndexed { index, _ -> index != dayTokenIndex }
         val courseName = remaining.getOrNull(0)?.trim() ?: error("缺少课程名")
-        val classroom = remaining.getOrNull(1)?.trim() ?: ""
-        val teacher = remaining.getOrNull(2)?.trim() ?: ""
+        val second = remaining.getOrNull(1)?.trim().orEmpty()
+        val third = remaining.getOrNull(2)?.trim().orEmpty()
+        val onlyOptionalFieldIsTeacher = third.isEmpty() && looksLikeTeacher(second)
+        val classroom = if (onlyOptionalFieldIsTeacher) "" else second
+        val teacher = if (onlyOptionalFieldIsTeacher) second else third
 
         return Course(
             courseId = "",
@@ -96,4 +103,7 @@ object TextScheduleParser {
 
     private fun tokenize(text: String): List<String> =
         text.split(Regex("[\\s,，、;；]+")).filter { it.isNotBlank() }
+
+    private fun looksLikeTeacher(value: String): Boolean =
+        value.endsWith("老师") || value.endsWith("教授") || value.endsWith("讲师")
 }

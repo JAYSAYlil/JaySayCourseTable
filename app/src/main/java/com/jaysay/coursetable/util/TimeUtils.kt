@@ -60,14 +60,16 @@ object TimeUtils {
     /** Parse day string like "星期一" or "周一" to Int 1-7 */
     fun parseDayOfWeekOrNull(dayStr: String): Int? {
         val s = dayStr.trim()
-        return when {
-            s == "1" || s.contains("一") -> 1
-            s == "2" || s.contains("二") -> 2
-            s == "3" || s.contains("三") -> 3
-            s == "4" || s.contains("四") -> 4
-            s == "5" || s.contains("五") -> 5
-            s == "6" || s.contains("六") -> 6
-            s == "7" || s.contains("日") || s.contains("天") -> 7
+        val token = Regex("^(?:星期|周)?([1-7一二三四五六日天])$")
+            .matchEntire(s)?.groupValues?.get(1)?.firstOrNull() ?: return null
+        return when (token) {
+            '1', '一' -> 1
+            '2', '二' -> 2
+            '3', '三' -> 3
+            '4', '四' -> 4
+            '5', '五' -> 5
+            '6', '六' -> 6
+            '7', '日', '天' -> 7
             else -> null
         }
     }

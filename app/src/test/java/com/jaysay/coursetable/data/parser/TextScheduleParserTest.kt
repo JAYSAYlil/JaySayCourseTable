@@ -33,14 +33,38 @@ class TextScheduleParserTest {
 
     @Test
     fun defaultsWeeksToFullSemesterWhenMissing() {
-        val result = TextScheduleParser.parse("周三 5节 体育")
+        val result = TextScheduleParser.parse("周三 5节 体育", totalWeeks = 24)
         val course = result.courses.single()
         assertEquals(3, course.dayOfWeek)
         assertEquals(5, course.startPeriod)
         assertEquals(5, course.endPeriod)
-        assertEquals((1..20).toList(), course.weeks)
+        assertEquals((1..24).toList(), course.weeks)
         assertTrue(course.teacher.isBlank())
         assertTrue(course.classroom.isBlank())
+    }
+
+    @Test
+    fun preservesDifferentCoursesInTheSameTimeSlot() {
+        val result = TextScheduleParser.parse(
+            """
+            周一 1-2节 高等数学 1-16周
+            周一 1-2节 线性代数 1-16周
+            """.trimIndent()
+        )
+
+        assertEquals(listOf("高等数学", "线性代数"), result.courses.map { it.courseName })
+    }
+
+    @Test
+    fun recognizesSingleTeacherFieldAndSpacedWeekList() {
+        val result = TextScheduleParser.parse("周四 1-2节 大学英语二 王老师 1, 3, 5, 7周")
+        val course = result.courses.single()
+
+        assertEquals(4, course.dayOfWeek)
+        assertEquals("大学英语二", course.courseName)
+        assertEquals("王老师", course.teacher)
+        assertTrue(course.classroom.isBlank())
+        assertEquals(listOf(1, 3, 5, 7), course.weeks)
     }
 
     @Test

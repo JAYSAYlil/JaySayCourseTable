@@ -39,6 +39,7 @@ class CourseReminderReceiver : BroadcastReceiver() {
         val tableIndex = intent.getIntExtra(ReminderScheduler.EXTRA_TABLE_INDEX, -1)
         val seriesKey = intent.getStringExtra(ReminderScheduler.EXTRA_SERIES_KEY) ?: return
         val week = intent.getIntExtra(ReminderScheduler.EXTRA_WEEK, -1)
+        val dayOfWeek = intent.getIntExtra(ReminderScheduler.EXTRA_DAY_OF_WEEK, -1)
         val title = intent.getStringExtra(ReminderScheduler.EXTRA_TITLE) ?: return
         val info = intent.getStringExtra(ReminderScheduler.EXTRA_INFO).orEmpty()
         val startMinute = intent.getIntExtra(ReminderScheduler.EXTRA_START_MINUTE, -1)
@@ -48,15 +49,22 @@ class CourseReminderReceiver : BroadcastReceiver() {
         )
         val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull() ?: return
         if (!preferences.reminderEnabled) return
+        if (preferences.activeTableIndex != tableIndex) return
         val table = tables.getOrNull(tableIndex) ?: return
         // 校验该课程在本周确实仍有课（用户删除/修改后旧闹钟不得再打扰）。
-        val stillValid = table.courses.any {
-            it.seriesKey == seriesKey && week in it.weeks && week !in table.excludedWeeks
+        val stillValid = table.courses.any { course ->
+            val currentStartMinute = table.periods.getOrNull(course.startPeriod - 1)?.start
+                ?.let(TimeUtils::parseMinuteOfDay)
+            course.seriesKey == seriesKey &&
+                week in course.weeks &&
+                week !in table.excludedWeeks &&
+                course.dayOfWeek == dayOfWeek &&
+                currentStartMinute == startMinute
         }
         if (!stillValid) return
 
         // 滚动续排：保证不打开应用也能持续收到后续提醒。
-        ReminderScheduler.rescheduleAll(context, tables, preferences)
+        ReminderScheduler.extendWindow(context, tables, preferences)
 
         // Android 13+ 需要 POST_NOTIFICATIONS 运行时权限；未授予时静默跳过。
         val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
