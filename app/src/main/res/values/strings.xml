@@ -351,7 +351,6 @@
     <string name="table_nav_back">"返回"</string>
     <string name="table_unarchive">"取消归档"</string>
     <string name="widget_description">"显示今日与明日课程、教室和教师"</string>
-    <string name="settings_reminder_status_ok">"提醒功能正常，将按节次时间提前通知"</string>
     <string name="settings_reminder_notif_permission">"通知权限未开启，提醒到达时无法显示"</string>
     <string name="settings_reminder_notif_fix">"开启通知权限"</string>
     <string name="settings_reminder_exact_alarm">"系统未允许精确闹钟，提醒可能延迟"</string>

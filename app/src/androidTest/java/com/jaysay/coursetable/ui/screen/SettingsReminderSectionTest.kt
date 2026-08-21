@@ -41,24 +41,6 @@ class SettingsReminderSectionTest {
     }
 
     @Test
-    fun reminderSectionShowsHealthyStateWhenNoBlockers() {
-        composeRule.setContent {
-            JaySayTheme {
-                SettingsScreen(
-                    preferences = AppPreferences(reminderEnabled = true, reminderMinutes = 10),
-                    onUpdatePrefs = {},
-                    onExportBackup = {},
-                    onImportBackup = {},
-                    reminderBlockers = emptyList(),
-                    onBack = {}
-                )
-            }
-        }
-        composeRule.onNodeWithText("提醒上课").assertExists()
-        composeRule.onNodeWithText("提醒功能正常，将按节次时间提前通知").assertExists()
-    }
-
-    @Test
     fun reminderSectionHiddenStatusWhenDisabled() {
         composeRule.setContent {
             JaySayTheme {

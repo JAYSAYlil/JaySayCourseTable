@@ -621,15 +621,7 @@ fun SettingsScreen(
                     )
                 }
                 if (preferences.reminderEnabled) {
-                    if (reminderBlockers.isEmpty()) {
-                        Text(
-                            stringResource(R.string.settings_reminder_status_ok),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        reminderBlockers.forEach { blocker ->
+                    reminderBlockers.forEach { blocker ->
                             val (label, fixLabel, onFix) = when (blocker) {
                                 ReminderBlocker.NOTIFICATION_PERMISSION -> Triple(
                                     stringResource(R.string.settings_reminder_notif_permission),
@@ -668,7 +660,6 @@ fun SettingsScreen(
                                     Text(fixLabel, fontSize = 12.sp)
                                 }
                             }
-                        }
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
