@@ -47,6 +47,7 @@ import com.jaysay.coursetable.data.model.CourseSeriesOperations
 import com.jaysay.coursetable.data.model.CourseSeriesUndo
 import com.jaysay.coursetable.data.parser.ExcelParser
 import com.jaysay.coursetable.data.preferences.CustomBackgroundStore
+import com.jaysay.coursetable.data.reminder.ReminderDiagnostics
 import com.jaysay.coursetable.data.reminder.ReminderPermissions
 import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import com.jaysay.coursetable.data.reminder.ReminderSuppression
@@ -614,6 +615,21 @@ class MainActivity : ComponentActivity() {
                                             }
                                         )
                                     }
+                                },
+                                onOpenBatteryOptimizationSettings = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        startActivity(
+                                            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                                data = Uri.parse("package:" + packageName)
+                                            }
+                                        )
+                                    }
+                                },
+                                onSendTestNotification = {
+                                    ReminderDiagnostics.sendTestNotification(this@MainActivity)
+                                },
+                                reminderDiagnostics = remember(reminderStatusTick.intValue) {
+                                    ReminderDiagnostics.recent(this@MainActivity)
                                 },
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,

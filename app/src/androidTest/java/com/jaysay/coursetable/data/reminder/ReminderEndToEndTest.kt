@@ -109,4 +109,17 @@ class ReminderEndToEndTest {
         }
         assertTrue("闹钟触发后应出现课程提醒通知", found)
     }
+
+    @Test
+    fun testNotificationSendsAndRecordsDiagnostics() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        grantNotificationPermission()
+        ReminderScheduler.ensureChannel(context)
+
+        val failure = ReminderDiagnostics.sendTestNotification(context)
+
+        assertTrue("测试通知应发送成功，实际失败：" + (failure ?: "无"), failure == null)
+        val events = ReminderDiagnostics.recent(context)
+        assertTrue("应记录测试通知事件", events.any { it.contains("测试通知已发送") })
+    }
 }

@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import androidx.core.content.ContextCompat
 
 /**
@@ -40,14 +41,22 @@ object ReminderPermissions {
         return channel.importance == NotificationManager.IMPORTANCE_NONE
     }
 
+    /** 应用是否被系统电池优化限制（部分厂商会因此延迟或拦截闹钟）。 */
+    fun batteryOptimizationBlocked(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        return !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
     /**
      * 汇总提醒功能当前存在的系统侧阻碍。为空表示可以正常接收提醒。
-     * 顺序即建议修复顺序：通知权限 → 精确闹钟 → 通知渠道。
+     * 顺序即建议修复顺序：通知权限 → 精确闹钟 → 通知渠道 → 电池优化。
      */
     fun blockers(context: Context): List<ReminderBlocker> = buildList {
         if (!notificationsAllowed(context)) add(ReminderBlocker.NOTIFICATION_PERMISSION)
         if (!exactAlarmsAllowed(context)) add(ReminderBlocker.EXACT_ALARM)
         if (channelBlocked(context)) add(ReminderBlocker.CHANNEL_DISABLED)
+        if (batteryOptimizationBlocked(context)) add(ReminderBlocker.BATTERY_OPTIMIZATION)
     }
 }
 
@@ -55,5 +64,6 @@ object ReminderPermissions {
 enum class ReminderBlocker {
     NOTIFICATION_PERMISSION,
     EXACT_ALARM,
-    CHANNEL_DISABLED
+    CHANNEL_DISABLED,
+    BATTERY_OPTIMIZATION
 }

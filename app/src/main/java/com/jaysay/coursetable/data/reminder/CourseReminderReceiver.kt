@@ -67,9 +67,18 @@ class CourseReminderReceiver : BroadcastReceiver() {
         val preferences = runCatching { PreferencesManager(context).load() }.getOrDefault(
             com.jaysay.coursetable.data.preferences.AppPreferences()
         )
-        val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull() ?: return
-        if (preferences.activeTableIndex != tableIndex) return
-        val table = tables.getOrNull(tableIndex) ?: return
+        val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull() ?: run {
+            ReminderDiagnostics.record(context, "触发但课表数据读取失败")
+            return
+        }
+        if (preferences.activeTableIndex != tableIndex) {
+            ReminderDiagnostics.record(context, "触发但活动课表已切换，跳过")
+            return
+        }
+        val table = tables.getOrNull(tableIndex) ?: run {
+            ReminderDiagnostics.record(context, "触发但课表不存在，跳过")
+            return
+        }
         // 校验该课程在本周确实仍有课（用户删除/修改后旧闹钟不得再打扰）。
         val resolvedCourses = ScheduleDateResolver.coursesOn(
             table.courses,
@@ -90,13 +99,19 @@ class CourseReminderReceiver : BroadcastReceiver() {
                 ReminderPolicy.isEnabled(course, preferences) &&
                 (eventKind != ReminderEventKind.END || course.endReminderEnabled)
         }
-        if (validCourse == null) return
-        if (ReminderSuppression.isSuppressed(context, tableIndex, week, instanceDate)) return
+        if (validCourse == null) {
+            ReminderDiagnostics.record(context, "触发但课程已变更，跳过（$title）")
+            return
+        }
+        if (ReminderSuppression.isSuppressed(context, tableIndex, week, instanceDate)) {
+            ReminderDiagnostics.record(context, "触发但今天/本周已暂停，跳过（$title）")
+            return
+        }
 
         // 滚动续排：保证不打开应用也能持续收到后续提醒。
         ReminderScheduler.extendWindow(context, tables, preferences)
 
-        // Android 13+ 需要 POST_NOTIFICATIONS 运行时权限；未授予时静默跳过。
+        // Android 13+ 需要 POST_NOTIFICATIONS 运行时权限；未授予时无法显示通知。
         val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(
                 context,
@@ -108,6 +123,12 @@ class CourseReminderReceiver : BroadcastReceiver() {
                 context, title, info, startMinute, endMinute, eventKind, tableIndex, seriesKey, week, id
             )
             runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
+                .onSuccess { ReminderDiagnostics.record(context, "通知已发送（$title）") }
+                .onFailure { error ->
+                    ReminderDiagnostics.record(context, "通知发送异常：" + (error.message ?: "未知"))
+                }
+        } else {
+            ReminderDiagnostics.record(context, "触发但通知权限未授予，通知被系统拦截（$title）")
         }
     }
 

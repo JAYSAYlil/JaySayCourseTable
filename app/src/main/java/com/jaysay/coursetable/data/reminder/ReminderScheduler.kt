@@ -169,13 +169,36 @@ object ReminderScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         try {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
-            } else {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
-            }
+            scheduleWithBestEffort(context, alarmManager, plan, pending)
         } catch (_: SecurityException) {
             // 精确闹钟权限可能在检查后被系统撤销；立即降级，提醒功能仍可用。
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
+        }
+    }
+
+    /**
+     * 按可靠性从高到低选择调度方式：
+     * 1. setAlarmClock：用户可见闹钟（状态栏闹钟图标）。Doze、应用待机、
+     *    省电模式乃至多数国产 ROM 的后台清理都对其保持准点触发，
+     *    是课表提醒最可靠的 API，且不需要任何精确闹钟权限。
+     * 2. setExactAndAllowWhileIdle：持有精确闹钟权限时的精确调度。
+     * 3. setAndAllowWhileIdle：无权限时的近似调度兜底。
+     */
+    private fun scheduleWithBestEffort(
+        context: Context,
+        alarmManager: AlarmManager,
+        plan: ScheduledAlarm,
+        pending: PendingIntent
+    ) {
+        val showIntent = buildOpenAppIntent(context, plan.tableIndex, plan.instance.course.seriesKey)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(plan.triggerMillis, showIntent),
+                pending
+            )
+        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
+        } else {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
         }
     }

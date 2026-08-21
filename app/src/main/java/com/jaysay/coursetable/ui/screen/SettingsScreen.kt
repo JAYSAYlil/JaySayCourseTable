@@ -69,6 +69,9 @@ fun SettingsScreen(
     onRequestNotificationPermission: () -> Unit = {},
     onOpenExactAlarmSettings: () -> Unit = {},
     onOpenChannelSettings: () -> Unit = {},
+    onOpenBatteryOptimizationSettings: () -> Unit = {},
+    onSendTestNotification: () -> String? = { null },
+    reminderDiagnostics: List<String> = emptyList(),
     tablesCount: Int = 1,
     readOnlyMessage: String? = null,
     onBack: () -> Unit
@@ -600,6 +603,11 @@ fun SettingsScreen(
                                     stringResource(R.string.settings_reminder_channel_fix),
                                     onOpenChannelSettings
                                 )
+                                ReminderBlocker.BATTERY_OPTIMIZATION -> Triple(
+                                    stringResource(R.string.settings_reminder_battery),
+                                    stringResource(R.string.settings_reminder_battery_fix),
+                                    onOpenBatteryOptimizationSettings
+                                )
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
@@ -681,6 +689,51 @@ fun SettingsScreen(
                             contentPadding = PaddingValues(0.dp)
                         ) {
                             Text(stringResource(R.string.settings_resume_reminder))
+                        }
+                    }
+                }
+                if (preferences.reminderEnabled) {
+                    var testResult by remember { mutableStateOf<String?>(null) }
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_reminder_test_notification), fontSize = 15.sp)
+                            Text(
+                                stringResource(R.string.settings_reminder_test_notification_desc),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        val sentText = stringResource(R.string.settings_reminder_test_sent)
+                        val failedTemplate = stringResource(R.string.settings_reminder_test_failed)
+                        TextButton(onClick = {
+                            val failure = onSendTestNotification()
+                            testResult = if (failure == null) sentText
+                            else String.format(failedTemplate, failure)
+                        }) {
+                            Text(stringResource(R.string.settings_reminder_test_send), fontSize = 13.sp)
+                        }
+                    }
+                    testResult?.let { result ->
+                        Text(
+                            result,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                            fontSize = 12.sp,
+                            color = if (result == stringResource(R.string.settings_reminder_test_sent)) {
+                                MaterialTheme.colorScheme.primary
+                            } else MaterialTheme.colorScheme.error
+                        )
+                    }
+                    if (reminderDiagnostics.isNotEmpty()) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Text(stringResource(R.string.settings_reminder_diag_title), fontSize = 15.sp)
+                            reminderDiagnostics.take(3).forEach { event ->
+                                Text(event, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }

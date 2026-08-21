@@ -358,4 +358,12 @@
     <string name="settings_reminder_exact_fix">"去系统设置"</string>
     <string name="settings_reminder_channel_off">"“上课提醒”通知已在系统中关闭"</string>
     <string name="settings_reminder_channel_fix">"开启通知渠道"</string>
+    <string name="settings_reminder_battery">"应用受电池优化限制，提醒可能被系统延迟"</string>
+    <string name="settings_reminder_battery_fix">"允许后台运行"</string>
+    <string name="settings_reminder_test_notification">"发送测试通知"</string>
+    <string name="settings_reminder_test_notification_desc">"立即发送一条测试通知，验证提醒链路"</string>
+    <string name="settings_reminder_test_send">"发送测试"</string>
+    <string name="settings_reminder_test_sent">"测试通知已发送，请查看通知栏"</string>
+    <string name="settings_reminder_test_failed">"测试通知失败：%1$s"</string>
+    <string name="settings_reminder_diag_title">"最近触发记录"</string>
 </resources>
