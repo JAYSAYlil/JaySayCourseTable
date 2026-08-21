@@ -140,13 +140,12 @@ class ReminderEndToEndTest {
     }
 
     @Test
-    fun muteNoticeOffersResumeAndResumeClearsSuppression() = runBlocking {
+    fun muteSetsSuppressionAndSettingsRestoreClearsIt() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        grantNotificationPermission()
         ReminderSuppression.clear(context)
         val week = TodayAgendaCalculator.semesterWeek(TimeUtils.currentWeekStartDate(), 20, LocalDate.now()) ?: 1
 
-        // 模拟用户点击通知上的“今天不再提醒”。
+        // 模拟用户点击提醒通知上的“今天不再提醒”。
         context.sendBroadcast(
             Intent(context, CourseReminderReceiver::class.java).apply {
                 action = "com.jaysay.coursetable.action.MUTE_REMINDERS_TODAY"
@@ -155,35 +154,21 @@ class ReminderEndToEndTest {
             }
         )
         val deadline = System.currentTimeMillis() + 8_000
-        var mutedNotice: Notification? = null
-        while (System.currentTimeMillis() < deadline && mutedNotice == null) {
-            mutedNotice = context.getSystemService(NotificationManager::class.java)
-                .activeNotifications
-                .map { it.notification }
-                .firstOrNull { it.extras.getString(Notification.EXTRA_TITLE) == "课程提醒已暂停" }
-            if (mutedNotice == null) delay(200)
+        var suppressed = false
+        while (System.currentTimeMillis() < deadline && !suppressed) {
+            suppressed = ReminderSuppression.isSuppressed(context, 0, week, LocalDate.now())
+            if (!suppressed) delay(200)
         }
-        assertTrue("暂停后应出现带恢复入口的通知", mutedNotice != null)
-        assertTrue(
-            "暂停后应处于抑制状态",
-            ReminderSuppression.isSuppressed(context, 0, week, LocalDate.now())
-        )
+        assertTrue("暂停后应处于抑制状态", suppressed)
 
-        // 模拟用户点击通知/按钮上的“恢复提醒”。
-        context.sendBroadcast(
-            Intent(context, CourseReminderReceiver::class.java).apply {
-                action = "com.jaysay.coursetable.action.RESUME_REMINDERS"
-                putExtra(ReminderScheduler.EXTRA_TABLE_INDEX, 0)
-                putExtra(ReminderScheduler.EXTRA_WEEK, week)
-            }
+        // 模拟设置页“恢复提醒”按钮的等价逻辑：清除暂停并重新调度。
+        ReminderSuppression.clear(context)
+        ReminderScheduler.rescheduleAll(
+            context,
+            CourseRepository(context).loadAllTables(),
+            PreferencesManager(context).load()
         )
-        val resumeDeadline = System.currentTimeMillis() + 8_000
-        var resumed = false
-        while (System.currentTimeMillis() < resumeDeadline && !resumed) {
-            resumed = !ReminderSuppression.isSuppressed(context, 0, week, LocalDate.now())
-            if (!resumed) delay(200)
-        }
-        assertTrue("点击恢复后应解除暂停", resumed)
+        assertTrue("设置页恢复后应解除暂停", !ReminderSuppression.isSuppressed(context, 0, week, LocalDate.now()))
     }
 
     private fun isServiceRunning(context: Context): Boolean {

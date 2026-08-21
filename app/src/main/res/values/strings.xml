@@ -372,8 +372,4 @@
     <string name="keepalive_channel_desc">"提醒服务运行状态（静默，不打扰）"</string>
     <string name="settings_reminder_autostart_hint">"部分手机（如小米、华为）需在系统设置中允许本应用自启动，否则锁屏后可能收不到提醒"</string>
     <string name="settings_reminder_autostart_fix">"打开应用系统设置"</string>
-    <string name="reminder_muted_notification_title">"课程提醒已暂停"</string>
-    <string name="reminder_muted_notification_today">"今天的提醒已暂停，点此恢复"</string>
-    <string name="reminder_muted_notification_week">"本周的提醒已暂停，点此恢复"</string>
-    <string name="reminder_muted_notification_resume">"恢复提醒"</string>
 </resources>

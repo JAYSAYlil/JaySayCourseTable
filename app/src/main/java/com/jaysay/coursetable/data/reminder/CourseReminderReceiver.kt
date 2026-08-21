@@ -41,18 +41,6 @@ class CourseReminderReceiver : BroadcastReceiver() {
         val tableIndex = intent.getIntExtra(ReminderScheduler.EXTRA_TABLE_INDEX, -1)
         val week = intent.getIntExtra(ReminderScheduler.EXTRA_WEEK, -1)
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
-        if (intent.action == ACTION_RESUME) {
-            if (tableIndex < 0) return
-            ReminderSuppression.clear(context)
-            NotificationManagerCompat.from(context).cancel(mutedNoticeId(tableIndex, week))
-            val preferences = runCatching { PreferencesManager(context).load() }.getOrDefault(
-                com.jaysay.coursetable.data.preferences.AppPreferences()
-            )
-            val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull() ?: return
-            ReminderScheduler.rescheduleAll(context, tables, preferences)
-            ReminderDiagnostics.record(context, "已恢复提醒（用户点击恢复）")
-            return
-        }
         if (intent.action == ACTION_MUTE_TODAY || intent.action == ACTION_MUTE_WEEK) {
             if (tableIndex < 0) return
             if (intent.action == ACTION_MUTE_TODAY) ReminderSuppression.muteToday(context, tableIndex)
@@ -63,8 +51,11 @@ class CourseReminderReceiver : BroadcastReceiver() {
             )
             val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull() ?: return
             ReminderScheduler.rescheduleAll(context, tables, preferences)
-            // 发一条带“恢复提醒”按钮的通知，解决“暂停后找不到恢复入口”的问题。
-            postMutedNotice(context, tableIndex, week, intent.action == ACTION_MUTE_TODAY)
+            ReminderDiagnostics.record(
+                context,
+                if (intent.action == ACTION_MUTE_TODAY) "已暂停今天（恢复入口在设置页）"
+                else "已暂停本周（恢复入口在设置页）"
+            )
             return
         }
         val seriesKey = intent.getStringExtra(ReminderScheduler.EXTRA_SERIES_KEY) ?: return
@@ -151,60 +142,6 @@ class CourseReminderReceiver : BroadcastReceiver() {
         }
     }
 
-    /** 暂停后发送“已暂停，点此恢复”通知，恢复入口始终可见。 */
-    private fun postMutedNotice(context: Context, tableIndex: Int, week: Int, today: Boolean) {
-        val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        if (!canNotify) return
-        val mutedId = mutedNoticeId(tableIndex, week)
-        val text = if (today) {
-            context.getString(R.string.reminder_muted_notification_today)
-        } else {
-            context.getString(R.string.reminder_muted_notification_week)
-        }
-        val notification = NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.reminder_muted_notification_title))
-            .setContentText(text)
-            .setContentIntent(
-                PendingIntent.getBroadcast(
-                    context,
-                    mutedId,
-                    Intent(context, CourseReminderReceiver::class.java).apply {
-                        action = ACTION_RESUME
-                        putExtra(ReminderScheduler.EXTRA_TABLE_INDEX, tableIndex)
-                        putExtra(ReminderScheduler.EXTRA_WEEK, week)
-                    },
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-            .addAction(
-                0,
-                context.getString(R.string.reminder_muted_notification_resume),
-                PendingIntent.getBroadcast(
-                    context,
-                    mutedId + 1,
-                    Intent(context, CourseReminderReceiver::class.java).apply {
-                        action = ACTION_RESUME
-                        putExtra(ReminderScheduler.EXTRA_TABLE_INDEX, tableIndex)
-                        putExtra(ReminderScheduler.EXTRA_WEEK, week)
-                    },
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-        runCatching { NotificationManagerCompat.from(context).notify(mutedId, notification) }
-        ReminderDiagnostics.record(context, if (today) "已暂停今天，已发恢复入口通知" else "已暂停本周，已发恢复入口通知")
-    }
-
-    private fun mutedNoticeId(tableIndex: Int, week: Int): Int =
-        ("muted|$tableIndex|$week").hashCode()
-
     private fun buildNotification(
         context: Context,
         title: String,
@@ -267,7 +204,6 @@ class CourseReminderReceiver : BroadcastReceiver() {
     private companion object {
         const val ACTION_MUTE_TODAY = "com.jaysay.coursetable.action.MUTE_REMINDERS_TODAY"
         const val ACTION_MUTE_WEEK = "com.jaysay.coursetable.action.MUTE_REMINDERS_WEEK"
-        const val ACTION_RESUME = "com.jaysay.coursetable.action.RESUME_REMINDERS"
         const val EXTRA_NOTIFICATION_ID = "extra_notification_id"
     }
 }
