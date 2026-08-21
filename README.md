@@ -60,7 +60,7 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 - Android 系统云备份和设备迁移均排除应用数据；换机请使用应用内“导出完整备份”。
 - 请勿在 Issue、日志或提交中上传真实课表、完整备份、签名密钥或本机路径。
 
-当前开发候选版本：`2.16.0`（versionCode 97）；正式发布版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
+当前开发候选版本：`2.16.1`（versionCode 98）；正式发布版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
 
 ## 自动化测试策略
 

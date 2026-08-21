@@ -358,9 +358,7 @@
     <string name="settings_reminder_exact_fix">"去系统设置"</string>
     <string name="settings_reminder_channel_off">"“上课提醒”通知已在系统中关闭"</string>
     <string name="settings_reminder_channel_fix">"开启通知渠道"</string>
-    <string name="settings_reminder_battery">"应用受电池优化限制，提醒可能被系统延迟"</string>
-    <string name="settings_reminder_battery_fix">"允许后台运行"</string>
-    <string name="settings_reminder_autostart_hint">"部分手机（如小米、华为）需在系统设置中允许本应用自启动，否则锁屏后可能收不到提醒"</string>
+    <string name="settings_reminder_autostart_hint">"为保证杀掉后台后也能准时收到提醒、小组件正常更新，请开启本应用的自启动"</string>
     <string name="settings_reminder_autostart_fix">"打开自启动设置"</string>
     <string name="settings_reminder_enable_confirm_title">"开启上课提醒？"</string>
     <string name="settings_reminder_enable_confirm_text">"开启后应用需要在后台运行，可能会增加少量耗电并影响续航；同时建议允许应用自启动，否则锁屏后可能收不到提醒。"</string>

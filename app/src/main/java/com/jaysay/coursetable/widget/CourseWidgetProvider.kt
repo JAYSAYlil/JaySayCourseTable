@@ -231,13 +231,15 @@ class CourseWidgetProvider : AppWidgetProvider() {
             }?.takeIf { it.isAfter(now) }
                 ?: now.toLocalDate().plusDays(1).atStartOfDay().plusSeconds(2)
             val pending = refreshPendingIntent(context, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
-            context.getSystemService(AlarmManager::class.java).apply {
-                cancel(pending)
-                setAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    target.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    pending
-                )
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            alarmManager.cancel(pending)
+            val triggerAt = target.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            // 有精确闹钟能力时用精确调度，跨日/上课下课边界刷新更准时；
+            // 否则退回非精确调度（系统仍会在 Doze 维护窗口内尽量触发）。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
             }
         }
 

@@ -69,8 +69,8 @@ fun SettingsScreen(
     onRequestNotificationPermission: () -> Unit = {},
     onOpenExactAlarmSettings: () -> Unit = {},
     onOpenChannelSettings: () -> Unit = {},
-    onOpenBatteryOptimizationSettings: () -> Unit = {},
     onOpenAutostartSettings: () -> Unit = {},
+    widgetPresent: Boolean = false,
     tablesCount: Int = 1,
     readOnlyMessage: String? = null,
     onBack: () -> Unit
@@ -646,11 +646,6 @@ fun SettingsScreen(
                                     stringResource(R.string.settings_reminder_channel_fix),
                                     onOpenChannelSettings
                                 )
-                                ReminderBlocker.BATTERY_OPTIMIZATION -> Triple(
-                                    stringResource(R.string.settings_reminder_battery),
-                                    stringResource(R.string.settings_reminder_battery_fix),
-                                    onOpenBatteryOptimizationSettings
-                                )
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
@@ -735,8 +730,8 @@ fun SettingsScreen(
                         }
                     }
                 }
-                if (preferences.reminderEnabled) {
-                    // 已开启提醒时显示一行“自启动”提示入口，便于随时重新打开系统自启动设置。
+                if (preferences.reminderEnabled || widgetPresent) {
+                    // 提醒开启或桌面有小组件时显示“自启动”入口，作为用户点“稍后”后重新打开系统自启动设置的通道。
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),

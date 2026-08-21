@@ -62,6 +62,8 @@ import com.jaysay.coursetable.ui.screen.ImportConfirmScreen
 import com.jaysay.coursetable.ui.screen.SettingsScreen
 import com.jaysay.coursetable.ui.screen.TableManageScreen
 import com.jaysay.coursetable.ui.theme.*
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import com.jaysay.coursetable.widget.CourseWidgetProvider
 import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.components.BackupRestoreConfirmDialog
@@ -616,17 +618,17 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 },
-                                onOpenBatteryOptimizationSettings = {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                        startActivity(
-                                            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                                data = Uri.parse("package:" + packageName)
-                                            }
-                                        )
-                                    }
-                                },
                                 onOpenAutostartSettings = {
                                     AutostartHelper.launch(this@MainActivity)
+                                },
+                                widgetPresent = remember(reminderStatusTick.intValue) {
+                                    AppWidgetManager.getInstance(this@MainActivity)
+                                        .getAppWidgetIds(
+                                            ComponentName(
+                                                this@MainActivity,
+                                                CourseWidgetProvider::class.java
+                                            )
+                                        ).isNotEmpty()
                                 },
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
