@@ -72,6 +72,7 @@ fun SettingsScreen(
     onOpenBatteryOptimizationSettings: () -> Unit = {},
     onSendTestNotification: () -> String? = { null },
     reminderDiagnostics: List<String> = emptyList(),
+    onOpenAppSettings: () -> Unit = {},
     tablesCount: Int = 1,
     readOnlyMessage: String? = null,
     onBack: () -> Unit
@@ -734,6 +735,28 @@ fun SettingsScreen(
                             reminderDiagnostics.take(3).forEach { event ->
                                 Text(event, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(R.string.settings_reminder_autostart_hint),
+                            modifier = Modifier.weight(1f),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(onClick = onOpenAppSettings, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                            Text(stringResource(R.string.settings_reminder_autostart_fix), fontSize = 12.sp)
                         }
                     }
                 }

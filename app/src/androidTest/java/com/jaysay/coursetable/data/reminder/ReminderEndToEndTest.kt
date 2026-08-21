@@ -122,4 +122,73 @@ class ReminderEndToEndTest {
         val events = ReminderDiagnostics.recent(context)
         assertTrue("应记录测试通知事件", events.any { it.contains("测试通知已发送") })
     }
+
+    @Test
+    fun keepAliveServiceStartsWhenReminderEnabledAndStopsWhenDisabled() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ReminderSuppression.clear(context)
+
+        val enabled = AppPreferences(activeTableIndex = 0, reminderEnabled = true, reminderMinutes = 5)
+        ReminderScheduler.rescheduleAll(context, emptyList(), enabled)
+        assertTrue("提醒开启后保活服务应运行", isServiceRunning(context))
+
+        val disabled = enabled.copy(reminderEnabled = false)
+        ReminderScheduler.rescheduleAll(context, emptyList(), disabled)
+        // 服务停止是异步信号，短暂等待后检查。
+        delay(800)
+        assertTrue("提醒关闭后保活服务应停止", !isServiceRunning(context))
+    }
+
+    @Test
+    fun muteNoticeOffersResumeAndResumeClearsSuppression() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        grantNotificationPermission()
+        ReminderSuppression.clear(context)
+        val week = TodayAgendaCalculator.semesterWeek(TimeUtils.currentWeekStartDate(), 20, LocalDate.now()) ?: 1
+
+        // 模拟用户点击通知上的“今天不再提醒”。
+        context.sendBroadcast(
+            Intent(context, CourseReminderReceiver::class.java).apply {
+                action = "com.jaysay.coursetable.action.MUTE_REMINDERS_TODAY"
+                putExtra(ReminderScheduler.EXTRA_TABLE_INDEX, 0)
+                putExtra(ReminderScheduler.EXTRA_WEEK, week)
+            }
+        )
+        val deadline = System.currentTimeMillis() + 8_000
+        var mutedNotice: Notification? = null
+        while (System.currentTimeMillis() < deadline && mutedNotice == null) {
+            mutedNotice = context.getSystemService(NotificationManager::class.java)
+                .activeNotifications
+                .map { it.notification }
+                .firstOrNull { it.extras.getString(Notification.EXTRA_TITLE) == "课程提醒已暂停" }
+            if (mutedNotice == null) delay(200)
+        }
+        assertTrue("暂停后应出现带恢复入口的通知", mutedNotice != null)
+        assertTrue(
+            "暂停后应处于抑制状态",
+            ReminderSuppression.isSuppressed(context, 0, week, LocalDate.now())
+        )
+
+        // 模拟用户点击通知/按钮上的“恢复提醒”。
+        context.sendBroadcast(
+            Intent(context, CourseReminderReceiver::class.java).apply {
+                action = "com.jaysay.coursetable.action.RESUME_REMINDERS"
+                putExtra(ReminderScheduler.EXTRA_TABLE_INDEX, 0)
+                putExtra(ReminderScheduler.EXTRA_WEEK, week)
+            }
+        )
+        val resumeDeadline = System.currentTimeMillis() + 8_000
+        var resumed = false
+        while (System.currentTimeMillis() < resumeDeadline && !resumed) {
+            resumed = !ReminderSuppression.isSuppressed(context, 0, week, LocalDate.now())
+            if (!resumed) delay(200)
+        }
+        assertTrue("点击恢复后应解除暂停", resumed)
+    }
+
+    private fun isServiceRunning(context: Context): Boolean {
+        val manager = context.getSystemService(android.app.ActivityManager::class.java)
+        return manager.getRunningServices(100)
+            .any { it.service.className == ReminderKeepAliveService::class.java.name }
+    }
 }

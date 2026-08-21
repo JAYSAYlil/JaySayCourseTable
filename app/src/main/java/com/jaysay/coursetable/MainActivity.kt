@@ -631,6 +631,13 @@ class MainActivity : ComponentActivity() {
                                 reminderDiagnostics = remember(reminderStatusTick.intValue) {
                                     ReminderDiagnostics.recent(this@MainActivity)
                                 },
+                                onOpenAppSettings = {
+                                    startActivity(
+                                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = Uri.parse("package:" + packageName)
+                                        }
+                                    )
+                                },
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
                                 onBack = navigateBack
