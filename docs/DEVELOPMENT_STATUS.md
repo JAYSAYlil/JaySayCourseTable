@@ -1,43 +1,46 @@
-# v2.13.0 开发交接状态
+# v2.14.0 开发交接状态
 
 更新时间：2026-08-21
 
 ## 版本与安全基线
 
-- 当前开发分支：upgrade/v2.12.4（本轮继续在此分支开发，未新建分支）
-- 当前候选版：2.13.0 / versionCode 92
+- 当前开发分支：upgrade/v2.12.4（继续沿用，未新建分支）
+- 当前候选版：2.14.0 / versionCode 93
 - 本轮没有访问 GitHub，也没有修改代理、端口、DNS 或其他系统网络配置。
-- 改动前对 v2.12.6 做过完整备份，已按用户确认于 2026-08-21 删除（v2.12.6 APK 与发布资料仍在 交付记录/v2.12.6-详情返回动画定向修复发布资料/，Git 历史完整保留在仓库内）。
+- 改动前已完整备份 v2.13.0：交付记录/v2.13.0-优化前备份/（Git 历史 bundle、源码 zip、正式 APK、维护资料与真实课表，含恢复说明）。
 
-## v2.13.0 调整内容
+## v2.14.0 调整内容
 
-- 构建栈升级：Gradle 9.1.0、AGP 8.13.0、Kotlin 2.2.0（内置 Compose 编译器插件，移除 composeOptions）、Compose BOM 2025.06.01、core-ktx 1.16.0、lifecycle 2.9.0、activity-compose 1.10.1、coroutines 1.10.1、Apache POI 5.3.0。
-- compileSdk/targetSdk 升至 35：启用 enableEdgeToEdge 官方入口，移除已弃用的窗口状态栏/导航栏颜色 API；页面栏位视觉与 v2.12.6 保持一致。
-- MainActivity 内联弹窗（删除确认、冲突确认、加密备份导出/导入密码、备份恢复确认、粘贴导入）拆分到 ui/components/CourseDialogs.kt，MainActivity 由 905 行缩减至约 700 行；行为与文案不变。
-- 当前分钟刷新订阅从课表屏幕顶层下移到今日摘要、课程卡片和时间线覆盖层内部，每 30 秒不再触发整屏与网格重组。
-- UI 层全部用户可见文案（344 条）抽取到 strings.xml；数据层错误消息保持纯 Kotlin 数据不变。
-- AtomicFileStore 恢复写入前自动清理残留的备份临时文件，修复一次故障后后续恢复持续失败的问题。
-- 新增 2 万课程保存/载入性能压测（实测 save≈1.0s、reload≈1.2s）与 2 项恢复故障注入回归测试。
+### 上课提醒修复（用户反馈"到时间不通知"）
+- 根因一（精确性）：Android 14+ 对 SCHEDULE_EXACT_ALARM 默认拒绝，精确闹钟被降级为近似闹钟；新增 USE_EXACT_ALARM 权限（Android 13+ 日历类应用自动授予、不可撤销），canScheduleExactAlarms() 在 API 34 实测为 true。
+- 根因二（可见性）：Android 13+ 用户拒绝通知权限后应用重要性为 NONE，提醒被静默丢弃且无任何提示；设置页提醒区新增三项状态检查（通知权限 / 精确闹钟 / 通知渠道）与对应一键修复引导，正常时显示确认提示，从系统设置返回后自动刷新。
+- 新增 data/reminder/ReminderPermissions.kt 统一诊断权限与渠道状态。
+
+### 体积与冗余
+- R8 排除 POI 中课表用不到的 PowerPoint（sl/xslf/hslf）、Word（hwpf/xwpf）、Visio/邮件（hdgf/hmef）与文档数字签名（dsig）模块类；packaging 排除幻灯片形状定义等非 Excel 资源。
+- APK：6,984,274 → 约 6,484,000 字节（-7.2%）。
+- 语言资源裁剪迁移到 androidResources.localeFilters（resourceConfigurations 弃用）。
+
+### 测试
+- 新增 ReminderEndToEndTest（精确闹钟可用性、闹钟广播→通知全链路）与 SettingsReminderSectionTest（提醒区与权限警告渲染）共 5 项 instrumentation 测试。
+- 模拟器真实时间实测：注册的精确闹钟在课前 5 分钟准时触发，“即将上课”通知正常弹出（含暂停操作按钮）；Excel 导入在 release 混淆包上解析真实 40 条课表成功。
 
 ## 数据与兼容性
 
-- tables.json 仍为 schemaVersion 4，preferences.json 仍为 schemaVersion 4；数据格式未变化。
-- applicationId 与签名证书保持不变，可从 v2.12.x 直接覆盖升级。
-- 应用仍不声明 INTERNET 或媒体库广泛读取权限，系统云备份与设备迁移数据提取继续关闭。
-- 正式 Release 包保持不可调试。
-- 注意：targetSdk 35 起系统强制预测性返回，Android 15+ 设备上系统返回窗口动画由平台接管，应用内 Compose 转场不受影响；Android 14 及以下设备行为与 v2.12.6 完全一致。
+- tables.json 与 preferences.json 仍为 schemaVersion 4；数据格式未变化，applicationId 与签名证书不变，可从 v2.13.x 直接覆盖升级。
+- 新增权限：USE_EXACT_ALARM（系统自动授予，无需用户操作）；POST_NOTIFICATIONS 仍为运行时权限。
+- 应用仍不声明 INTERNET；系统云备份与设备迁移继续关闭；Release 不可调试。
 
 ## 验证结果
 
-- JVM 回归测试 114 项全部通过，0 失败、0 错误、0 跳过。
-- API 34 UI 测试 16 项全部通过，0 失败、0 错误、0 跳过。
-- Release/R8 与资源压缩构建成功。
-- Release Lint 0 错误。
-- 2 万课程上限压测：save≈1.0s、reload≈1.2s，全量写入方案维持不变。
-- 正式 APK 完成 v2/v3 签名校验；签名证书 SHA-256 为 23410387a26c9ca5b9a1552ba06be642d905fd07d2791bc3bf4db9461ba7d132。
+- JVM 回归测试 114 项全部通过。
+- API 34 UI 测试 21 项全部通过。
+- Release/R8 与资源压缩构建成功；Lint 0 错误、30 条非阻断警告。
+- 真实闹钟端到端：AlarmManager 精确触发 → Receiver 校验 → 通知显示全链路通过。
+- Release 包 Excel 导入真实课表（40 条）通过。
 
 ## 交付边界
 
-- 最终签名 APK、SHA-256、安装说明、审计结果、源码快照和本文件副本放在项目外层的 v2.13.0 交付目录。
+- 最终签名 APK、SHA-256、安装说明、审计结果、源码快照和本文件副本放在项目外层的 v2.14.0 交付目录。
 - 签名材料不复制进仓库、不进入源码快照或交付记录。
 - 不自动推送 GitHub；仅在用户之后明确要求时执行公开发布流程。

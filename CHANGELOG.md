@@ -1,5 +1,16 @@
 # 版本变更记录
 
+## v2.14.0 — 2026-08-21
+
+- 修复上课提醒"到时间不通知"问题：新增 USE_EXACT_ALARM 权限（Android 13+ 自动授予、不可撤销），根治 Android 14+ 对 SCHEDULE_EXACT_ALARM 默认拒绝导致的精确闹钟降级与提醒不准时。
+- 设置页提醒区新增状态检查与一键修复：通知权限未开启、精确闹钟被系统拒绝、“上课提醒”通知渠道被关闭时分别显示警告与引导按钮；一切正常时显示确认提示。
+- 从系统设置返回后自动刷新提醒状态提示。
+- 体积优化：R8 排除 POI 中课表用不到的 PowerPoint/Word/Visio/邮件与数字签名模块，并移除幻灯片渲染等非 Excel 资源，APK 由 6,984,274 字节降至约 6,484,000 字节（-7.2%）。
+- 语言资源裁剪迁移到 androidResources.localeFilters（resourceConfigurations 已弃用）。
+- 新增提醒端到端回归测试（精确闹钟可用性、闹钟广播→通知全链路）与设置页提醒区/权限警告 UI 测试；JVM 测试 114 项、API 34 UI 测试 21 项全部通过。
+- 模拟器真实时间实测：闹钟按提前分钟数准时触发并弹出“即将上课”通知，通知带“今天不再提醒/本周暂停”操作。
+- 版本升级为 2.14.0（versionCode 93），可直接覆盖升级 2.13.x 及更早正式版本。
+
 ## v2.13.0 — 2026-08-21
 
 - 构建栈升级：Gradle 9.1.0、AGP 8.13.0、Kotlin 2.2.0（内置 Compose 编译器插件）、Compose BOM 2025.06.01、core-ktx 1.16.0、lifecycle 2.9.0、activity-compose 1.10.1、coroutines 1.10.1、Apache POI 5.3.0；compileSdk/targetSdk 升至 35。

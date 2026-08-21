@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.CourseImportAnalyzer
 import com.jaysay.coursetable.data.preferences.*
+import com.jaysay.coursetable.data.reminder.ReminderBlocker
 import com.jaysay.coursetable.data.reminder.ReminderCalculator
 import com.jaysay.coursetable.data.reminder.ReminderPolicy
 import com.jaysay.coursetable.data.repository.TableData
@@ -64,6 +65,10 @@ fun SettingsScreen(
     onOpenCalendarExceptions: () -> Unit = {},
     reminderPauseStatus: String? = null,
     onClearReminderPause: () -> Unit = {},
+    reminderBlockers: List<ReminderBlocker> = emptyList(),
+    onRequestNotificationPermission: () -> Unit = {},
+    onOpenExactAlarmSettings: () -> Unit = {},
+    onOpenChannelSettings: () -> Unit = {},
     tablesCount: Int = 1,
     readOnlyMessage: String? = null,
     onBack: () -> Unit
@@ -568,6 +573,57 @@ fun SettingsScreen(
                             save(preferences.copy(reminderEnabled = enabled))
                         }
                     )
+                }
+                if (preferences.reminderEnabled) {
+                    if (reminderBlockers.isEmpty()) {
+                        Text(
+                            stringResource(R.string.settings_reminder_status_ok),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        reminderBlockers.forEach { blocker ->
+                            val (label, fixLabel, onFix) = when (blocker) {
+                                ReminderBlocker.NOTIFICATION_PERMISSION -> Triple(
+                                    stringResource(R.string.settings_reminder_notif_permission),
+                                    stringResource(R.string.settings_reminder_notif_fix),
+                                    onRequestNotificationPermission
+                                )
+                                ReminderBlocker.EXACT_ALARM -> Triple(
+                                    stringResource(R.string.settings_reminder_exact_alarm),
+                                    stringResource(R.string.settings_reminder_exact_fix),
+                                    onOpenExactAlarmSettings
+                                )
+                                ReminderBlocker.CHANNEL_DISABLED -> Triple(
+                                    stringResource(R.string.settings_reminder_channel_off),
+                                    stringResource(R.string.settings_reminder_channel_fix),
+                                    onOpenChannelSettings
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Outlined.WarningAmber,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    label,
+                                    modifier = Modifier.weight(1f),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                TextButton(onClick = onFix, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                    Text(fixLabel, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Row(

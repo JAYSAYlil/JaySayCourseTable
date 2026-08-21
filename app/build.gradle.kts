@@ -12,11 +12,13 @@ android {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 92
-        versionName = "2.13.0"
+        versionCode = 93
+        versionName = "2.14.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // 界面文案为中文硬编码；保留 zh 即可，移除误导性的 en（无英文资源）。
-        resourceConfigurations += listOf("zh")
+    }
+    androidResources {
+        // 仅保留中文语言资源（无英文资源，避免误导性裁剪配置）。
+        localeFilters += listOf("zh")
     }
 
     buildTypes {
@@ -46,7 +48,13 @@ android {
             "META-INF/LICENSE",
             "META-INF/LICENSE.txt",
             "META-INF/NOTICE",
-            "META-INF/NOTICE.txt"
+            "META-INF/NOTICE.txt",
+            // POI 中课表用不到的非 Excel 模块资源（PowerPoint/幻灯片渲染资产），
+            // 排除可缩小 APK；XLS/XLSX 读取不依赖这些文件。
+            "org/apache/poi/sl/draw/geom/presetShapeDefinitions.xml",
+            "org/apache/poi/xslf/usermodel/empty.pptx",
+            "org/apache/poi/xslf/usermodel/notesMaster.xml",
+            "font_metrics.properties"
         )
     }
     dependenciesInfo {

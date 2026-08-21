@@ -2,7 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 上课提醒：Android 12+ 精确闹钟（不可用时自动降级为近似闹钟，无需额外引导） -->
+    <!-- 上课提醒：Android 13+ 日历类应用的免授权精确闹钟（自动授予、不可撤销），
+         根治 Android 14+ 对 SCHEDULE_EXACT_ALARM 默认拒绝导致的提醒不准时问题。 -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- 上课提醒：Android 12 的精确闹钟权限；13+ 由 USE_EXACT_ALARM 覆盖，
+         不可用时自动降级为近似闹钟。 -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- 上课提醒：Android 13+ 通知运行时权限，开启提醒时在应用内请求 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

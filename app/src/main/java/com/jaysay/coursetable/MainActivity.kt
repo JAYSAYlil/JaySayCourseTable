@@ -3,6 +3,7 @@ package com.jaysay.coursetable
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.Settings
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -46,6 +47,7 @@ import com.jaysay.coursetable.data.model.CourseSeriesOperations
 import com.jaysay.coursetable.data.model.CourseSeriesUndo
 import com.jaysay.coursetable.data.parser.ExcelParser
 import com.jaysay.coursetable.data.preferences.CustomBackgroundStore
+import com.jaysay.coursetable.data.reminder.ReminderPermissions
 import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import com.jaysay.coursetable.data.reminder.ReminderSuppression
 import com.jaysay.coursetable.data.transfer.ImportExportCoordinator
@@ -92,6 +94,8 @@ class MainActivity : ComponentActivity() {
     private val requestedCourseSeries = mutableStateOf<String?>(null)
     private val requestedTableIndex = mutableIntStateOf(-1)
     private val requestedShortcutAction = mutableStateOf<String?>(null)
+    /** 从系统设置/权限弹窗返回后递增，触发提醒状态重新检查。 */
+    private val reminderStatusTick = mutableIntStateOf(0)
     private lateinit var fileTransfer: ImportExportCoordinator
 
     private val importLauncher = registerForActivityResult(
@@ -129,7 +133,7 @@ class MainActivity : ComponentActivity() {
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* 结果不强制处理：用户可在系统设置中开启通知权限 */ }
+    ) { reminderStatusTick.intValue++ }
 
     private val backgroundImageLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -584,6 +588,33 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Toast.makeText(this@MainActivity, getString(R.string.main_toast_reminder_pause_cleared), Toast.LENGTH_SHORT).show()
                                 },
+                                reminderBlockers = if (state.preferences.reminderEnabled) {
+                                    remember(reminderStatusTick.intValue) {
+                                        ReminderPermissions.blockers(this@MainActivity)
+                                    }
+                                } else emptyList(),
+                                onRequestNotificationPermission = {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                },
+                                onOpenExactAlarmSettings = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        startActivity(
+                                            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                                data = Uri.parse("package:" + packageName)
+                                            }
+                                        )
+                                    }
+                                },
+                                onOpenChannelSettings = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        startActivity(
+                                            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                                                putExtra(Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID)
+                                                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                                            }
+                                        )
+                                    }
+                                },
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
                                 onBack = navigateBack
@@ -745,6 +776,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showSaveError(error: Throwable) = showError(getString(R.string.main_toast_save_failed), error)
+
+    override fun onResume() {
+        super.onResume()
+        // 用户可能刚从系统设置授予/撤销通知或精确闹钟权限，刷新提醒状态提示。
+        reminderStatusTick.intValue++
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

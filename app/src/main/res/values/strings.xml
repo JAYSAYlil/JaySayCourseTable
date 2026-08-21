@@ -108,7 +108,7 @@
     <string name="dialog_text_paste_example">"示例：周一 1-2节 高等数学 教1-101 张老师 1-16周"</string>
     <string name="dialog_text_paste_line_format">"每行一条：星期 节次 课程名 [教室] [教师] [周次]"</string>
     <string name="dialog_text_paste_mapping_hint">"按制表符、竖线或逗号分列，填写各字段所在列号"</string>
-    <string name="dialog_text_remove_from_week">"只从第 %1$s 周移除“%2$s”，其他周次不受影响。"</string>
+    <string name="dialog_text_remove_from_week">"只从第 %1$d 周移除“%2$s”，其他周次不受影响。"</string>
     <string name="dialog_text_restore_backup_summary">"将用备份中的 %1$s 个课表、%2$s 条课程替换当前数据。
 
 差异：新增 %3$s、修改 %4$s、删除 %5$s 门课程；新增 %6$s、删除 %7$s 张课表。
@@ -132,7 +132,7 @@
     <string name="edit_delete_confirm">"确认删除"</string>
     <string name="edit_delete_confirm_title">"确认删除课程？"</string>
     <string name="edit_delete_week">"删除本周"</string>
-    <string name="edit_delete_week_message">"只从第 %1$s 周移除“%2$s”，其他周次不受影响。删除后可在提示条中撤销。"</string>
+    <string name="edit_delete_week_message">"只从第 %1$d 周移除“%2$s”，其他周次不受影响。删除后可在提示条中撤销。"</string>
     <string name="edit_end_reminder_desc">"课程结束时发送一条本地通知"</string>
     <string name="edit_error_end_before_start">"结束节次不能小于开始节次"</string>
     <string name="edit_error_name_required">"课程名称不能为空"</string>
@@ -209,14 +209,14 @@
     <string name="main_snackbar_action_undo">"撤销"</string>
     <string name="main_snackbar_course_added">"已添加 %1$s"</string>
     <string name="main_snackbar_deleted_all_weeks">"已删除 %1$s 的全部周次"</string>
-    <string name="main_snackbar_removed_from_week">"已从第 %1$s 周移除 %2$s"</string>
+    <string name="main_snackbar_removed_from_week">"已从第 %1$d 周移除 %2$s"</string>
     <string name="main_toast_background_set_failed">"背景图设置失败"</string>
     <string name="main_toast_backup_restored">"备份恢复成功"</string>
     <string name="main_toast_custom_background_applied">"已应用全屏自定义背景"</string>
     <string name="main_toast_default_background_restore_failed">"恢复默认背景失败"</string>
     <string name="main_toast_default_background_restored">"已恢复默认背景"</string>
     <string name="main_toast_history_restored">"历史版本已恢复"</string>
-    <string name="main_toast_import_done">"导入完成：新增 %1$s，合并 %2$s，跳过重复 %3$s"</string>
+    <string name="main_toast_import_done">"导入完成：新增 %1$d，合并 %2$d，跳过重复 %3$d"</string>
     <string name="main_toast_reminder_pause_cleared">"已恢复今天和本周的课程提醒"</string>
     <string name="main_toast_restore_failed">"恢复失败"</string>
     <string name="main_toast_save_failed">"保存失败"</string>
@@ -351,4 +351,11 @@
     <string name="table_nav_back">"返回"</string>
     <string name="table_unarchive">"取消归档"</string>
     <string name="widget_description">"显示今日与明日课程、教室和教师"</string>
+    <string name="settings_reminder_status_ok">"提醒功能正常，将按节次时间提前通知"</string>
+    <string name="settings_reminder_notif_permission">"通知权限未开启，提醒到达时无法显示"</string>
+    <string name="settings_reminder_notif_fix">"开启通知权限"</string>
+    <string name="settings_reminder_exact_alarm">"系统未允许精确闹钟，提醒可能延迟"</string>
+    <string name="settings_reminder_exact_fix">"去系统设置"</string>
+    <string name="settings_reminder_channel_off">"“上课提醒”通知已在系统中关闭"</string>
+    <string name="settings_reminder_channel_fix">"开启通知渠道"</string>
 </resources>
