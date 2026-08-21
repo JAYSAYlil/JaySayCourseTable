@@ -67,7 +67,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -115,8 +114,6 @@ import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.util.Calendar
 import kotlin.math.abs
@@ -515,8 +512,9 @@ fun CourseTableScreen(
                 TextButton(onClick = { searchQuery = "" }) { Text(stringResource(R.string.course_search_clear)) }
             }
         } else {
-            // 各周纵向位置的运行期记忆（普通 Map，非 Compose 状态，改动不触发重组）。
-            val scrollPositions = remember { mutableMapOf<Int, Int>() }
+            // 纵向滚动状态独立于周次：切换周次时保持当前位置不重置，
+            // 离开详情页或 Activity 重建时也能恢复到原位置。
+            val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
             AnimatedContent(
                 targetState = currentWeek,
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -533,18 +531,7 @@ fun CourseTableScreen(
                 },
                 label = "weekContent"
             ) { displayedWeek ->
-                // 课表进入详情页时会离开组合；使用可保存状态才能在返回后精确回到原纵向位置。
-                val scrollState = rememberSaveable(displayedWeek, saver = ScrollState.Saver) { ScrollState(0) }
                 var dragDistance by remember(displayedWeek) { mutableFloatStateOf(0f) }
-                // 切周时继承上一周的纵向位置；同时持续记录本周位置到普通 Map（非 Compose 状态，不触发重组）。
-                LaunchedEffect(displayedWeek) {
-                    scrollPositions[displayedWeek]?.let { saved ->
-                        snapshotFlow { scrollState.maxValue }.first { it > 0 }
-                        scrollState.scrollTo(saved.coerceAtMost(scrollState.maxValue))
-                    }
-                    snapshotFlow { scrollState.value }
-                        .collect { position -> scrollPositions[displayedWeek] = position }
-                }
                 Column(
                     modifier = Modifier.fillMaxSize()
                         .pointerInput(displayedWeek, totalWeeks, swipeThresholdPx) {
