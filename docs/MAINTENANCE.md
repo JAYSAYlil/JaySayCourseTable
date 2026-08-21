@@ -5,7 +5,7 @@
 - Android 应用模块：`app/`
 - 包名与 applicationId：`com.jaysay.coursetable`
 - 最低/目标系统：Android 8.0（API 26）/ Android 15（API 35）
-- 当前候选版本：2.15.1，versionCode 96
+- 当前候选版本：2.16.0，versionCode 97
 - 构建栈：Gradle 9.1.0 / AGP 8.13.0 / Kotlin 2.2.0（内置 Compose 编译器）/ Compose BOM 2025.06.01
 - 应用不声明 `INTERNET` 权限，不包含联网客户端；课程、备份、提醒和日历均在本机处理。
 - 全部 UI 用户可见文案位于 `res/values/strings.xml`；数据层错误消息保持纯 Kotlin 数据（不依赖 Context）。
@@ -19,7 +19,7 @@
 - `data/history/`：最近 10 次本机课表快照、差异与恢复。
 - `data/diagnostics/`：固定白名单字段的脱敏诊断报告。
 - `data/parser/`：Excel 与粘贴文本导入。
-- `data/reminder/`：提醒计算、AlarmManager 调度、通知、系统事件恢复与权限/渠道状态诊断（ReminderPermissions）。
+- `data/reminder/`：提醒计算、AlarmManager 调度、通知、系统事件恢复、权限/渠道状态诊断（ReminderPermissions）与自启动引导（AutostartHelper）。
 - `data/ical/`：标准 `.ics` 日历导出。
 - `widget/`：3/4/5 列响应式桌面小组件、今日/明日集合数据与状态边界刷新。
 - `ui/`：课表、详情、编辑、设置、导入确认和公共组件；`ui/components/CourseDialogs.kt` 集中承载删除、冲突确认、备份密码与粘贴导入等弹窗。

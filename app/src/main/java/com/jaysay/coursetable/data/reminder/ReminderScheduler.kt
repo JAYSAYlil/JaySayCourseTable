@@ -9,8 +9,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.jaysay.coursetable.MainActivity
+import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.repository.TableData
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -52,12 +54,13 @@ object ReminderScheduler {
     /** 基于当前课表与偏好重新调度活动课表未来 7 天的提醒（覆盖式，可重复调用）。 */
     fun rescheduleAll(context: Context, tables: List<TableData>, preferences: AppPreferences) {
         scheduleWindow(context, tables, preferences, replaceExisting = true)
-        // 保活服务生命周期：提醒开启时确保进程存活，关闭时显式停止
-        // （小组件存在时服务不会真正退出，由服务心跳自行判断）。
-        if (preferences.reminderEnabled) {
-            ReminderKeepAliveService.ensureRunning(context)
-        } else {
-            ReminderKeepAliveService.stop(context)
+        // 应用打开时顺带清理已过期的暂停状态（昨天/上周的暂停不再拦截）。
+        val activeIndex = preferences.activeTableIndex.coerceIn(tables.indices)
+        tables.getOrNull(activeIndex)?.let { table ->
+            val currentWeek = TodayAgendaCalculator.semesterWeek(
+                table.semesterStart, table.totalWeeks, LocalDate.now()
+            )
+            ReminderSuppression.pruneExpired(context, activeIndex, LocalDate.now(), currentWeek ?: -1)
         }
     }
 
@@ -143,11 +146,6 @@ object ReminderScheduler {
         plans.forEach { plan ->
             scheduleOne(context, alarmManager, plan)
         }
-        ReminderDiagnostics.record(
-            context,
-            if (plans.isEmpty()) "已重排：当前无未来提醒（检查课程与提醒开关）"
-            else "已重排未来提醒 " + plans.size + " 条"
-        )
     }
 
     private fun scheduleOne(

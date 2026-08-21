@@ -65,8 +65,6 @@ class CourseWidgetProvider : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // 小组件存在时接入保活服务，保证边界刷新闹钟在应用未打开时也能派发。
-        com.jaysay.coursetable.data.reminder.ReminderKeepAliveService.ensureRunning(context)
     }
 
     override fun onDisabled(context: Context) {

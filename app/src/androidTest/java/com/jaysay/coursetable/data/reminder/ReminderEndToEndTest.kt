@@ -111,35 +111,6 @@ class ReminderEndToEndTest {
     }
 
     @Test
-    fun testNotificationSendsAndRecordsDiagnostics() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        grantNotificationPermission()
-        ReminderScheduler.ensureChannel(context)
-
-        val failure = ReminderDiagnostics.sendTestNotification(context)
-
-        assertTrue("测试通知应发送成功，实际失败：" + (failure ?: "无"), failure == null)
-        val events = ReminderDiagnostics.recent(context)
-        assertTrue("应记录测试通知事件", events.any { it.contains("测试通知已发送") })
-    }
-
-    @Test
-    fun keepAliveServiceStartsWhenReminderEnabledAndStopsWhenDisabled() = runBlocking {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        ReminderSuppression.clear(context)
-
-        val enabled = AppPreferences(activeTableIndex = 0, reminderEnabled = true, reminderMinutes = 5)
-        ReminderScheduler.rescheduleAll(context, emptyList(), enabled)
-        assertTrue("提醒开启后保活服务应运行", isServiceRunning(context))
-
-        val disabled = enabled.copy(reminderEnabled = false)
-        ReminderScheduler.rescheduleAll(context, emptyList(), disabled)
-        // 服务停止是异步信号，短暂等待后检查。
-        delay(800)
-        assertTrue("提醒关闭后保活服务应停止", !isServiceRunning(context))
-    }
-
-    @Test
     fun muteSetsSuppressionAndSettingsRestoreClearsIt() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         ReminderSuppression.clear(context)
@@ -169,11 +140,5 @@ class ReminderEndToEndTest {
             PreferencesManager(context).load()
         )
         assertTrue("设置页恢复后应解除暂停", !ReminderSuppression.isSuppressed(context, 0, week, LocalDate.now()))
-    }
-
-    private fun isServiceRunning(context: Context): Boolean {
-        val manager = context.getSystemService(android.app.ActivityManager::class.java)
-        return manager.getRunningServices(100)
-            .any { it.service.className == ReminderKeepAliveService::class.java.name }
     }
 }

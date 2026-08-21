@@ -70,9 +70,7 @@ fun SettingsScreen(
     onOpenExactAlarmSettings: () -> Unit = {},
     onOpenChannelSettings: () -> Unit = {},
     onOpenBatteryOptimizationSettings: () -> Unit = {},
-    onSendTestNotification: () -> String? = { null },
-    reminderDiagnostics: List<String> = emptyList(),
-    onOpenAppSettings: () -> Unit = {},
+    onOpenAutostartSettings: () -> Unit = {},
     tablesCount: Int = 1,
     readOnlyMessage: String? = null,
     onBack: () -> Unit
@@ -558,6 +556,8 @@ fun SettingsScreen(
                             .firstOrNull { (_, time) -> time.isAfter(now) }
                     }
                 }
+                var showReminderConfirm by remember { mutableStateOf(false) }
+                var showAutostartGuide by remember { mutableStateOf(false) }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -574,7 +574,49 @@ fun SettingsScreen(
                         checked = preferences.reminderEnabled,
                         enabled = readOnlyMessage == null,
                         onCheckedChange = { enabled ->
-                            save(preferences.copy(reminderEnabled = enabled))
+                            if (enabled) showReminderConfirm = true
+                            else save(preferences.copy(reminderEnabled = false))
+                        }
+                    )
+                }
+                if (showReminderConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showReminderConfirm = false },
+                        title = { Text(stringResource(R.string.settings_reminder_enable_confirm_title)) },
+                        text = { Text(stringResource(R.string.settings_reminder_enable_confirm_text)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showReminderConfirm = false
+                                save(preferences.copy(reminderEnabled = true))
+                                showAutostartGuide = true
+                            }) {
+                                Text(stringResource(R.string.settings_reminder_enable_confirm_ok))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showReminderConfirm = false }) {
+                                Text(stringResource(R.string.settings_reminder_enable_confirm_cancel))
+                            }
+                        }
+                    )
+                }
+                if (showAutostartGuide) {
+                    AlertDialog(
+                        onDismissRequest = { showAutostartGuide = false },
+                        title = { Text(stringResource(R.string.settings_reminder_autostart_guide_title)) },
+                        text = { Text(stringResource(R.string.settings_reminder_autostart_guide_text)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showAutostartGuide = false
+                                onOpenAutostartSettings()
+                            }) {
+                                Text(stringResource(R.string.settings_reminder_autostart_guide_go))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAutostartGuide = false }) {
+                                Text(stringResource(R.string.settings_reminder_autostart_guide_later))
+                            }
                         }
                     )
                 }
@@ -694,49 +736,7 @@ fun SettingsScreen(
                     }
                 }
                 if (preferences.reminderEnabled) {
-                    var testResult by remember { mutableStateOf<String?>(null) }
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.settings_reminder_test_notification), fontSize = 15.sp)
-                            Text(
-                                stringResource(R.string.settings_reminder_test_notification_desc),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        val sentText = stringResource(R.string.settings_reminder_test_sent)
-                        val failedTemplate = stringResource(R.string.settings_reminder_test_failed)
-                        TextButton(onClick = {
-                            val failure = onSendTestNotification()
-                            testResult = if (failure == null) sentText
-                            else String.format(failedTemplate, failure)
-                        }) {
-                            Text(stringResource(R.string.settings_reminder_test_send), fontSize = 13.sp)
-                        }
-                    }
-                    testResult?.let { result ->
-                        Text(
-                            result,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-                            fontSize = 12.sp,
-                            color = if (result == stringResource(R.string.settings_reminder_test_sent)) {
-                                MaterialTheme.colorScheme.primary
-                            } else MaterialTheme.colorScheme.error
-                        )
-                    }
-                    if (reminderDiagnostics.isNotEmpty()) {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                            Text(stringResource(R.string.settings_reminder_diag_title), fontSize = 15.sp)
-                            reminderDiagnostics.take(3).forEach { event ->
-                                Text(event, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
+                    // 已开启提醒时显示一行“自启动”提示入口，便于随时重新打开系统自启动设置。
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -755,7 +755,7 @@ fun SettingsScreen(
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        TextButton(onClick = onOpenAppSettings, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        TextButton(onClick = onOpenAutostartSettings, contentPadding = PaddingValues(horizontal = 8.dp)) {
                             Text(stringResource(R.string.settings_reminder_autostart_fix), fontSize = 12.sp)
                         }
                     }

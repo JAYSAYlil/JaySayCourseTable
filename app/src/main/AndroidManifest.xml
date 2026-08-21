@@ -12,9 +12,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 系统重启后恢复上课提醒；不用于自启动界面或联网。 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- 轻量前台保活服务：保证提醒闹钟与小组件刷新闹钟在应用未打开时即时执行。 -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:allowBackup="false"
@@ -74,16 +71,6 @@
             android:name=".widget.CourseWidgetRemoteViewsService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
-
-        <!-- 保活服务：同进程前台服务，仅心跳与小组件指纹刷新，无网络无 WakeLock。 -->
-        <service
-            android:name=".data.reminder.ReminderKeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="course reminder delivery and home widget refresh" />
-        </service>
 
     </application>
 

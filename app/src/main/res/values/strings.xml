@@ -360,16 +360,14 @@
     <string name="settings_reminder_channel_fix">"开启通知渠道"</string>
     <string name="settings_reminder_battery">"应用受电池优化限制，提醒可能被系统延迟"</string>
     <string name="settings_reminder_battery_fix">"允许后台运行"</string>
-    <string name="settings_reminder_test_notification">"发送测试通知"</string>
-    <string name="settings_reminder_test_notification_desc">"立即发送一条测试通知，验证提醒链路"</string>
-    <string name="settings_reminder_test_send">"发送测试"</string>
-    <string name="settings_reminder_test_sent">"测试通知已发送，请查看通知栏"</string>
-    <string name="settings_reminder_test_failed">"测试通知失败：%1$s"</string>
-    <string name="settings_reminder_diag_title">"最近触发记录"</string>
-    <string name="keepalive_notification_title">"课程提醒服务运行中"</string>
-    <string name="keepalive_notification_text">"保证上课提醒准时送达，点击进入课表"</string>
-    <string name="keepalive_channel_name">"提醒服务"</string>
-    <string name="keepalive_channel_desc">"提醒服务运行状态（静默，不打扰）"</string>
     <string name="settings_reminder_autostart_hint">"部分手机（如小米、华为）需在系统设置中允许本应用自启动，否则锁屏后可能收不到提醒"</string>
-    <string name="settings_reminder_autostart_fix">"打开应用系统设置"</string>
+    <string name="settings_reminder_autostart_fix">"打开自启动设置"</string>
+    <string name="settings_reminder_enable_confirm_title">"开启上课提醒？"</string>
+    <string name="settings_reminder_enable_confirm_text">"开启后应用需要在后台运行，可能会增加少量耗电并影响续航；同时建议允许应用自启动，否则锁屏后可能收不到提醒。"</string>
+    <string name="settings_reminder_enable_confirm_ok">"确定开启"</string>
+    <string name="settings_reminder_enable_confirm_cancel">"取消"</string>
+    <string name="settings_reminder_autostart_guide_title">"请开启应用自启动"</string>
+    <string name="settings_reminder_autostart_guide_text">"为确保锁屏或退出应用后能准时收到提醒，请在系统设置中允许本应用自启动（不同手机位置略有不同）。"</string>
+    <string name="settings_reminder_autostart_guide_go">"去设置"</string>
+    <string name="settings_reminder_autostart_guide_later">"稍后"</string>
 </resources>
