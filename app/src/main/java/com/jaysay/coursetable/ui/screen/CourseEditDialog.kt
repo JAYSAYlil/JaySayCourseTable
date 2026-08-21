@@ -19,11 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseReminderMode
 import com.jaysay.coursetable.ui.theme.*
@@ -80,6 +82,10 @@ fun CourseEditDialog(
         } ?: -1
     ) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    val errNameRequired = stringResource(R.string.edit_error_name_required)
+    val errEndBeforeStart = stringResource(R.string.edit_error_end_before_start)
+    val errWeeksInvalid = stringResource(R.string.edit_error_weeks_invalid)
+    val errWeeksRange = stringResource(R.string.edit_error_weeks_range, totalWeeks)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -98,9 +104,9 @@ fun CourseEditDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (isNew) "添加课程" else "编辑课程",
+                    Text(if (isNew) stringResource(R.string.edit_title_add) else stringResource(R.string.edit_title_edit),
                         fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "关闭") }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, stringResource(R.string.edit_close)) }
                 }
                 HorizontalDivider()
 
@@ -124,19 +130,19 @@ fun CourseEditDialog(
                 ) {
                     // 课程名称
                     OutlinedTextField(value = name, onValueChange = { name = it; errorMsg = null },
-                        label = { Text("课程名称 *") }, singleLine = true,
+                        label = { Text(stringResource(R.string.edit_label_course_name)) }, singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("course-name-input"))
 
                     // 教师 + 教室
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = teacher, onValueChange = { teacher = it },
-                            label = { Text("教师") }, singleLine = true, modifier = Modifier.weight(1f))
+                            label = { Text(stringResource(R.string.edit_label_teacher)) }, singleLine = true, modifier = Modifier.weight(1f))
                         OutlinedTextField(value = classroom, onValueChange = { classroom = it },
-                            label = { Text("教室") }, singleLine = true, modifier = Modifier.weight(1f))
+                            label = { Text(stringResource(R.string.edit_label_classroom)) }, singleLine = true, modifier = Modifier.weight(1f))
                     }
 
                     // 星期选择
-                    Text("上课星期", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.edit_label_day), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         for (d in 1..7) {
                             val sel = d == day
@@ -160,9 +166,9 @@ fun CourseEditDialog(
                     }
 
                     // 节次
-                    Text("上课节次 *", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.edit_label_period), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("第 ", fontSize = 14.sp)
+                        Text(stringResource(R.string.edit_period_prefix), fontSize = 14.sp)
                         var sText by remember(course, initialKey) { mutableStateOf(startPeriod.toString()) }
                         OutlinedTextField(value = sText, onValueChange = { v ->
                             val f = v.filter { it.isDigit() }.take(2)
@@ -170,7 +176,7 @@ fun CourseEditDialog(
                             errorMsg = null
                         }, modifier = Modifier.width(60.dp).testTag("course-start-period-input"), singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                        Text(" 节 ～ 第 ", fontSize = 14.sp)
+                        Text(stringResource(R.string.edit_period_range), fontSize = 14.sp)
                         var eText by remember(course, initialKey) { mutableStateOf(endPeriod.toString()) }
                         OutlinedTextField(value = eText, onValueChange = { v ->
                             val f = v.filter { it.isDigit() }.take(2)
@@ -178,21 +184,21 @@ fun CourseEditDialog(
                             errorMsg = null
                         }, modifier = Modifier.width(60.dp).testTag("course-end-period-input"), singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                        Text(" 节", fontSize = 14.sp)
+                        Text(stringResource(R.string.edit_period_suffix), fontSize = 14.sp)
                     }
                     if (endPeriod < startPeriod) {
-                        Text("结束节次不能小于开始节次", fontSize = 12.sp,
+                        Text(stringResource(R.string.edit_error_end_before_start), fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.error)
                     }
 
                     // 周次
                     OutlinedTextField(value = weekStr, onValueChange = { weekStr = it },
-                        label = { Text("上课周次（如 1-18 或 1,3,5-8）") }, singleLine = true,
+                        label = { Text(stringResource(R.string.edit_label_weeks)) }, singleLine = true,
                         modifier = Modifier.fillMaxWidth())
 
                     // 学分
                     OutlinedTextField(value = creditsStr, onValueChange = { creditsStr = it },
-                        label = { Text("学分") }, singleLine = true,
+                        label = { Text(stringResource(R.string.edit_label_credits)) }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.width(120.dp))
 
@@ -200,33 +206,33 @@ fun CourseEditDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(value = courseType, onValueChange = { courseType = it },
-                            label = { Text("课程性质") }, singleLine = true, modifier = Modifier.weight(1f))
-                        Text("线上", fontSize = 13.sp)
+                            label = { Text(stringResource(R.string.edit_label_course_type)) }, singleLine = true, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.edit_label_online), fontSize = 13.sp)
                         Switch(checked = isOnline, onCheckedChange = { isOnline = it })
                     }
 
                     // 课程类别 + 考核方式
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = courseCat, onValueChange = { courseCat = it },
-                            label = { Text("课程类别") }, singleLine = true, modifier = Modifier.weight(1f))
+                            label = { Text(stringResource(R.string.edit_label_course_category)) }, singleLine = true, modifier = Modifier.weight(1f))
                         OutlinedTextField(value = assessMethod, onValueChange = { assessMethod = it },
-                            label = { Text("考核方式") }, singleLine = true, modifier = Modifier.weight(1f))
+                            label = { Text(stringResource(R.string.edit_label_assessment)) }, singleLine = true, modifier = Modifier.weight(1f))
                     }
 
                     // 课程号 + 课序号
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = courseId, onValueChange = { courseId = it },
-                            label = { Text("课程号") }, singleLine = true, modifier = Modifier.weight(1f))
+                            label = { Text(stringResource(R.string.edit_label_course_id)) }, singleLine = true, modifier = Modifier.weight(1f))
                         OutlinedTextField(value = classNum, onValueChange = { classNum = it },
-                            label = { Text("课序号") }, singleLine = true, modifier = Modifier.weight(1f))
+                            label = { Text(stringResource(R.string.edit_label_class_number)) }, singleLine = true, modifier = Modifier.weight(1f))
                     }
 
                     // 开课单位
                     OutlinedTextField(value = dept, onValueChange = { dept = it },
-                        label = { Text("开课单位") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        label = { Text(stringResource(R.string.edit_label_department)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
                     // 自定义颜色
-                    Text("卡片颜色", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.edit_label_color), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -243,18 +249,18 @@ fun CourseEditDialog(
 
                     // 备注
                     OutlinedTextField(value = notes, onValueChange = { notes = it },
-                        label = { Text("备注") }, maxLines = 3,
+                        label = { Text(stringResource(R.string.edit_label_notes)) }, maxLines = 3,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp))
 
-                    Text("课程提醒", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.edit_label_reminder), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         listOf(
-                            CourseReminderMode.INHERIT to "跟随全局",
-                            CourseReminderMode.ENABLED to "单独开启",
-                            CourseReminderMode.DISABLED to "单独关闭"
+                            CourseReminderMode.INHERIT to stringResource(R.string.edit_reminder_inherit),
+                            CourseReminderMode.ENABLED to stringResource(R.string.edit_reminder_enabled),
+                            CourseReminderMode.DISABLED to stringResource(R.string.edit_reminder_disabled)
                         ).forEach { (mode, label) ->
                             FilterChip(
                                 selected = reminderMode == mode,
@@ -264,7 +270,7 @@ fun CourseEditDialog(
                         }
                     }
                     if (reminderMode != CourseReminderMode.DISABLED) {
-                        Text("提前时间", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.edit_label_advance_minutes), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -272,13 +278,13 @@ fun CourseEditDialog(
                             FilterChip(
                                 selected = reminderMinutesOverride == null,
                                 onClick = { reminderMinutesOverride = null },
-                                label = { Text("跟随全局") }
+                                label = { Text(stringResource(R.string.edit_reminder_inherit)) }
                             )
                             listOf(5, 10, 15, 30).forEach { minutes ->
                                 FilterChip(
                                     selected = reminderMinutesOverride == minutes,
                                     onClick = { reminderMinutesOverride = minutes },
-                                    label = { Text("$minutes 分钟") }
+                                    label = { Text(stringResource(R.string.edit_reminder_minutes, minutes)) }
                                 )
                             }
                         }
@@ -288,8 +294,8 @@ fun CourseEditDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("下课时提醒", fontSize = 14.sp)
-                                Text("课程结束时发送一条本地通知", fontSize = 12.sp,
+                                Text(stringResource(R.string.edit_label_end_reminder), fontSize = 14.sp)
+                                Text(stringResource(R.string.edit_end_reminder_desc), fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Switch(checked = endReminderEnabled, onCheckedChange = { endReminderEnabled = it })
@@ -303,7 +309,7 @@ fun CourseEditDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("应用到全部周", fontSize = 14.sp)
+                            Text(stringResource(R.string.edit_apply_to_all), fontSize = 14.sp)
                             Switch(checked = applyToAll, onCheckedChange = { applyToAll = it })
                         }
                     }
@@ -324,7 +330,7 @@ fun CourseEditDialog(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error)) {
-                            Text(if (applyToAll) "删除全部" else "删除本周")
+                            Text(if (applyToAll) stringResource(R.string.edit_delete_all) else stringResource(R.string.edit_delete_week))
                         }
                     }
                     OutlinedButton(
@@ -332,20 +338,20 @@ fun CourseEditDialog(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("取消")
+                        Text(stringResource(R.string.edit_button_cancel))
                     }
                     Button(onClick = {
                         // 校验
-                        if (name.isBlank()) { errorMsg = "课程名称不能为空"; return@Button }
-                        if (endPeriod < startPeriod) { errorMsg = "结束节次不能小于开始节次"; return@Button }
+                        if (name.isBlank()) { errorMsg = errNameRequired; return@Button }
+                        if (endPeriod < startPeriod) { errorMsg = errEndBeforeStart; return@Button }
                         // 解析周次；空白表示整学期，错误或越界输入必须明确提示。
                         val parsedWeeks = TimeUtils.parseWeeks(weekStr)
                         if (weekStr.isNotBlank() && parsedWeeks.isEmpty()) {
-                            errorMsg = "无法识别周次，请输入如 1-16周 或 1-15周(单)"
+                            errorMsg = errWeeksInvalid
                             return@Button
                         }
                         if (parsedWeeks.any { it !in 1..totalWeeks }) {
-                            errorMsg = "周次必须在 1-$totalWeeks 之间"
+                            errorMsg = errWeeksRange
                             return@Button
                         }
                         val weeks = parsedWeeks.ifEmpty { (1..totalWeeks).toList() }
@@ -369,7 +375,7 @@ fun CourseEditDialog(
                             endReminderEnabled = endReminderEnabled
                         ), applyToAll)
                     }, modifier = Modifier.weight(1f).testTag("course-save-button"), shape = RoundedCornerShape(12.dp)) {
-                        Text("保存", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.edit_save), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -380,21 +386,21 @@ fun CourseEditDialog(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             icon = { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("确认删除课程？") },
+            title = { Text(stringResource(R.string.edit_delete_confirm_title)) },
             text = {
                 Text(
-                    if (applyToAll) "将删除“$name”的全部周次，删除后可在提示条中撤销。"
-                    else "只从第 $currentWeek 周移除“$name”，其他周次不受影响。删除后可在提示条中撤销。"
+                    if (applyToAll) stringResource(R.string.edit_delete_all_weeks_message, name)
+                    else stringResource(R.string.edit_delete_week_message, currentWeek, name)
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
                     onDelete(applyToAll)
-                }) { Text("确认删除", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.edit_delete_confirm), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.edit_button_cancel)) }
             }
         )
     }

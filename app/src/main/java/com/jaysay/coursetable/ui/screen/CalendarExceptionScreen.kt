@@ -12,7 +12,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.*
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
@@ -55,12 +57,12 @@ fun CalendarExceptionScreen(
     Scaffold(
         topBar = {
             AppTopBar(
-                title = "校历例外",
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }
+                title = stringResource(R.string.calendar_title),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.calendar_back)) } }
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { showAdd = true }) { Text("添加日期例外") }
+            ExtendedFloatingActionButton(onClick = { showAdd = true }) { Text(stringResource(R.string.calendar_add_date_exception)) }
         }
     ) { padding ->
         LazyColumn(
@@ -69,23 +71,23 @@ fun CalendarExceptionScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                Text("可设置整日停课、取消某门课或补课；提醒、日程和小组件会同步生效。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.calendar_intro), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {
                 AppPanel {
                     Column(Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("周标签", style = MaterialTheme.typography.titleMedium)
-                                Text("为某周标记考试周、实训周等说明", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.calendar_week_label), style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.calendar_week_label_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            TextButton(onClick = { showWeekLabel = true }) { Text("添加") }
+                            TextButton(onClick = { showWeekLabel = true }) { Text(stringResource(R.string.calendar_add)) }
                         }
                         table.weekLabels.toSortedMap().forEach { (week, label) ->
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text("第 $week 周 · $label", Modifier.weight(1f))
+                                Text(stringResource(R.string.calendar_week_item, week, label), Modifier.weight(1f))
                                 IconButton(onClick = { save(table.copy(weekLabels = table.weekLabels - week)) }) {
-                                    Icon(Icons.Outlined.Delete, "删除周标签")
+                                    Icon(Icons.Outlined.Delete, stringResource(R.string.calendar_delete_week_label))
                                 }
                             }
                         }
@@ -93,25 +95,25 @@ fun CalendarExceptionScreen(
                 }
             }
             if (table.dateExceptions.isEmpty()) {
-                item { Text("尚未添加具体日期例外", modifier = Modifier.padding(vertical = 24.dp)) }
+                item { Text(stringResource(R.string.calendar_empty), modifier = Modifier.padding(vertical = 24.dp)) }
             }
             items(table.dateExceptions, key = ScheduleDateException::id) { item ->
                 AppPanel {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("${item.date} · ${item.type.label()}", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.calendar_exception_item, item.date, item.type.label()), style = MaterialTheme.typography.titleMedium)
                             val detail = item.title.ifBlank {
                                 when (item.type) {
-                                    ScheduleExceptionType.DAY_OFF -> "全天课程暂停"
-                                    ScheduleExceptionType.COURSE_CANCELLED -> table.courses.firstOrNull { it.seriesKey == item.courseSeriesKey }?.courseName ?: "指定课程"
-                                    ScheduleExceptionType.MAKEUP -> item.makeupCourse?.courseName ?: "补课"
+                                    ScheduleExceptionType.DAY_OFF -> stringResource(R.string.calendar_detail_day_off)
+                                    ScheduleExceptionType.COURSE_CANCELLED -> table.courses.firstOrNull { it.seriesKey == item.courseSeriesKey }?.courseName ?: stringResource(R.string.calendar_detail_course_fallback)
+                                    ScheduleExceptionType.MAKEUP -> item.makeupCourse?.courseName ?: stringResource(R.string.calendar_makeup)
                                 }
                             }
                             Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = {
                             save(table.copy(dateExceptions = table.dateExceptions.filterNot { it.id == item.id }))
-                        }) { Icon(Icons.Outlined.Delete, "删除日期例外") }
+                        }) { Icon(Icons.Outlined.Delete, stringResource(R.string.calendar_delete_date_exception)) }
                     }
                 }
             }
@@ -130,10 +132,10 @@ private fun AddExceptionDialog(courses: List<Course>, onDismiss: () -> Unit, onA
         (type == ScheduleExceptionType.DAY_OFF || course != null)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加日期例外") },
+        title = { Text(stringResource(R.string.calendar_add_date_exception)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(date, { date = it.take(10) }, label = { Text("日期（yyyy-MM-dd）") }, singleLine = true)
+                OutlinedTextField(date, { date = it.take(10) }, label = { Text(stringResource(R.string.calendar_date_label)) }, singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ScheduleExceptionType.entries.forEach { value ->
                         FilterChip(selected = type == value, onClick = { type = value }, label = { Text(value.label()) })
@@ -142,7 +144,7 @@ private fun AddExceptionDialog(courses: List<Course>, onDismiss: () -> Unit, onA
                 if (type != ScheduleExceptionType.DAY_OFF) {
                     Box {
                         OutlinedButton(onClick = { courseMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(course?.courseName ?: "选择课程")
+                            Text(course?.courseName ?: stringResource(R.string.calendar_select_course))
                         }
                         DropdownMenu(expanded = courseMenu, onDismissRequest = { courseMenu = false }) {
                             courses.distinctBy(Course::seriesKey).forEach { item ->
@@ -151,7 +153,7 @@ private fun AddExceptionDialog(courses: List<Course>, onDismiss: () -> Unit, onA
                         }
                     }
                 }
-                OutlinedTextField(title, { title = it.take(80) }, label = { Text("备注（可选）") }, singleLine = true)
+                OutlinedTextField(title, { title = it.take(80) }, label = { Text(stringResource(R.string.calendar_remark_label)) }, singleLine = true)
             }
         },
         confirmButton = {
@@ -166,9 +168,9 @@ private fun AddExceptionDialog(courses: List<Course>, onDismiss: () -> Unit, onA
                         title = title
                     )
                 )
-            }) { Text("添加") }
+            }) { Text(stringResource(R.string.calendar_add)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.calendar_cancel)) } }
     )
 }
 
@@ -179,22 +181,23 @@ private fun AddWeekLabelDialog(totalWeeks: Int, onDismiss: () -> Unit, onAdd: (I
     val week = weekText.toIntOrNull()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加周标签") },
+        title = { Text(stringResource(R.string.calendar_add_week_label)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(weekText, { weekText = it.filter(Char::isDigit).take(2) }, label = { Text("周次") }, singleLine = true)
-                OutlinedTextField(label, { label = it.take(30) }, label = { Text("标签，例如：考试周") }, singleLine = true)
+                OutlinedTextField(weekText, { weekText = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.calendar_week_number)) }, singleLine = true)
+                OutlinedTextField(label, { label = it.take(30) }, label = { Text(stringResource(R.string.calendar_label_example)) }, singleLine = true)
             }
         },
         confirmButton = {
-            TextButton(enabled = week in 1..totalWeeks && label.isNotBlank(), onClick = { onAdd(week!!, label.trim()) }) { Text("保存") }
+            TextButton(enabled = week in 1..totalWeeks && label.isNotBlank(), onClick = { onAdd(week!!, label.trim()) }) { Text(stringResource(R.string.calendar_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.calendar_cancel)) } }
     )
 }
 
+@Composable
 private fun ScheduleExceptionType.label(): String = when (this) {
-    ScheduleExceptionType.DAY_OFF -> "整日停课"
-    ScheduleExceptionType.COURSE_CANCELLED -> "取消课程"
-    ScheduleExceptionType.MAKEUP -> "补课"
+    ScheduleExceptionType.DAY_OFF -> stringResource(R.string.calendar_type_day_off)
+    ScheduleExceptionType.COURSE_CANCELLED -> stringResource(R.string.calendar_type_course_cancelled)
+    ScheduleExceptionType.MAKEUP -> stringResource(R.string.calendar_makeup)
 }

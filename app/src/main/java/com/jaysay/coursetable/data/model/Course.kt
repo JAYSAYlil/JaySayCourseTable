@@ -4,6 +4,7 @@ package com.jaysay.coursetable.data.model
 import androidx.compose.runtime.Immutable
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import kotlin.ConsistentCopyVisibility
 
 enum class CourseReminderMode { INHERIT, ENABLED, DISABLED }
 
@@ -182,6 +183,7 @@ object CourseSeriesOperations {
  * 删除操作的定向撤销快照。只还原被操作的课程系列，并保留撤销前新增或修改的其他课程。
  * 若同一系列在删除后又被用户改动，则拒绝覆盖较新的结果。
  */
+@ConsistentCopyVisibility
 data class CourseSeriesUndo private constructor(
     private val seriesKey: String,
     private val beforeSeries: List<Course>,

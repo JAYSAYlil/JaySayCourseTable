@@ -43,12 +43,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.AgendaCourseSlot
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
@@ -72,6 +74,7 @@ fun ScheduleOverviewBar(
     var agendaVisible by remember { mutableStateOf(false) }
     var moreActionsVisible by remember { mutableStateOf(false) }
     val compactAgenda = agenda.compactText()
+    val agendaSummaryDescription = stringResource(R.string.overview_agenda_summary_desc, agenda.accessibilityText())
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val compactActions = maxWidth < 430.dp
@@ -84,19 +87,19 @@ fun ScheduleOverviewBar(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier.weight(1f).testTag("course-search-input"),
-                placeholder = { Text("课程、教师或教室", maxLines = 1) },
+                placeholder = { Text(stringResource(R.string.overview_search_placeholder), maxLines = 1) },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Clear, "清空搜索")
+                            Icon(Icons.Default.Clear, stringResource(R.string.overview_clear_search))
                         }
                     }
                 },
                 singleLine = true
             )
             IconButton(onClick = { onSearchQueryChange(""); searchVisible = false }) {
-                Icon(Icons.Default.Close, "关闭搜索")
+                Icon(Icons.Default.Close, stringResource(R.string.overview_close_search))
             }
         } else {
             Column(
@@ -113,12 +116,12 @@ fun ScheduleOverviewBar(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Icon(Icons.Default.ArrowDropDown, "切换课表", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.ArrowDropDown, stringResource(R.string.overview_switch_table), tint = MaterialTheme.colorScheme.primary)
                 }
                 Text(
                     compactAgenda,
                     modifier = Modifier.fillMaxWidth().clickable { agendaVisible = true }
-                        .semantics { contentDescription = "今日课程摘要，${agenda.accessibilityText()}，点击查看详情" }
+                        .semantics { contentDescription = agendaSummaryDescription }
                         .testTag("today-agenda-summary"),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -127,13 +130,13 @@ fun ScheduleOverviewBar(
                 )
             }
             IconButton(onClick = { searchVisible = true }, modifier = Modifier.size(48.dp).testTag("course-search-button")) {
-                Icon(Icons.Default.Search, "搜索课程", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.Search, stringResource(R.string.overview_search_course), tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onAddCourseClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("add-course-button")) {
-                Icon(Icons.Default.AddCircleOutline, "添加课程", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.AddCircleOutline, stringResource(R.string.overview_add_course), tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
-                Icon(Icons.Default.FileOpen, "导入课表", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.FileOpen, stringResource(R.string.overview_import_table), tint = MaterialTheme.colorScheme.primary)
             }
             if (compactActions) {
                 Box {
@@ -141,24 +144,24 @@ fun ScheduleOverviewBar(
                         onClick = { moreActionsVisible = true },
                         modifier = Modifier.size(48.dp).testTag("more-actions-button")
                     ) {
-                        Icon(Icons.Default.MoreVert, "更多操作", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.MoreVert, stringResource(R.string.overview_more_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     DropdownMenu(
                         expanded = moreActionsVisible,
                         onDismissRequest = { moreActionsVisible = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("定位到今天") },
+                            text = { Text(stringResource(R.string.overview_locate_today)) },
                             leadingIcon = { Icon(Icons.Default.MyLocation, null) },
                             onClick = { moreActionsVisible = false; onLocateToday() }
                         )
                         DropdownMenuItem(
-                            text = { Text("日程列表") },
+                            text = { Text(stringResource(R.string.overview_agenda_list)) },
                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, null) },
                             onClick = { moreActionsVisible = false; onAgendaClick() }
                         )
                         DropdownMenuItem(
-                            text = { Text("设置") },
+                            text = { Text(stringResource(R.string.overview_settings)) },
                             leadingIcon = { Icon(Icons.Default.Settings, null) },
                             onClick = { moreActionsVisible = false; onSettingsClick() }
                         )
@@ -166,13 +169,13 @@ fun ScheduleOverviewBar(
                 }
             } else {
                 IconButton(onClick = onAgendaClick, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "日程列表", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, stringResource(R.string.overview_agenda_list), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.MyLocation, "定位到今天", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.Settings, "设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Default.Settings, stringResource(R.string.overview_settings), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -182,20 +185,21 @@ fun ScheduleOverviewBar(
     if (agendaVisible) {
         AlertDialog(
             onDismissRequest = { agendaVisible = false },
-            title = { Text("今日课程") },
+            title = { Text(stringResource(R.string.overview_dialog_today_title)) },
             text = { Text(agenda.accessibilityText()) },
-            confirmButton = { TextButton(onClick = { agendaVisible = false }) { Text("知道了") } }
+            confirmButton = { TextButton(onClick = { agendaVisible = false }) { Text(stringResource(R.string.overview_dialog_got_it)) } }
         )
     }
 }
 
 @Composable
 fun ReadOnlyRecoveryBanner(message: String, onRecoveryClick: () -> Unit) {
+    val bannerDescription = stringResource(R.string.overview_readonly_banner_desc)
     Surface(
         onClick = onRecoveryClick,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag("read-only-recovery-banner")
-            .semantics { contentDescription = "数据损坏，只读保护已启用。点击进入设置恢复完整备份" },
+            .semantics { contentDescription = bannerDescription },
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -205,45 +209,53 @@ fun ReadOnlyRecoveryBanner(message: String, onRecoveryClick: () -> Unit) {
             Icon(Icons.Default.WarningAmber, null)
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("课表数据保护模式", fontWeight = FontWeight.Bold)
-                Text("数据未被覆盖。当前只读，点击进入设置并恢复完整备份。", fontSize = 12.sp)
+                Text(stringResource(R.string.overview_readonly_banner_title), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.overview_readonly_banner_message), fontSize = 12.sp)
                 Text(message, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
 }
 
+@Composable
 private fun TodayAgenda.compactText(): String = when (phase) {
-    TodayAgendaPhase.OUTSIDE_SEMESTER -> "今日 · 当前不在学期周次"
-    TodayAgendaPhase.NO_COURSES -> "今日 · 无课"
-    TodayAgendaPhase.BEFORE_FIRST -> "下一节 · ${next?.course?.courseName.orEmpty()} ${next?.startMinute.asTime()}"
-    TodayAgendaPhase.IN_CLASS -> "正在上 · ${current?.course?.courseName.orEmpty()} 至 ${current?.endMinute.asTime()}"
-    TodayAgendaPhase.BETWEEN_CLASSES -> "课间 · 下一节 ${next?.course?.courseName.orEmpty()} ${next?.startMinute.asTime()}"
-    TodayAgendaPhase.FINISHED -> "今日课程已结束"
-    TodayAgendaPhase.INVALID_TIME -> "今日课程时间异常 · 请在设置中检查节次"
+    TodayAgendaPhase.OUTSIDE_SEMESTER -> stringResource(R.string.overview_compact_outside_semester)
+    TodayAgendaPhase.NO_COURSES -> stringResource(R.string.overview_compact_no_courses)
+    TodayAgendaPhase.BEFORE_FIRST -> stringResource(R.string.overview_compact_next_class, next?.course?.courseName.orEmpty(), next?.startMinute.asTime())
+    TodayAgendaPhase.IN_CLASS -> stringResource(R.string.overview_compact_in_class, current?.course?.courseName.orEmpty(), current?.endMinute.asTime())
+    TodayAgendaPhase.BETWEEN_CLASSES -> stringResource(R.string.overview_compact_break, next?.course?.courseName.orEmpty(), next?.startMinute.asTime())
+    TodayAgendaPhase.FINISHED -> stringResource(R.string.overview_compact_finished)
+    TodayAgendaPhase.INVALID_TIME -> stringResource(R.string.overview_compact_invalid_time)
 }
 
+@Composable
 private fun TodayAgenda.accessibilityText(): String {
     val slot = current ?: next
-    val detail = slot?.fullText().orEmpty()
-    val remainder = if (remainingCount > 0) "，今日还有 $remainingCount 节安排" else ""
-    val invalid = if (invalidCourseCount > 0) "，另有 $invalidCourseCount 条课程时间异常" else ""
+    val detail = if (slot != null) slot.fullText() else ""
+    val remainder = if (remainingCount > 0) stringResource(R.string.overview_a11y_remaining, remainingCount) else ""
+    val invalid = if (invalidCourseCount > 0) stringResource(R.string.overview_a11y_invalid_extra, invalidCourseCount) else ""
     return when (phase) {
-        TodayAgendaPhase.OUTSIDE_SEMESTER -> "当前日期不在已设置的学期周次内"
-        TodayAgendaPhase.NO_COURSES -> "第 ${week ?: 0} 周，今天没有课程"
-        TodayAgendaPhase.BEFORE_FIRST -> "下一节课：$detail$remainder$invalid"
-        TodayAgendaPhase.IN_CLASS -> "正在上课：$detail$remainder$invalid"
-        TodayAgendaPhase.BETWEEN_CLASSES -> "现在是课间，下一节课：$detail$remainder$invalid"
-        TodayAgendaPhase.FINISHED -> "今天的课程已经全部结束$invalid"
-        TodayAgendaPhase.INVALID_TIME -> "今天有课程，但节次时间无效，请在设置中检查"
+        TodayAgendaPhase.OUTSIDE_SEMESTER -> stringResource(R.string.overview_a11y_outside_semester)
+        TodayAgendaPhase.NO_COURSES -> stringResource(R.string.overview_a11y_no_courses, week ?: 0)
+        TodayAgendaPhase.BEFORE_FIRST -> stringResource(R.string.overview_a11y_next_class, detail, remainder, invalid)
+        TodayAgendaPhase.IN_CLASS -> stringResource(R.string.overview_a11y_in_class, detail, remainder, invalid)
+        TodayAgendaPhase.BETWEEN_CLASSES -> stringResource(R.string.overview_a11y_break, detail, remainder, invalid)
+        TodayAgendaPhase.FINISHED -> stringResource(R.string.overview_a11y_finished, invalid)
+        TodayAgendaPhase.INVALID_TIME -> stringResource(R.string.overview_a11y_invalid_time)
     }
 }
 
-private fun AgendaCourseSlot.fullText(): String = buildString {
-    append(course.courseName)
-    if (course.teacher.isNotBlank()) append("，教师 ${course.teacher}")
-    if (course.classroom.isNotBlank()) append("，教室 ${course.classroom}")
-    append("，${startMinute.asTime()} 到 ${endMinute.asTime()}")
+@Composable
+private fun AgendaCourseSlot.fullText(): String {
+    val teacherText = stringResource(R.string.overview_a11y_teacher, course.teacher)
+    val classroomText = stringResource(R.string.overview_a11y_classroom, course.classroom)
+    val timeText = stringResource(R.string.overview_a11y_time_range, startMinute.asTime(), endMinute.asTime())
+    return buildString {
+        append(course.courseName)
+        if (course.teacher.isNotBlank()) append(teacherText)
+        if (course.classroom.isNotBlank()) append(classroomText)
+        append(timeText)
+    }
 }
 
 private fun Int?.asTime(): String = this?.let { TimeUtils.formatMinuteOfDay(it) }.orEmpty()

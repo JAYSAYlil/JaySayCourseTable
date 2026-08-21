@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -32,23 +33,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.jaysay.coursetable.data.backup.BackupData
-import com.jaysay.coursetable.data.backup.BackupDiff
 import com.jaysay.coursetable.data.model.Course
-import com.jaysay.coursetable.data.model.CourseConflict
 import com.jaysay.coursetable.data.model.CourseImportAnalyzer
 import com.jaysay.coursetable.data.model.CourseSeriesOperations
 import com.jaysay.coursetable.data.model.CourseSeriesUndo
 import com.jaysay.coursetable.data.parser.ExcelParser
-import com.jaysay.coursetable.data.parser.MappedTextScheduleParser
-import com.jaysay.coursetable.data.parser.TextScheduleParser
-import com.jaysay.coursetable.data.parser.TextColumnMapping
 import com.jaysay.coursetable.data.preferences.CustomBackgroundStore
 import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import com.jaysay.coursetable.data.reminder.ReminderSuppression
@@ -65,7 +61,15 @@ import com.jaysay.coursetable.ui.screen.TableManageScreen
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.widget.CourseWidgetProvider
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.BackupRestoreConfirmDialog
+import com.jaysay.coursetable.ui.components.ConflictConfirmDialog
+import com.jaysay.coursetable.ui.components.DetailDeleteConfirmDialog
+import com.jaysay.coursetable.ui.components.EncryptedExportPasswordDialog
+import com.jaysay.coursetable.ui.components.EncryptedImportPasswordDialog
+import com.jaysay.coursetable.ui.components.PasteImportDialog
+import com.jaysay.coursetable.ui.components.PendingConflictChange
 import com.jaysay.coursetable.ui.components.rememberCustomBackground
+import com.jaysay.coursetable.data.repository.TableData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -79,12 +83,6 @@ internal fun Screen.backDestination(detailOrigin: Screen = Screen.MAIN): Screen?
     Screen.COURSE_DETAIL -> detailOrigin.takeIf { it == Screen.MAIN || it == Screen.AGENDA } ?: Screen.MAIN
     Screen.SETTINGS, Screen.IMPORT_CONFIRM, Screen.TABLE_MANAGE, Screen.AGENDA -> Screen.MAIN
 }
-
-private data class PendingConflictChange(
-    val courseName: String,
-    val conflicts: List<CourseConflict>,
-    val onConfirm: () -> Unit
-)
 
 class MainActivity : ComponentActivity() {
     private lateinit var model: MainViewModel
@@ -147,14 +145,17 @@ class MainActivity : ComponentActivity() {
                         ),
                         ::showSaveError
                     )
-                    Toast.makeText(this@MainActivity, "已应用全屏自定义背景", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.main_toast_custom_background_applied), Toast.LENGTH_SHORT).show()
                 }
-                .onFailure { showError("背景图设置失败", it) }
+                .onFailure { showError(getString(R.string.main_toast_background_set_failed), it) }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // targetSdk 35 起系统强制 edge-to-edge；显式启用后系统栏始终透明，
+        // 具体栏位背景由 JaySayTheme 的 decorView 底色与 Compose 图层控制。
+        enableEdgeToEdge()
         model = ViewModelProvider(this)[MainViewModel::class.java]
         captureCourseRequest(intent)
         AppShortcuts.install(this)
@@ -314,139 +315,73 @@ class MainActivity : ComponentActivity() {
                 val offerUndo: (CourseSeriesUndo, String) -> Unit = { undo, message ->
                     coroutineScope.launch {
                         snackbarHostState.currentSnackbarData?.dismiss()
-                        if (snackbarHostState.showSnackbar(message, actionLabel = "撤销", withDismissAction = true) == SnackbarResult.ActionPerformed) {
+                        if (snackbarHostState.showSnackbar(message, actionLabel = getString(R.string.main_snackbar_action_undo), withDismissAction = true) == SnackbarResult.ActionPerformed) {
                             model.updateCourses(undo::restore, onError = ::showSaveError)
                         }
                     }
                 }
 
                 pendingDetailDelete?.let { deleting ->
-                    AlertDialog(
-                        onDismissRequest = { pendingDetailDelete = null },
-                        icon = { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
-                        title = { Text("从本周移除课程？") },
-                        text = { Text("只从第 ${state.currentWeek} 周移除“${deleting.courseName}”，其他周次不受影响。") },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                val previous = state.courses
-                                val week = state.currentWeek
-                                val seriesKey = deleting.seriesKey
-                                val after = CourseSeriesOperations.deleteWeek(previous, seriesKey, week)
-                                pendingDetailDelete = null
-                                model.updateCourses(
-                                    transform = { courses -> CourseSeriesOperations.deleteWeek(courses, seriesKey, week) },
-                                    onComplete = {
-                                        closeCourseDetail()
-                                        offerUndo(
-                                            CourseSeriesUndo.capture(previous, after, seriesKey),
-                                            "已从第 $week 周移除 ${deleting.courseName}"
-                                        )
-                                    },
-                                    onError = ::showSaveError
-                                )
-                            }) { Text("确认移除", color = MaterialTheme.colorScheme.error) }
+                    DetailDeleteConfirmDialog(
+                        courseName = deleting.courseName,
+                        week = state.currentWeek,
+                        onConfirm = {
+                            val previous = state.courses
+                            val week = state.currentWeek
+                            val seriesKey = deleting.seriesKey
+                            val after = CourseSeriesOperations.deleteWeek(previous, seriesKey, week)
+                            pendingDetailDelete = null
+                            model.updateCourses(
+                                transform = { courses -> CourseSeriesOperations.deleteWeek(courses, seriesKey, week) },
+                                onComplete = {
+                                    closeCourseDetail()
+                                    offerUndo(
+                                        CourseSeriesUndo.capture(previous, after, seriesKey),
+                                        getString(R.string.main_snackbar_removed_from_week, week, deleting.courseName)
+                                    )
+                                },
+                                onError = ::showSaveError
+                            )
                         },
-                        dismissButton = {
-                            TextButton(onClick = { pendingDetailDelete = null }) { Text("取消") }
-                        }
+                        onDismiss = { pendingDetailDelete = null }
                     )
                 }
 
                 if (showEncryptedExportDialog) {
-                    var password by remember { mutableStateOf("") }
-                    var confirmation by remember { mutableStateOf("") }
-                    val passwordValid = password.length >= 6 && password == confirmation
-                    AlertDialog(
-                        onDismissRequest = { showEncryptedExportDialog = false },
-                        icon = { Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary) },
-                        title = { Text("设置备份密码") },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("密码至少 6 位。密码无法找回，请妥善保存。",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                OutlinedTextField(
-                                    value = password,
-                                    onValueChange = { password = it.take(128) },
-                                    label = { Text("备份密码") },
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    singleLine = true
-                                )
-                                OutlinedTextField(
-                                    value = confirmation,
-                                    onValueChange = { confirmation = it.take(128) },
-                                    label = { Text("再次输入密码") },
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    singleLine = true,
-                                    isError = confirmation.isNotEmpty() && confirmation != password
-                                )
-                            }
+                    EncryptedExportPasswordDialog(
+                        onConfirm = { password ->
+                            pendingEncryptedExportPassword?.fill('\u0000')
+                            pendingEncryptedExportPassword = password.toCharArray()
+                            showEncryptedExportDialog = false
+                            encryptedBackupExportLauncher.launch("JaySay课表-密码加密备份-${LocalDate.now()}.json")
                         },
-                        confirmButton = {
-                            TextButton(enabled = passwordValid, onClick = {
-                                pendingEncryptedExportPassword?.fill('\u0000')
-                                pendingEncryptedExportPassword = password.toCharArray()
-                                showEncryptedExportDialog = false
-                                encryptedBackupExportLauncher.launch("JaySay课表-密码加密备份-${LocalDate.now()}.json")
-                            }) { Text("选择保存位置") }
-                        },
-                        dismissButton = { TextButton(onClick = { showEncryptedExportDialog = false }) { Text("取消") } }
+                        onDismiss = { showEncryptedExportDialog = false }
                     )
                 }
 
                 pendingEncryptedBackupImport.value?.let { uri ->
-                    var password by remember(uri) { mutableStateOf("") }
-                    AlertDialog(
-                        onDismissRequest = { pendingEncryptedBackupImport.value = null },
-                        icon = { Icon(Icons.Default.LockOpen, null, tint = MaterialTheme.colorScheme.primary) },
-                        title = { Text("输入备份密码") },
-                        text = {
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { password = it.take(128) },
-                                label = { Text("备份密码") },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true
-                            )
+                    EncryptedImportPasswordDialog(
+                        onConfirm = { password ->
+                            pendingEncryptedBackupImport.value = null
+                            fileTransfer.handleBackupImport(uri, password.toCharArray())
                         },
-                        confirmButton = {
-                            TextButton(enabled = password.isNotEmpty(), onClick = {
-                                pendingEncryptedBackupImport.value = null
-                                fileTransfer.handleBackupImport(uri, password.toCharArray())
-                            }) { Text("解密并校验") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { pendingEncryptedBackupImport.value = null }) { Text("取消") }
-                        }
+                        onDismiss = { pendingEncryptedBackupImport.value = null }
                     )
                 }
 
                 pendingBackupRestore.value?.let { backup ->
-                    val courseCount = backup.tables.sumOf { it.courses.size }
-                    val diff = remember(backup, state.tables) { BackupDiff.between(state.tables, backup.tables) }
-                    AlertDialog(
-                        onDismissRequest = { pendingBackupRestore.value = null },
-                        title = { Text("确认恢复备份") },
-                        text = {
-                            Text(
-                                "将用备份中的 ${backup.tables.size} 个课表、$courseCount 条课程替换当前数据。\n\n" +
-                                    "差异：新增 ${diff.coursesAdded}、修改 ${diff.coursesChanged}、删除 ${diff.coursesRemoved} 门课程；" +
-                                    "新增 ${diff.tablesAdded}、删除 ${diff.tablesRemoved} 张课表。\n\n" +
-                                    "恢复前会自动保存当前课表历史。"
+                    BackupRestoreConfirmDialog(
+                        backup = backup,
+                        currentTables = state.tables,
+                        onConfirm = {
+                            pendingBackupRestore.value = null
+                            model.restoreBackup(
+                                backup,
+                                onComplete = { Toast.makeText(this@MainActivity, getString(R.string.main_toast_backup_restored), Toast.LENGTH_LONG).show() },
+                                onError = { showError(getString(R.string.main_toast_restore_failed), it) }
                             )
                         },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                pendingBackupRestore.value = null
-                                model.restoreBackup(
-                                    backup,
-                                    onComplete = { Toast.makeText(this@MainActivity, "备份恢复成功", Toast.LENGTH_LONG).show() },
-                                    onError = { showError("恢复失败", it) }
-                                )
-                            }) { Text("确认恢复") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { pendingBackupRestore.value = null }) { Text("取消") }
-                        }
+                        onDismiss = { pendingBackupRestore.value = null }
                     )
                 }
 
@@ -506,7 +441,8 @@ class MainActivity : ComponentActivity() {
                                 if (currentScreen() == Screen.COURSE_DETAIL) closeCourseDetail()
                                 offerUndo(
                                     CourseSeriesUndo.capture(previous, after, oldSeriesKey),
-                                    if (applyToAll) "已删除 $deletedName 的全部周次" else "已从第 $week 周移除 $deletedName"
+                                    if (applyToAll) getString(R.string.main_snackbar_deleted_all_weeks, deletedName)
+                                    else getString(R.string.main_snackbar_removed_from_week, week, deletedName)
                                 )
                             }, onError = ::showSaveError)
                         },
@@ -525,7 +461,7 @@ class MainActivity : ComponentActivity() {
                                     showAddDialog = false
                                     addCoursePresetDay = 0
                                     addCoursePresetPeriod = 0
-                                    coroutineScope.launch { snackbarHostState.showSnackbar("已添加 ${c.courseName}") }
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(getString(R.string.main_snackbar_course_added, c.courseName)) }
                                 }, onError = ::showSaveError)
                             }
                             runAfterConflictCheck(c, state.courses, saveAction)
@@ -538,134 +474,23 @@ class MainActivity : ComponentActivity() {
 
                 // 保持在编辑/新增弹窗之后组合，确保冲突确认始终位于最上层。
                 pendingConflictChange?.let { pending ->
-                    AlertDialog(
-                        onDismissRequest = { pendingConflictChange = null },
-                        icon = { Icon(Icons.Default.WarningAmber, null, tint = MaterialTheme.colorScheme.error) },
-                        title = { Text("检测到课程冲突") },
-                        text = {
-                            Column {
-                                Text("“${pending.courseName}”与现有课程在相同周次和节次重叠：")
-                                Spacer(Modifier.height(8.dp))
-                                pending.conflicts.take(4).forEach { conflict ->
-                                    Text(
-                                        "• ${conflict.otherCourseName}：第${conflict.overlappingWeeks.joinToString("、")}周，" +
-                                            "${conflict.startPeriod}-${conflict.endPeriod}节",
-                                        color = MaterialTheme.colorScheme.error,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                                if (pending.conflicts.size > 4) {
-                                    Text("另有 ${pending.conflicts.size - 4} 项冲突", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                val action = pending.onConfirm
-                                pendingConflictChange = null
-                                action()
-                            }) { Text("仍然保存", color = MaterialTheme.colorScheme.error) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { pendingConflictChange = null }) { Text("返回修改") }
-                        }
+                    ConflictConfirmDialog(
+                        pending = pending,
+                        onDismiss = { pendingConflictChange = null }
                     )
                 }
 
                 if (showPasteImportDialog) {
-                    var pasteText by rememberSaveable { mutableStateOf("") }
-                    var mappingMode by rememberSaveable { mutableStateOf(false) }
-                    var nameColumn by rememberSaveable { mutableStateOf("1") }
-                    var teacherColumn by rememberSaveable { mutableStateOf("2") }
-                    var roomColumn by rememberSaveable { mutableStateOf("3") }
-                    var dayColumn by rememberSaveable { mutableStateOf("4") }
-                    var periodColumn by rememberSaveable { mutableStateOf("5") }
-                    var weekColumn by rememberSaveable { mutableStateOf("6") }
-                    AlertDialog(
-                        onDismissRequest = { showPasteImportDialog = false },
-                        icon = { Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.primary) },
-                        title = { Text("粘贴导入课程") },
-                        text = {
-                            Column {
-                                Text(
-                                    if (mappingMode) "按制表符、竖线或逗号分列，填写各字段所在列号"
-                                    else "每行一条：星期 节次 课程名 [教室] [教师] [周次]",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    "示例：周一 1-2节 高等数学 教1-101 张老师 1-16周",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("手动列映射", fontSize = 13.sp)
-                                    Switch(checked = mappingMode, onCheckedChange = { mappingMode = it })
-                                }
-                                if (mappingMode) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        ColumnIndexField("课程", nameColumn, { nameColumn = it }, Modifier.weight(1f))
-                                        ColumnIndexField("教师", teacherColumn, { teacherColumn = it }, Modifier.weight(1f))
-                                        ColumnIndexField("教室", roomColumn, { roomColumn = it }, Modifier.weight(1f))
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        ColumnIndexField("星期", dayColumn, { dayColumn = it }, Modifier.weight(1f))
-                                        ColumnIndexField("节次", periodColumn, { periodColumn = it }, Modifier.weight(1f))
-                                        ColumnIndexField("周次", weekColumn, { weekColumn = it }, Modifier.weight(1f))
-                                    }
-                                    Text("教师或教室填 0 表示没有该列", fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                OutlinedTextField(
-                                    value = pasteText,
-                                    onValueChange = { if (it.length <= 50_000) pasteText = it },
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp).testTag("paste-import-input"),
-                                    placeholder = { Text("粘贴课表文本…") },
-                                    maxLines = 8
-                                )
-                            }
+                    PasteImportDialog(
+                        totalWeeks = state.activeTable.totalWeeks,
+                        onParsed = { result ->
+                            model.stageCourseImport(result)
+                            showPasteImportDialog = false
                         },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                val result = if (mappingMode) {
-                                    val required = listOf(nameColumn, dayColumn, periodColumn, weekColumn)
-                                        .mapNotNull(String::toIntOrNull)
-                                    if (required.size != 4 || required.any { it <= 0 }) {
-                                        Toast.makeText(this@MainActivity, "课程、星期、节次和周次列号必须大于 0", Toast.LENGTH_LONG).show()
-                                        return@TextButton
-                                    }
-                                    MappedTextScheduleParser.parse(
-                                        pasteText,
-                                        TextColumnMapping(
-                                            courseName = required[0] - 1,
-                                            dayOfWeek = required[1] - 1,
-                                            periods = required[2] - 1,
-                                            weeks = required[3] - 1,
-                                            teacher = teacherColumn.toIntOrNull()?.takeIf { it > 0 }?.minus(1),
-                                            classroom = roomColumn.toIntOrNull()?.takeIf { it > 0 }?.minus(1)
-                                        ),
-                                        totalWeeks = state.activeTable.totalWeeks
-                                    )
-                                } else {
-                                    TextScheduleParser.parse(pasteText, totalWeeks = state.activeTable.totalWeeks)
-                                }
-                                if (result.courses.isEmpty()) {
-                                    val reason = result.errors.firstOrNull() ?: "请检查格式"
-                                    Toast.makeText(this@MainActivity, "未解析到课程：$reason", Toast.LENGTH_LONG).show()
-                                } else {
-                                    model.stageCourseImport(ExcelParser.ParseResult(result.courses, result.errors))
-                                    showPasteImportDialog = false
-                                }
-                            }, modifier = Modifier.testTag("paste-import-confirm")) { Text("解析并导入") }
+                        onParseFailed = { message ->
+                            Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                         },
-                        dismissButton = {
-                            TextButton(onClick = { showPasteImportDialog = false }) { Text("取消") }
-                        }
+                        onDismiss = { showPasteImportDialog = false }
                     )
                 }
 
@@ -721,9 +546,9 @@ class MainActivity : ComponentActivity() {
                                                     state.preferences.copy(customBackgroundRevision = 0L),
                                                     ::showSaveError
                                                 )
-                                                Toast.makeText(this@MainActivity, "已恢复默认背景", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(this@MainActivity, getString(R.string.main_toast_default_background_restored), Toast.LENGTH_SHORT).show()
                                             }
-                                            .onFailure { showError("恢复默认背景失败", it) }
+                                            .onFailure { showError(getString(R.string.main_toast_default_background_restore_failed), it) }
                                     }
                                 },
                                 onUpdateTable = { model.updateActiveTable(it, ::showSaveError) },
@@ -757,7 +582,7 @@ class MainActivity : ComponentActivity() {
                                     coroutineScope.launch(Dispatchers.IO) {
                                         ReminderScheduler.rescheduleAll(this@MainActivity, state.tables, state.preferences)
                                     }
-                                    Toast.makeText(this@MainActivity, "已恢复今天和本周的课程提醒", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(this@MainActivity, getString(R.string.main_toast_reminder_pause_cleared), Toast.LENGTH_SHORT).show()
                                 },
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
@@ -779,7 +604,7 @@ class MainActivity : ComponentActivity() {
                                                 currentScreenOrdinal = Screen.MAIN.ordinal
                                                 Toast.makeText(
                                                     this@MainActivity,
-                                                    "导入完成：新增 ${result.added}，合并 ${result.merged}，跳过重复 ${result.skipped}",
+                                                    getString(R.string.main_toast_import_done, result.added, result.merged, result.skipped),
                                                     Toast.LENGTH_LONG
                                                 ).show()
                                             }, onError = ::showSaveError)
@@ -811,10 +636,10 @@ class MainActivity : ComponentActivity() {
                             Screen.AGENDA -> Scaffold(
                                 topBar = {
                                     AppTopBar(
-                                        title = "日程列表",
+                                        title = stringResource(R.string.main_topbar_title_agenda),
                                         navigationIcon = {
                                             IconButton(onClick = navigateBack) {
-                                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                                                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.main_action_back))
                                             }
                                         }
                                     )
@@ -841,7 +666,7 @@ class MainActivity : ComponentActivity() {
                                 onPreview = { id, callback -> model.previewHistory(id, callback, ::showSaveError) },
                                 onRestore = { id ->
                                     model.restoreHistory(id, onComplete = {
-                                        Toast.makeText(this@MainActivity, "历史版本已恢复", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, getString(R.string.main_toast_history_restored), Toast.LENGTH_SHORT).show()
                                         currentScreenOrdinal = Screen.MAIN.ordinal
                                     }, onError = ::showSaveError)
                                 },
@@ -919,7 +744,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun showSaveError(error: Throwable) = showError("保存失败", error)
+    private fun showSaveError(error: Throwable) = showError(getString(R.string.main_toast_save_failed), error)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -936,23 +761,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showError(prefix: String, error: Throwable) {
-        Toast.makeText(this, "$prefix：${error.message ?: "未知错误"}", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, getString(R.string.main_error_format, prefix, error.message ?: getString(R.string.main_error_unknown)), Toast.LENGTH_LONG).show()
     }
 }
 
-@Composable
-private fun ColumnIndexField(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { onValueChange(it.filter(Char::isDigit).take(2)) },
-        label = { Text(label) },
-        supportingText = { Text("列号") },
-        singleLine = true,
-        modifier = modifier
-    )
-}

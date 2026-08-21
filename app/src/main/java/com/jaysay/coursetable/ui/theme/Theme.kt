@@ -66,13 +66,12 @@ fun JaySayTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            val systemBarColor = if (transparentSystemBars) Color.Transparent else colors.background
-            // 始终采用同一套 edge-to-edge 坐标系，避免系统避让与 Compose Insets 重复叠加。
+            // targetSdk 35 强制 edge-to-edge：系统栏始终透明，
+            // 栏位颜色由 decorView 底色与页面 Compose 图层决定（自定义背景绘制在系统栏之后）。
+            // 保留统一 edge-to-edge 坐标系，避免系统避让与 Compose Insets 重复叠加。
             WindowCompat.setDecorFitsSystemWindows(window, false)
             // 页面交叉淡化时始终有与当前主题一致的底色，深色模式不会透出窗口默认白色。
             window.decorView.setBackgroundColor(colors.background.toArgb())
-            window.statusBarColor = systemBarColor.toArgb()
-            window.navigationBarColor = systemBarColor.toArgb()
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !isDark
                 isAppearanceLightNavigationBars = !isDark

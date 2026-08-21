@@ -14,9 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
@@ -44,16 +46,16 @@ fun TableManageScreen(
             AlertDialog(
                 onDismissRequest = { pendingDeleteIndex = null },
                 icon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                title = { Text("删除课表？") },
-                text = { Text("将永久删除“${table.name}”及其中 ${table.courses.size} 门课程，此操作不会影响其他课表。") },
+                title = { Text(stringResource(R.string.table_delete_dialog_title)) },
+                text = { Text(stringResource(R.string.table_delete_dialog_message, table.name, table.courses.size)) },
                 confirmButton = {
                     TextButton(onClick = {
                         pendingDeleteIndex = null
                         onDelete(index)
-                    }) { Text("确认删除", color = MaterialTheme.colorScheme.error) }
+                    }) { Text(stringResource(R.string.table_delete_confirm), color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { pendingDeleteIndex = null }) { Text("取消") }
+                    TextButton(onClick = { pendingDeleteIndex = null }) { Text(stringResource(R.string.table_cancel)) }
                 }
             )
         }
@@ -62,8 +64,8 @@ fun TableManageScreen(
     Scaffold(
         topBar = {
             AppTopBar(
-                title = "课表管理",
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }
+                title = stringResource(R.string.table_manage_title),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.table_nav_back)) } }
             )
         }
     ) { pad ->
@@ -103,28 +105,29 @@ fun TableManageScreen(
                                 IconButton(onClick = {
                                     onRename(idx, editName)
                                     editing = false
-                                }) { Icon(Icons.Default.Check, "确认") }
+                                }) { Icon(Icons.Default.Check, stringResource(R.string.table_confirm)) }
                             } else {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(table.name, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                                     Text(
-                                        table.courses.size.toString() + " 门课程" + if (table.archived) " · 已归档" else "",
+                                        stringResource(R.string.table_courses_count, table.courses.size) +
+                                            if (table.archived) stringResource(R.string.table_archived_suffix) else "",
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 IconButton(onClick = {
                                     editName = table.name; editing = true
-                                }) { Icon(Icons.Outlined.Edit, "编辑", modifier = Modifier.size(20.dp)) }
+                                }) { Icon(Icons.Outlined.Edit, stringResource(R.string.table_edit), modifier = Modifier.size(20.dp)) }
                             }
 
                             if (!editing) {
                                 IconButton(onClick = { onDuplicate(idx) }, modifier = Modifier.size(44.dp)) {
-                                    Icon(Icons.Outlined.ContentCopy, "复制课表", modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Outlined.ContentCopy, stringResource(R.string.table_duplicate_table), modifier = Modifier.size(20.dp))
                                 }
                                 IconButton(onClick = { onArchive(idx, !table.archived) }, modifier = Modifier.size(44.dp)) {
                                     Icon(
                                         if (table.archived) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
-                                        if (table.archived) "取消归档" else "归档课表",
+                                        if (table.archived) stringResource(R.string.table_unarchive) else stringResource(R.string.table_archive),
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -132,7 +135,7 @@ fun TableManageScreen(
 
                             if (tables.size > 1 && !editing) {
                                 IconButton(onClick = { pendingDeleteIndex = idx }, modifier = Modifier.size(48.dp)) {
-                                    Icon(Icons.Outlined.Delete, "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Outlined.Delete, stringResource(R.string.table_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -151,7 +154,7 @@ fun TableManageScreen(
             ) {
                 Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("添加课表", fontSize = 15.sp)
+                Text(stringResource(R.string.table_add_table), fontSize = 15.sp)
             }
 
             Spacer(Modifier.height(32.dp))

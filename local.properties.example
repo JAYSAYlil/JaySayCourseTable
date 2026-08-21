@@ -1,2 +1,4 @@
-# Copy this file to local.properties and set your local Android SDK path.
-sdk.dir=C:/Android/Sdk
+# 复制本文件为 local.properties 并填写本机 Android SDK 路径。
+# 属性文件中冒号必须转义为 \:，反斜杠转义为 \\。
+# 示例：sdk.dir=C\:/Users/YourName/AppData/Local/Android/Sdk
+sdk.dir=C\:/path/to/android-sdk

@@ -15,9 +15,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
@@ -41,16 +43,16 @@ fun CourseDetailScreen(
     Scaffold(
         topBar = {
             AppTopBar(
-                title = "课程详情",
+                title = stringResource(R.string.detail_title),
                 navigationIcon = {
-                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.detail_back)) }
                 },
                 actions = {
                     if (onEdit != null) {
-                        IconButton(onClick = { onEdit(course) }) { Icon(Icons.Default.Edit, "编辑") }
+                        IconButton(onClick = { onEdit(course) }) { Icon(Icons.Default.Edit, stringResource(R.string.detail_edit)) }
                     }
                     if (onDelete != null) {
-                        IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "删除", tint = MaterialTheme.colorScheme.error) }
+                        IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, stringResource(R.string.detail_delete), tint = MaterialTheme.colorScheme.error) }
                     }
                 }
             )
@@ -87,11 +89,11 @@ fun CourseDetailScreen(
                     ) {
                         InfoChip(
                             icon = Icons.Default.Schedule,
-                            text = "${TimeUtils.getDayName(course.dayOfWeek)} ${course.startPeriod}-${course.endPeriod}节"
+                            text = stringResource(R.string.detail_schedule_chip, TimeUtils.getDayName(course.dayOfWeek), course.startPeriod, course.endPeriod)
                         )
                         InfoChip(
                             icon = Icons.Default.School,
-                            text = "${course.credits}学分"
+                            text = stringResource(R.string.detail_credits_chip, course.credits)
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -116,40 +118,40 @@ fun CourseDetailScreen(
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp)
             ) {
-                SectionTitle("基本信息")
+                SectionTitle(stringResource(R.string.detail_section_basic))
                 DetailCard {
-                    DetailRow("课程号", course.courseId)
-                    DetailRow("课序号", course.classNumber)
-                    DetailRow("开课单位", course.department)
-                    DetailRow("课程类别", course.courseCategory)
+                    DetailRow(stringResource(R.string.detail_course_id), course.courseId)
+                    DetailRow(stringResource(R.string.detail_class_number), course.classNumber)
+                    DetailRow(stringResource(R.string.detail_department), course.department)
+                    DetailRow(stringResource(R.string.detail_course_category), course.courseCategory)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("上课信息")
+                SectionTitle(stringResource(R.string.detail_section_class))
                 DetailCard {
-                    DetailRow("上课教师", course.teacher)
-                    DetailRow("教室名称", course.classroom)
+                    DetailRow(stringResource(R.string.detail_teacher), course.teacher)
+                    DetailRow(stringResource(R.string.detail_classroom), course.classroom)
                     DetailRow(
-                        "上课时间",
-                        "${TimeUtils.getDayName(course.dayOfWeek)} ${TimeUtils.formatPeriodRange(course.startPeriod, course.endPeriod)}"
+                        stringResource(R.string.detail_class_time),
+                        stringResource(R.string.detail_class_time_value, TimeUtils.getDayName(course.dayOfWeek), TimeUtils.formatPeriodRange(course.startPeriod, course.endPeriod))
                     )
-                    DetailRow("上课周次", TimeUtils.formatWeeks(course.weeks))
+                    DetailRow(stringResource(R.string.detail_weeks), TimeUtils.formatWeeks(course.weeks))
                     if (course.isOnline) {
-                        DetailRow("教学方式", "线上教学")
+                        DetailRow(stringResource(R.string.detail_teaching_method), stringResource(R.string.detail_online_teaching))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("考核信息")
+                SectionTitle(stringResource(R.string.detail_section_assessment))
                 DetailCard {
-                    DetailRow("考核方式", course.assessmentMethod)
+                    DetailRow(stringResource(R.string.detail_assessment_method), course.assessmentMethod)
                 }
 
                 if (course.notes.isNotBlank()) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    SectionTitle("备注")
+                    SectionTitle(stringResource(R.string.detail_notes))
                     DetailCard {
                         Text(
                             text = course.notes,

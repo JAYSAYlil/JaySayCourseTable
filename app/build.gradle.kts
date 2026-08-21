@@ -1,18 +1,19 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
     namespace = "com.jaysay.coursetable"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 91
-        versionName = "2.12.6"
+        targetSdk = 35
+        versionCode = 92
+        versionName = "2.13.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 界面文案为中文硬编码；保留 zh 即可，移除误导性的 en（无英文资源）。
         resourceConfigurations += listOf("zh")
@@ -35,15 +36,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.13"
     }
     packaging {
         resources.excludes += setOf(
@@ -60,6 +55,12 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

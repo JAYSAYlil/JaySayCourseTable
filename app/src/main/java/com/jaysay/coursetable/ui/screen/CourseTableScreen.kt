@@ -57,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -80,6 +81,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +90,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseSearch
 import com.jaysay.coursetable.data.model.ScheduleDateException
@@ -141,19 +144,53 @@ private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): 
     return offset
 }
 
+/**
+ * 以 State 形式提供当前分钟数（每 30 秒刷新一次）。
+ * 返回 State 而不是直接返回值，让读取 .value 的调用点各自建立订阅，
+ * 避免在屏幕顶层读取导致整个课表每 30 秒重组一次。
+ */
 @Composable
-private fun rememberCurrentMinute(): Int {
+private fun rememberCurrentMinute(): State<Int> {
     fun nowMinute(): Int = Calendar.getInstance().let {
         it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE)
     }
-    var minute by remember { mutableIntStateOf(nowMinute()) }
+    val minuteState = remember { mutableIntStateOf(nowMinute()) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(30_000)
-            minute = nowMinute()
+            minuteState.intValue = nowMinute()
         }
     }
-    return minute
+    return minuteState
+}
+
+/**
+ * 今日摘要的分钟级订阅只发生在本组件作用域内：
+ * 每 30 秒只重组摘要组件，课表网格与课程卡片不随分钟刷新重组。
+ */
+@Composable
+private fun rememberTodayAgenda(
+    courses: List<Course>,
+    periodTimes: List<PeriodTime>,
+    semesterStart: String,
+    totalWeeks: Int,
+    excludedWeekSet: Set<Int>,
+    dateExceptions: List<ScheduleDateException>
+) = run {
+    val currentMinute = rememberCurrentMinute().value
+    val today = LocalDate.now()
+    remember(courses, periodTimes, semesterStart, totalWeeks, today, currentMinute, excludedWeekSet, dateExceptions) {
+        TodayAgendaCalculator.calculate(
+            courses = courses,
+            periods = periodTimes,
+            semesterStart = semesterStart,
+            totalWeeks = totalWeeks,
+            date = today,
+            minuteOfDay = currentMinute,
+            excludedWeeks = excludedWeekSet,
+            exceptions = dateExceptions
+        )
+    }
 }
 
 @Composable
@@ -192,25 +229,13 @@ fun CourseTableScreen(
     val density = LocalDensity.current
     val swipeThresholdPx = remember(density) { with(density) { 64.dp.toPx() } }
 
-    val currentMinute = rememberCurrentMinute()
     val today = LocalDate.now()
     val todayWeek = remember(semesterStart, totalWeeks, today) {
         TodayAgendaCalculator.semesterWeek(semesterStart, totalWeeks, today) ?: -1
     }
     val todayDow = today.dayOfWeek.value
     val excludedWeekSet = remember(excludedWeeks) { excludedWeeks.toSet() }
-    val agenda = remember(courses, periodTimes, semesterStart, totalWeeks, today, currentMinute, excludedWeekSet, dateExceptions) {
-        TodayAgendaCalculator.calculate(
-            courses = courses,
-            periods = periodTimes,
-            semesterStart = semesterStart,
-            totalWeeks = totalWeeks,
-            date = today,
-            minuteOfDay = currentMinute,
-            excludedWeeks = excludedWeekSet,
-            exceptions = dateExceptions
-        )
-    }
+    val agenda = rememberTodayAgenda(courses, periodTimes, semesterStart, totalWeeks, excludedWeekSet, dateExceptions)
     var searchQuery by remember { mutableStateOf("") }
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
@@ -305,7 +330,7 @@ fun CourseTableScreen(
                         ) {
                             Icon(
                                 Icons.Outlined.ChevronLeft,
-                                "上一周",
+                                stringResource(R.string.course_prev_week),
                                 tint = if (currentWeek > 1) weekControlTint else weekDisabledTint,
                                 modifier = Modifier.size(27.dp)
                             )
@@ -316,15 +341,17 @@ fun CourseTableScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = "第 $currentWeek 周",
+                                text = stringResource(R.string.course_week_number, currentWeek),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1
                             )
                             Text(
-                                text = weekLabels[currentWeek]?.let { "$it · ${weekCourses.size} 门" }
-                                    ?: ("${weekCourses.size} 门课程" + if (isTodayWeek) " · 本周" else ""),
+                                text = weekLabels[currentWeek]?.let {
+                                    stringResource(R.string.course_week_label_count, it, weekCourses.size)
+                                } ?: (stringResource(R.string.course_week_course_count, weekCourses.size) +
+                                    if (isTodayWeek) stringResource(R.string.course_week_today_suffix) else ""),
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 10.sp,
                                 color = if (isTodayWeek) MaterialTheme.colorScheme.primary
@@ -339,7 +366,7 @@ fun CourseTableScreen(
                         ) {
                             Icon(
                                 Icons.Outlined.ChevronRight,
-                                "下一周",
+                                stringResource(R.string.course_next_week),
                                 tint = if (currentWeek < totalWeeks) weekControlTint else weekDisabledTint,
                                 modifier = Modifier.size(27.dp)
                             )
@@ -363,7 +390,7 @@ fun CourseTableScreen(
                         ) {
                             Icon(
                                 if (viewMode == ScheduleViewMode.DAY) Icons.Default.CalendarViewDay else Icons.Default.ViewWeek,
-                                "当前${viewMode.label}视图，点击切换",
+                                stringResource(R.string.course_view_mode_current_desc, viewMode.label),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(21.dp)
                             )
@@ -381,7 +408,7 @@ fun CourseTableScreen(
                                 modifier = Modifier.testTag("view-mode-${mode.name.lowercase()}"),
                                 text = {
                                     Text(
-                                        "${mode.label}视图",
+                                        stringResource(R.string.course_view_mode_label, mode.label),
                                         color = if (mode == viewMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                         fontWeight = if (mode == viewMode) FontWeight.Bold else FontWeight.Normal
                                     )
@@ -422,10 +449,11 @@ fun CourseTableScreen(
                             if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                             label = "dayChip"
                         )
+                        val dayChipDescription = stringResource(R.string.course_view_day_desc, TimeUtils.getDayName(day))
                         Box(
                             modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(10.dp))
                                 .background(chipColor).clickable { onFocusedDayChange(day) }
-                                .semantics { contentDescription = "查看${TimeUtils.getDayName(day)}" },
+                                .semantics { contentDescription = dayChipDescription },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -466,10 +494,10 @@ fun CourseTableScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("第 $currentWeek 周为停课周", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.course_week_suspended, currentWeek), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "本周没有课程安排，可在设置中调整停课周",
+                    stringResource(R.string.course_week_suspended_hint),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -480,8 +508,8 @@ fun CourseTableScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("没有匹配“$searchQuery”的课程", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { searchQuery = "" }) { Text("清空搜索") }
+                Text(stringResource(R.string.course_search_no_match, searchQuery), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { searchQuery = "" }) { Text(stringResource(R.string.course_search_clear)) }
             }
         } else {
             AnimatedContent(
@@ -574,16 +602,21 @@ private fun DayHeader(
 ) {
     Row(modifier = Modifier.fillMaxWidth().height(48.dp)) {
         Box(modifier = Modifier.width(timeWidth).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            Text("节次", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.course_period_label), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         visibleDays.forEach { day ->
             key(day) {
                 val isToday = isTodayWeek && day == todayDow
+                val dayHeaderDescription = stringResource(
+                    R.string.course_day_header_desc,
+                    TimeUtils.getDayName(day),
+                    TimeUtils.refDate(currentWeek, day, semesterStart)
+                )
                 Box(
                     modifier = Modifier.weight(1f).fillMaxHeight()
                         .background(if (isToday) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent)
                         .clickable { onDayClick(day) }
-                        .semantics { contentDescription = "${TimeUtils.getDayName(day)} ${TimeUtils.refDate(currentWeek, day, semesterStart)}，点击查看单日" },
+                        .semantics { contentDescription = dayHeaderDescription },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -621,10 +654,10 @@ private fun ColumnScope.EmptySchedule(
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Text("还没有课程", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.course_empty_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Text(
-                if (readOnly) "数据保护模式下不能新增课程，请先在设置中恢复完整备份" else "可以导入 Excel，也可以手动添加第一门课程",
+                if (readOnly) stringResource(R.string.course_empty_read_only_hint) else stringResource(R.string.course_empty_hint),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(24.dp))
@@ -653,7 +686,7 @@ private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier
     Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(12.dp), modifier = modifier.height(48.dp)) {
         Icon(Icons.Default.FileOpen, null)
         Spacer(Modifier.width(8.dp))
-        Text("导入课表", maxLines = 1)
+        Text(stringResource(R.string.course_empty_import_button), maxLines = 1)
     }
 }
 
@@ -672,7 +705,7 @@ private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier
         ) {
             Icon(Icons.Default.AddCircleOutline, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha))
             Spacer(Modifier.width(8.dp))
-            Text("手动添加", maxLines = 1, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha))
+            Text(stringResource(R.string.course_empty_manual_button), maxLines = 1, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha))
         }
     }
 }
@@ -697,7 +730,9 @@ private fun TableGrid(
     hasCustomBackground: Boolean
 ) {
     val sections = remember(periodTimes) { buildSections(periodTimes) }
-    val currentMinute = rememberCurrentMinute()
+    // 只持有 State 引用而不读取 .value，本层不会随分钟刷新重组；
+    // 订阅下移到时间线覆盖层与课程卡片内部。
+    val currentMinuteState = rememberCurrentMinute()
     val gridBackground = if (hasCustomBackground) {
         MaterialTheme.colorScheme.background.copy(alpha = if (dark) 0.38f else 0.30f)
     } else if (dark) DarkBackground else MaterialTheme.colorScheme.background
@@ -712,7 +747,6 @@ private fun TableGrid(
     Row(modifier = Modifier.fillMaxWidth().background(gridBackground)) {
         // 在组合上下文取色，供 Canvas 绘制闭包使用（DrawScope 不能访问 @Composable 属性）。
         val gridPrimary = MaterialTheme.colorScheme.primary
-        val gridError = MaterialTheme.colorScheme.error
         val gridOutline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
         val todayHighlight = gridPrimary.copy(alpha = if (dark) 0.08f else 0.045f)
         val daySectionBg = sectionBackground.copy(alpha = 0.82f)
@@ -813,18 +847,21 @@ private fun TableGrid(
 
                     // 网格视觉元素由 Canvas 批量绘制；空白节次仍保留独立可点击语义节点，
                     // 确保 TalkBack 用户能定位到具体星期和节次，而不是只能读到整列。
-                    periodTimes.indices.forEach { index ->
+                    for (index in periodTimes.indices) {
                         val period = index + 1
                         if (period !in occupiedPeriods) {
+                            val emptyCellDescription = stringResource(
+                                R.string.course_empty_cell_desc,
+                                TimeUtils.getDayName(day),
+                                period
+                            )
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(cellHeight)
                                     .offset(y = periodOffset(period, sections, cellHeight))
                                     .clickable { onEmptyCellClick(day, period) }
-                                    .semantics {
-                                        contentDescription = "${TimeUtils.getDayName(day)}第${period}节空白，点击添加课程"
-                                    }
+                                    .semantics { contentDescription = emptyCellDescription }
                             )
                         }
                     }
@@ -843,8 +880,6 @@ private fun TableGrid(
                         val accent = lerp(cardColor, if (dark) Color.White else Color.Black, if (dark) 0.28f else 0.22f)
                         val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
-                        val isCurrent = isTodayColumn && startMinute != null && endMinute != null &&
-                            currentMinute >= startMinute && currentMinute < endMinute
                         CourseCard(
                             course = course,
                             modifier = Modifier.fillMaxWidth().height(bottom - y).offset(y = y).padding(1.dp),
@@ -852,7 +887,12 @@ private fun TableGrid(
                             accent = accent,
                             textColor = cTextColor,
                             subTextColor = cSubColor,
-                            isCurrent = isCurrent,
+                            isCurrentProvider = {
+                                // 在卡片自身作用域读取分钟状态：每 30 秒只重组发生状态变化的卡片。
+                                isTodayColumn && startMinute != null && endMinute != null &&
+                                    currentMinuteState.value >= startMinute &&
+                                    currentMinuteState.value < endMinute
+                            },
                             viewMode = viewMode,
                             hasCustomBackground = hasCustomBackground,
                             onClick = { onCourseClick(course) }
@@ -861,40 +901,63 @@ private fun TableGrid(
 
                     // 当前时间线必须在课程卡片之后绘制，否则会被卡片完全遮挡。
                     if (isTodayColumn) {
-                        Canvas(modifier = Modifier.fillMaxSize().zIndex(3f)) {
-                            val activeIndex = periodTimes.indexOfFirst { period ->
-                                val start = TimeUtils.parseMinuteOfDay(period.start)
-                                val end = TimeUtils.parseMinuteOfDay(period.end)
-                                start != null && end != null && currentMinute >= start && currentMinute < end
-                            }
-                            if (activeIndex >= 0) {
-                                val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
-                                val end = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].end) ?: currentMinute + 1
-                                val fraction = ((currentMinute - start).toFloat() /
-                                    (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
-                                val lineY = (periodOffset(activeIndex + 1, sections, cellHeight) +
-                                    cellHeight * fraction).toPx()
-                                val halo = if (dark) Color.Black.copy(alpha = 0.78f)
-                                    else Color.White.copy(alpha = 0.9f)
-                                drawCircle(halo, radius = 6.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
-                                drawLine(
-                                    halo,
-                                    Offset(10.dp.toPx(), lineY),
-                                    Offset(size.width, lineY),
-                                    strokeWidth = 4.dp.toPx()
-                                )
-                                drawCircle(gridError, radius = 4.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
-                                drawLine(
-                                    gridError,
-                                    Offset(10.dp.toPx(), lineY),
-                                    Offset(size.width, lineY),
-                                    strokeWidth = 2.dp.toPx()
-                                )
-                            }
-                        }
+                        CurrentTimeLineOverlay(
+                            currentMinuteState = currentMinuteState,
+                            periodTimes = periodTimes,
+                            sections = sections,
+                            cellHeight = cellHeight,
+                            dark = dark
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 当前时间线覆盖层：在此组件作用域读取分钟状态，
+ * 每 30 秒只重组并重绘这一条线，不带动网格与卡片。
+ */
+@Composable
+private fun CurrentTimeLineOverlay(
+    currentMinuteState: State<Int>,
+    periodTimes: List<PeriodTime>,
+    sections: List<Section>,
+    cellHeight: Dp,
+    dark: Boolean
+) {
+    val currentMinute = currentMinuteState.value
+    val lineColor = MaterialTheme.colorScheme.error
+    Canvas(modifier = Modifier.fillMaxSize().zIndex(3f)) {
+        val activeIndex = periodTimes.indexOfFirst { period ->
+            val start = TimeUtils.parseMinuteOfDay(period.start)
+            val end = TimeUtils.parseMinuteOfDay(period.end)
+            start != null && end != null && currentMinute >= start && currentMinute < end
+        }
+        if (activeIndex >= 0) {
+            val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
+            val end = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].end) ?: currentMinute + 1
+            val fraction = ((currentMinute - start).toFloat() /
+                (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
+            val lineY = (periodOffset(activeIndex + 1, sections, cellHeight) +
+                cellHeight * fraction).toPx()
+            val halo = if (dark) Color.Black.copy(alpha = 0.78f)
+                else Color.White.copy(alpha = 0.9f)
+            drawCircle(halo, radius = 6.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
+            drawLine(
+                halo,
+                Offset(10.dp.toPx(), lineY),
+                Offset(size.width, lineY),
+                strokeWidth = 4.dp.toPx()
+            )
+            drawCircle(lineColor, radius = 4.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
+            drawLine(
+                lineColor,
+                Offset(10.dp.toPx(), lineY),
+                Offset(size.width, lineY),
+                strokeWidth = 2.dp.toPx()
+            )
         }
     }
 }
@@ -907,11 +970,13 @@ private fun CourseCard(
     accent: Color,
     textColor: Color,
     subTextColor: Color,
-    isCurrent: Boolean,
+    isCurrentProvider: () -> Boolean,
     viewMode: ScheduleViewMode,
     hasCustomBackground: Boolean,
     onClick: () -> Unit
 ) {
+    // 在卡片作用域内读取分钟状态：只有状态发生变化的卡片才随分钟刷新重组。
+    val isCurrent = isCurrentProvider()
     val shape = RoundedCornerShape(if (viewMode == ScheduleViewMode.WEEK) 14.dp else 16.dp)
     val compactWeekCard = viewMode == ScheduleViewMode.WEEK && course.periodSpan == 1
     val textLoad = course.courseName.length + course.teacher.length + course.classroom.length
@@ -951,7 +1016,7 @@ private fun CourseCard(
     val cardOverflow = TextOverflow.Clip
     val description = listOf(course.courseName, course.teacher, course.classroom)
         .filter { it.isNotBlank() }
-        .plus("点击查看详情")
+        .plus(stringResource(R.string.course_card_view_details))
         .joinToString("，")
     val isDarkCourseCard = background.luminance() < 0.35f
     val highlight = if (isDarkCourseCard) Color.White.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.3f)

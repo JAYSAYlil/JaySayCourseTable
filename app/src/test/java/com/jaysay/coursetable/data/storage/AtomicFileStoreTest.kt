@@ -1,5 +1,6 @@
 package com.jaysay.coursetable.data.storage
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -110,5 +111,46 @@ class AtomicFileStoreTest {
         val value = AtomicFileStore(file).read { it }
 
         assertNull(value)
+    }
+
+    @Test
+    fun validatedReplacementKeepsNewPrimaryReadableWhenBackupReplaceFails() {
+        val file = temporaryFolder.newFile("restore-fail.json")
+        file.writeText("old-primary")
+        val dir = requireNotNull(file.parentFile)
+        // 把 .bak 位置占成非空目录，使备份替换阶段无法删除旧备份，
+        // 模拟双文件重建过程中回退副本侧的故障。
+        val backup = dir.resolve("restore-fail.json.bak")
+        assertTrue(backup.mkdir())
+        File(backup, "occupied").writeText("block")
+
+        assertThrows(Exception::class.java) {
+            AtomicFileStore(file).replaceWithValidated("new-validated")
+        }
+
+        // 主文件必须先于备份重建且保持可读，故障只影响回退副本。
+        val value = AtomicFileStore(file).read { it }
+        assertEquals("new-validated", value)
+        assertEquals("new-validated", file.readText(Charsets.UTF_8))
+    }
+
+    @Test
+    fun validatedReplacementCleansStaleBackupTemporaryBeforeRetry() {
+        val file = temporaryFolder.newFile("restore-retry.json")
+        file.writeText("old-primary")
+        val dir = requireNotNull(file.parentFile)
+        val backupTemporary = dir.resolve("restore-retry.json.bak.tmp")
+        // 残留的备份临时目录不应阻塞恢复流程：写入前自动清理。
+        assertTrue(backupTemporary.mkdir())
+        AtomicFileStore(file).replaceWithValidated("first-attempt")
+
+        assertEquals("first-attempt", file.readText(Charsets.UTF_8))
+        assertEquals("first-attempt", dir.resolve("restore-retry.json.bak").readText(Charsets.UTF_8))
+        assertTrue(!backupTemporary.exists())
+
+        AtomicFileStore(file).replaceWithValidated("second-attempt")
+
+        assertEquals("second-attempt", file.readText(Charsets.UTF_8))
+        assertEquals("second-attempt", dir.resolve("restore-retry.json.bak").readText(Charsets.UTF_8))
     }
 }

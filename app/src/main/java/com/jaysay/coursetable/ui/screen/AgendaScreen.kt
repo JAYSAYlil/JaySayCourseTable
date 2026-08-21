@@ -25,9 +25,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.AgendaCourseInstance
 import com.jaysay.coursetable.data.model.AgendaDateGroup
 import com.jaysay.coursetable.data.model.AgendaListCalculator
@@ -85,7 +87,7 @@ fun AgendaScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 10.dp)
                 .testTag("agenda-search"),
-            label = { Text("搜索课程、教师或教室") },
+            label = { Text(stringResource(R.string.agenda_search_label)) },
             singleLine = true
         )
         if (groups.isEmpty()) {
@@ -110,19 +112,19 @@ private fun AgendaEmptyState(query: String, onClearSearch: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = if (query.isBlank()) "从今天起没有安排的课程" else "没有匹配“$query”的课程",
+            text = if (query.isBlank()) stringResource(R.string.agenda_empty_no_courses) else stringResource(R.string.agenda_empty_no_match, query),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = if (query.isBlank()) "无课日期已自动隐藏。" else "可尝试搜索课程名、教师或教室。",
+            text = if (query.isBlank()) stringResource(R.string.agenda_empty_hint_hidden) else stringResource(R.string.agenda_empty_hint_search),
             modifier = Modifier.padding(top = 8.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (query.isNotBlank()) {
             TextButton(onClick = onClearSearch, modifier = Modifier.padding(top = 8.dp)) {
-                Text("清空搜索")
+                Text(stringResource(R.string.agenda_button_clear_search))
             }
         }
     }
@@ -168,7 +170,12 @@ private fun AgendaDateCard(group: AgendaDateGroup, onCourseClick: (Course) -> Un
             color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Text(
-                text = "${formatDate(group.date)} · ${TimeUtils.getDayName(group.date.dayOfWeek.value)} · 第${group.week}周",
+                text = stringResource(
+                    R.string.agenda_date_header,
+                    formatDate(group.date),
+                    TimeUtils.getDayName(group.date.dayOfWeek.value),
+                    group.week
+                ),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -183,15 +190,18 @@ private fun AgendaDateCard(group: AgendaDateGroup, onCourseClick: (Course) -> Un
 @Composable
 private fun AgendaCourseCard(instance: AgendaCourseInstance, onClick: () -> Unit) {
     val course = instance.course
+    val teacherDescription = stringResource(R.string.agenda_a11y_teacher, course.teacher)
+    val classroomDescription = stringResource(R.string.agenda_a11y_classroom, course.classroom)
+    val doubleTapHint = stringResource(R.string.agenda_a11y_double_tap_detail)
     val details = buildList {
         add(course.courseName)
         add(formatDate(instance.date))
         add(TimeUtils.getDayName(instance.date.dayOfWeek.value))
         add(instance.timeLabel)
         add(instance.periodLabel)
-        if (course.teacher.isNotBlank()) add("教师${course.teacher}")
-        if (course.classroom.isNotBlank()) add("教室${course.classroom}")
-        add("双击查看课程详情")
+        if (course.teacher.isNotBlank()) add(teacherDescription)
+        if (course.classroom.isNotBlank()) add(classroomDescription)
+        add(doubleTapHint)
     }.joinToString("，")
     Surface(
         modifier = Modifier
@@ -221,14 +231,14 @@ private fun AgendaCourseCard(instance: AgendaCourseInstance, onClick: () -> Unit
             )
             if (course.teacher.isNotBlank()) {
                 Text(
-                    text = "教师：${course.teacher}",
+                    text = stringResource(R.string.agenda_label_teacher, course.teacher),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (course.classroom.isNotBlank()) {
                 Text(
-                    text = "教室：${course.classroom}",
+                    text = stringResource(R.string.agenda_label_classroom, course.classroom),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

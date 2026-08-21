@@ -34,9 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.ConflictSource
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ImportItemStatus
@@ -46,12 +48,12 @@ import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.util.TimeUtils
 
-private enum class PreviewFilter(val label: String, val status: ImportItemStatus?) {
-    ALL("全部", null),
-    NEW("新增", ImportItemStatus.NEW),
-    MERGE("合并", ImportItemStatus.MERGE),
-    CONFLICT("冲突", ImportItemStatus.CONFLICT),
-    DUPLICATE("重复", ImportItemStatus.DUPLICATE)
+private enum class PreviewFilter(val labelRes: Int, val status: ImportItemStatus?) {
+    ALL(R.string.import_filter_all, null),
+    NEW(R.string.import_filter_new, ImportItemStatus.NEW),
+    MERGE(R.string.import_filter_merge, ImportItemStatus.MERGE),
+    CONFLICT(R.string.import_filter_conflict, ImportItemStatus.CONFLICT),
+    DUPLICATE(R.string.import_filter_duplicate, ImportItemStatus.DUPLICATE)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,8 +77,12 @@ fun ImportConfirmScreen(
         modifier = Modifier.testTag("import-confirm-screen"),
         topBar = {
             AppTopBar(
-                title = "确认导入",
-                navigationIcon = { IconButton(onClick = onCancel) { Icon(Icons.Default.Close, "取消") } },
+                title = stringResource(R.string.import_confirm_title),
+                navigationIcon = {
+                    IconButton(onClick = onCancel) {
+                        Icon(Icons.Default.Close, stringResource(R.string.import_cancel))
+                    }
+                },
                 actions = {
                     TextButton(
                         modifier = Modifier.testTag("import-confirm-action"),
@@ -84,7 +90,7 @@ fun ImportConfirmScreen(
                         enabled = selectedCourses.isNotEmpty()
                     ) {
                         Text(
-                            "导入 ${selectedCourses.size} 条",
+                            stringResource(R.string.import_import_count, selectedCourses.size),
                             color = if (selectedCourses.isNotEmpty()) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Bold
@@ -118,10 +124,10 @@ fun ImportConfirmScreen(
                     PreviewFilter.entries.forEach { option ->
                         val count = option.status?.let(preview::count) ?: preview.items.size
                         FilterChip(
-                            modifier = Modifier.testTag("import-filter-${option.name.lowercase()}"),
+                            modifier = Modifier.testTag("import-filter-" + option.name.lowercase()),
                             selected = filter == option,
                             onClick = { filter = option },
-                            label = { Text("${option.label} $count") }
+                            label = { Text(stringResource(option.labelRes, count)) }
                         )
                     }
                 }
@@ -156,20 +162,27 @@ private fun PreviewSummary(
 ) {
     AppPanel(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("共解析 ${preview.items.size} 条，已选择 $selectedCount 条", fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.import_summary_total, preview.items.size, selectedCount),
+                fontWeight = FontWeight.Bold
+            )
             Spacer(Modifier.height(4.dp))
             Text(
-                "新增 ${preview.count(ImportItemStatus.NEW)} · 合并 ${preview.count(ImportItemStatus.MERGE)} · " +
-                    "冲突 ${preview.count(ImportItemStatus.CONFLICT)} · 重复 ${preview.count(ImportItemStatus.DUPLICATE)}" +
-                    if (warnings.isNotEmpty()) " · 提示 ${warnings.size}" else "",
+                stringResource(
+                    R.string.import_summary_breakdown,
+                    preview.count(ImportItemStatus.NEW),
+                    preview.count(ImportItemStatus.MERGE),
+                    preview.count(ImportItemStatus.CONFLICT),
+                    preview.count(ImportItemStatus.DUPLICATE)
+                ) + if (warnings.isNotEmpty()) stringResource(R.string.import_summary_warnings, warnings.size) else "",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(modifier = Modifier.testTag("import-safe-select"), onClick = onSelectSafe) {
-                    Text("只选安全项")
+                    Text(stringResource(R.string.import_select_safe))
                 }
-                TextButton(onClick = onClear) { Text("清空") }
+                TextButton(onClick = onClear) { Text(stringResource(R.string.import_clear)) }
             }
         }
     }
@@ -181,12 +194,16 @@ private fun WarningPanel(warnings: List<String>) {
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp).testTag("import-warning-panel")
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("文件提示 ${warnings.size} 条", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.import_warning_count, warnings.size),
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Bold
+            )
             warnings.take(5).forEach { warning ->
-                Text("• $warning", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.import_warning_item, warning), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (warnings.size > 5) {
-                Text("另有 ${warnings.size - 5} 条，请修正源文件后重新导入。", fontSize = 12.sp)
+                Text(stringResource(R.string.import_warning_more, warnings.size - 5), fontSize = 12.sp)
             }
         }
     }
@@ -201,7 +218,7 @@ private fun ImportCourseItem(
 ) {
     AppPanel(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp)
-            .testTag("import-item-${item.index}")
+            .testTag("import-item-" + item.index)
             .clickable(enabled = selectable) { onSelectedChange(!selected) },
         selected = selected
     ) {
@@ -218,10 +235,15 @@ private fun ImportCourseItem(
                     StatusBadge(item.status)
                 }
                 Text(
-                    TimeUtils.getDayName(item.course.dayOfWeek) + " " + item.course.startPeriod + "-" +
-                        item.course.endPeriod + "节 · 第" + compactWeeks(item.course.weeks) + "周" +
-                        (if (item.course.teacher.isNotBlank()) "\n${item.course.teacher}" else "") +
-                        (if (item.course.classroom.isNotBlank()) " · ${item.course.classroom}" else ""),
+                    stringResource(
+                        R.string.import_item_period_info,
+                        TimeUtils.getDayName(item.course.dayOfWeek),
+                        item.course.startPeriod,
+                        item.course.endPeriod,
+                        compactWeeks(item.course.weeks),
+                        if (item.course.teacher.isNotBlank()) "\n" + item.course.teacher else "",
+                        if (item.course.classroom.isNotBlank()) " · " + item.course.classroom else ""
+                    ),
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -229,17 +251,30 @@ private fun ImportCourseItem(
                 if (item.status == ImportItemStatus.CONFLICT) {
                     Spacer(Modifier.height(5.dp))
                     item.conflicts.take(3).forEach { conflict ->
-                        val source = if (conflict.source == ConflictSource.EXISTING) "现有" else "本次导入"
+                        val source = if (conflict.source == ConflictSource.EXISTING) {
+                            stringResource(R.string.import_conflict_source_existing)
+                        } else {
+                            stringResource(R.string.import_conflict_source_imported)
+                        }
                         Text(
-                            "与${source}课程“${conflict.otherCourseName}”冲突：第${compactWeeks(conflict.overlappingWeeks)}周，" +
-                                "${conflict.startPeriod}-${conflict.endPeriod}节",
+                            stringResource(
+                                R.string.import_conflict_detail,
+                                source,
+                                conflict.otherCourseName,
+                                compactWeeks(conflict.overlappingWeeks),
+                                conflict.startPeriod,
+                                conflict.endPeriod
+                            ),
                             fontSize = 11.sp,
                             lineHeight = 15.sp,
                             color = MaterialTheme.colorScheme.error
                         )
                     }
                     if (item.conflictCount > item.conflicts.take(3).size) {
-                        Text("另有 ${item.conflictCount - item.conflicts.take(3).size} 项冲突", fontSize = 11.sp)
+                        Text(
+                            stringResource(R.string.import_conflict_more, item.conflictCount - item.conflicts.take(3).size),
+                            fontSize = 11.sp
+                        )
                     }
                 }
             }
@@ -249,14 +284,19 @@ private fun ImportCourseItem(
 
 @Composable
 private fun StatusBadge(status: ImportItemStatus) {
-    val (label, color) = when (status) {
-        ImportItemStatus.NEW -> "新增" to MaterialTheme.colorScheme.primary
-        ImportItemStatus.MERGE -> "合并" to MaterialTheme.colorScheme.tertiary
-        ImportItemStatus.DUPLICATE -> "重复" to MaterialTheme.colorScheme.onSurfaceVariant
-        ImportItemStatus.CONFLICT -> "冲突" to MaterialTheme.colorScheme.error
+    val (labelRes, color) = when (status) {
+        ImportItemStatus.NEW -> R.string.import_status_new to MaterialTheme.colorScheme.primary
+        ImportItemStatus.MERGE -> R.string.import_status_merge to MaterialTheme.colorScheme.tertiary
+        ImportItemStatus.DUPLICATE -> R.string.import_status_duplicate to MaterialTheme.colorScheme.onSurfaceVariant
+        ImportItemStatus.CONFLICT -> R.string.import_status_conflict to MaterialTheme.colorScheme.error
     }
     Surface(color = color.copy(alpha = 0.12f), shape = MaterialTheme.shapes.small) {
-        Text(label, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = color, fontSize = 11.sp)
+        Text(
+            stringResource(labelRes),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            color = color,
+            fontSize = 11.sp
+        )
     }
 }
 

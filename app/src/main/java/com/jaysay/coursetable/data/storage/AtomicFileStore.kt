@@ -56,6 +56,11 @@ class AtomicFileStore(private val file: File) {
     fun replaceWithValidated(content: String) {
         file.parentFile?.mkdirs()
         replacePrimary(content)
+        // 清理上次写入中断可能残留的备份临时文件，避免一次故障后后续恢复持续失败。
+        if (backupTemporary.exists()) {
+            if (backupTemporary.isDirectory) backupTemporary.deleteRecursively()
+            else backupTemporary.delete()
+        }
         writeSynced(backupTemporary, content)
         replaceFile(backupTemporary, backup)
     }

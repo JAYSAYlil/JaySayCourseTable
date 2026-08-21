@@ -24,9 +24,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.CourseImportAnalyzer
 import com.jaysay.coursetable.data.preferences.*
 import com.jaysay.coursetable.data.reminder.ReminderCalculator
@@ -83,10 +85,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             AppTopBar(
-                title = "设置",
+                title = stringResource(R.string.settings_title),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.settings_back))
                     }
                 }
             )
@@ -108,18 +110,18 @@ fun SettingsScreen(
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Text("课表数据处于只读保护", fontWeight = FontWeight.Bold)
-                        Text("$message\n课表结构编辑、导入与提醒已停用；外观和背景仍可调整。", fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_readonly_title), fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.settings_readonly_message, message), fontSize = 12.sp)
                     }
                 }
             }
 
             // ===== 外观模式 =====
-            SettingsSection(title = "外观模式") {
+            SettingsSection(title = stringResource(R.string.settings_section_appearance)) {
                 val options = listOf(
-                    Triple(ThemeMode.LIGHT, "浅色模式", Icons.Outlined.LightMode),
-                    Triple(ThemeMode.DARK, "深色模式", Icons.Outlined.DarkMode),
-                    Triple(ThemeMode.SYSTEM, "跟随系统", Icons.Outlined.SettingsBrightness),
+                    Triple(ThemeMode.LIGHT, stringResource(R.string.settings_theme_light), Icons.Outlined.LightMode),
+                    Triple(ThemeMode.DARK, stringResource(R.string.settings_theme_dark), Icons.Outlined.DarkMode),
+                    Triple(ThemeMode.SYSTEM, stringResource(R.string.settings_theme_system), Icons.Outlined.SettingsBrightness),
                 )
                 options.forEach { (mode, label, icon) ->
                     Row(
@@ -141,7 +143,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            SettingsSection(title = "课表背景") {
+            SettingsSection(title = stringResource(R.string.settings_section_background)) {
                 val backgroundActive = preferences.customBackgroundRevision > 0L && customBackground != null
                 Box(
                     modifier = Modifier
@@ -168,12 +170,12 @@ fun SettingsScreen(
                         modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
                     ) {
                         Text(
-                            if (backgroundActive) "自定义背景已启用" else "默认课表背景",
+                            if (backgroundActive) stringResource(R.string.settings_background_custom_enabled) else stringResource(R.string.settings_background_default),
                             color = if (customBackground != null) Color.White else MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "图片会全屏铺在课表下方，并自动加入可读遮罩",
+                            stringResource(R.string.settings_background_hint),
                             color = if (customBackground != null) Color.White.copy(alpha = 0.86f)
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp
@@ -190,19 +192,19 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Outlined.Image, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(if (backgroundActive) "更换图片" else "选择图片")
+                        Text(if (backgroundActive) stringResource(R.string.settings_change_image) else stringResource(R.string.settings_choose_image))
                     }
                     if (preferences.customBackgroundRevision > 0L) {
                         OutlinedButton(
                             onClick = onClearCustomBackground,
                             modifier = Modifier.testTag("clear-custom-background")
                         ) {
-                            Text("恢复默认")
+                            Text(stringResource(R.string.settings_restore_default))
                         }
                     }
                 }
                 Text(
-                    "图片经压缩并去除元数据后仅保存在本机应用私有目录，不会进入课表备份。",
+                    stringResource(R.string.settings_background_privacy),
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp
@@ -211,16 +213,16 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            SettingsSection(title = "显示与无障碍") {
+            SettingsSection(title = stringResource(R.string.settings_section_display)) {
                 PreferenceSwitchRow(
-                    title = "增强对比度",
-                    subtitle = "提高次要文字、边框和控件的可见度",
+                    title = stringResource(R.string.settings_high_contrast),
+                    subtitle = stringResource(R.string.settings_high_contrast_subtitle),
                     checked = preferences.highContrast,
                     onCheckedChange = { save(preferences.copy(highContrast = it)) }
                 )
                 PreferenceSwitchRow(
-                    title = "减少动态效果",
-                    subtitle = "缩短页面与周次切换动画",
+                    title = stringResource(R.string.settings_reduce_motion),
+                    subtitle = stringResource(R.string.settings_reduce_motion_subtitle),
                     checked = preferences.reduceMotion,
                     onCheckedChange = { save(preferences.copy(reduceMotion = it)) }
                 )
@@ -230,9 +232,9 @@ fun SettingsScreen(
 
             // ===== 节次时间设置 =====
             val periodCount = table.periods.size
-            SettingsSection(title = "节次时间设置") {
+            SettingsSection(title = stringResource(R.string.settings_section_periods)) {
                 Text(
-                    "共 " + periodCount + " 节课，点击时间修改",
+                    stringResource(R.string.settings_period_count, periodCount),
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
@@ -255,7 +257,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "第" + (idx + 1) + "节",
+                            stringResource(R.string.settings_period_index, idx + 1),
                             fontSize = 13.sp, modifier = Modifier.width(44.dp), fontWeight = FontWeight.Medium
                         )
 
@@ -291,7 +293,7 @@ fun SettingsScreen(
                                 np.removeAt(idx)
                                 saveTable(table.copy(periods = np))
                             }) {
-                                Icon(Icons.Default.RemoveCircleOutline, "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.RemoveCircleOutline, stringResource(R.string.settings_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -339,7 +341,7 @@ fun SettingsScreen(
                         val endMinute = startMinute + 45
                         if (endMinute > 23 * 60 + 59) {
                             // 避免跨天回绕出 00:xx 的错误时间
-                            Toast.makeText(context, "节次时间不能超过 23:59，请先修改最后一节的结束时间", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.settings_period_time_exceeds), Toast.LENGTH_SHORT).show()
                         } else {
                             val ns = "%02d:%02d".format(startMinute / 60, startMinute % 60)
                             val ne = "%02d:%02d".format(endMinute / 60, endMinute % 60)
@@ -350,7 +352,7 @@ fun SettingsScreen(
                     }, modifier = Modifier.height(48.dp)) {
                         Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("添加节次", fontSize = 13.sp)
+                        Text(stringResource(R.string.settings_add_period), fontSize = 13.sp)
                     }
 
                     OutlinedButton(
@@ -360,7 +362,7 @@ fun SettingsScreen(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                         Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("恢复默认", fontSize = 13.sp)
+                        Text(stringResource(R.string.settings_restore_default), fontSize = 13.sp)
                     }
                 }
             }
@@ -375,7 +377,7 @@ fun SettingsScreen(
                 cal.set(Calendar.MILLISECOND, 0)
                 cal.timeInMillis
             }
-            SettingsSection(title = "学期设置") {
+            SettingsSection(title = stringResource(R.string.settings_section_semester)) {
                 var showDatePicker by remember { mutableStateOf(false) }
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable(enabled = readOnlyMessage == null) { showDatePicker = true }
@@ -385,7 +387,7 @@ fun SettingsScreen(
                     Icon(Icons.Outlined.CalendarMonth, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("开学日期", fontSize = 15.sp)
+                        Text(stringResource(R.string.settings_semester_start_date), fontSize = 15.sp)
                         Text(table.semesterStart, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                     }
                     Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
@@ -410,10 +412,10 @@ fun SettingsScreen(
                                     saveTable(table.copy(semesterStart = monday))
                                 }
                                 showDatePicker = false
-                            }) { Text("确定") }
+                            }) { Text(stringResource(R.string.settings_confirm)) }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                            TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.settings_cancel)) }
                         }
                     ) {
                         DatePicker(state = dateState)
@@ -428,19 +430,19 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.Outlined.ViewWeek, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(12.dp))
-                    Text("总周数", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_total_weeks), fontSize = 15.sp, modifier = Modifier.weight(1f))
                     IconButton(
                         onClick = { if (totalWeeks > 1) saveTable(table.copy(totalWeeks = table.totalWeeks - 1)) },
                         enabled = readOnlyMessage == null && totalWeeks > 1
                     ) {
-                        Icon(Icons.Default.Remove, "减少总周数", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Remove, stringResource(R.string.settings_decrease_weeks), modifier = Modifier.size(18.dp))
                     }
                     Text("" + totalWeeks, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
                     IconButton(
                         onClick = { if (totalWeeks < 30) saveTable(table.copy(totalWeeks = table.totalWeeks + 1)) },
                         enabled = readOnlyMessage == null && totalWeeks < 30
                     ) {
-                        Icon(Icons.Default.Add, "增加总周数", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, stringResource(R.string.settings_increase_weeks), modifier = Modifier.size(18.dp))
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -457,10 +459,10 @@ fun SettingsScreen(
                     Icon(Icons.Outlined.EventBusy, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("停课周", fontSize = 15.sp)
+                        Text(stringResource(R.string.settings_excluded_weeks), fontSize = 15.sp)
                         Text(
-                            if (table.excludedWeeks.isEmpty()) "未设置，用于节假日/考试周"
-                            else "第 ${TimeUtils.formatWeeks(table.excludedWeeks)}",
+                            if (table.excludedWeeks.isEmpty()) stringResource(R.string.settings_excluded_weeks_unset)
+                            else stringResource(R.string.settings_excluded_weeks_value, TimeUtils.formatWeeks(table.excludedWeeks)),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -473,11 +475,11 @@ fun SettingsScreen(
                     }
                     AlertDialog(
                         onDismissRequest = { showExcludedWeeksDialog = false },
-                        title = { Text("选择停课周") },
+                        title = { Text(stringResource(R.string.settings_excluded_weeks_dialog_title)) },
                         text = {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    "这些周不显示课程、不触发上课提醒（如节假日、考试周）",
+                                    stringResource(R.string.settings_excluded_weeks_hint),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -498,7 +500,7 @@ fun SettingsScreen(
                                             Checkbox(checked = week in selected, onCheckedChange = {
                                                 selected = if (week in selected) selected - week else selected + week
                                             })
-                                            Text("第 $week 周", fontSize = 14.sp)
+                                            Text(stringResource(R.string.settings_week_number, week), fontSize = 14.sp)
                                         }
                                     }
                                 }
@@ -508,18 +510,18 @@ fun SettingsScreen(
                             TextButton(onClick = {
                                 saveTable(table.copy(excludedWeeks = selected.sorted()))
                                 showExcludedWeeksDialog = false
-                            }) { Text("确定") }
+                            }) { Text(stringResource(R.string.settings_confirm)) }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showExcludedWeeksDialog = false }) { Text("取消") }
+                            TextButton(onClick = { showExcludedWeeksDialog = false }) { Text(stringResource(R.string.settings_cancel)) }
                         }
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.EditCalendar,
-                    title = "具体日期与周标签",
-                    subtitle = "设置整日停课、单课取消、补课及考试周标签",
+                    title = stringResource(R.string.settings_calendar_exceptions),
+                    subtitle = stringResource(R.string.settings_calendar_exceptions_subtitle),
                     enabled = readOnlyMessage == null,
                     onClick = onOpenCalendarExceptions
                 )
@@ -528,7 +530,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // ===== 上课提醒 =====
-            SettingsSection(title = "上课提醒") {
+            SettingsSection(title = stringResource(R.string.settings_section_reminder)) {
                 var visiblePauseStatus by remember(reminderPauseStatus) { mutableStateOf(reminderPauseStatus) }
                 val nextReminder = remember(table, preferences) {
                     if (!preferences.reminderEnabled) null else {
@@ -552,9 +554,9 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("提醒上课", fontSize = 15.sp)
+                        Text(stringResource(R.string.settings_reminder_enable), fontSize = 15.sp)
                         Text(
-                            "按节次时间提前通知；精确闹钟不可用时自动采用近似提醒",
+                            stringResource(R.string.settings_reminder_enable_subtitle),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -572,7 +574,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("提前提醒", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_reminder_advance), fontSize = 15.sp, modifier = Modifier.weight(1f))
                     listOf(5, 10, 15, 30).forEach { minutes ->
                         val selected = preferences.reminderMinutes == minutes
                         Box(
@@ -590,7 +592,7 @@ fun SettingsScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "$minutes 分钟",
+                                stringResource(R.string.settings_reminder_minutes, minutes),
                                 fontSize = 12.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selected) MaterialTheme.colorScheme.onPrimary
@@ -601,11 +603,11 @@ fun SettingsScreen(
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text("下次提醒", fontSize = 15.sp)
+                    Text(stringResource(R.string.settings_next_reminder), fontSize = 15.sp)
                     Text(
                         nextReminder?.let { (instance, time) ->
                             "${instance.course.courseName} · ${time.format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))}"
-                        } ?: if (preferences.reminderEnabled) "未来 31 天内没有待触发提醒" else "提醒已关闭",
+                        } ?: if (preferences.reminderEnabled) stringResource(R.string.settings_no_upcoming_reminder) else stringResource(R.string.settings_reminder_disabled),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -622,7 +624,7 @@ fun SettingsScreen(
                             },
                             contentPadding = PaddingValues(0.dp)
                         ) {
-                            Text("恢复提醒")
+                            Text(stringResource(R.string.settings_resume_reminder))
                         }
                     }
                 }
@@ -630,57 +632,57 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            SettingsSection(title = "数据备份与恢复") {
+            SettingsSection(title = stringResource(R.string.settings_section_backup)) {
                 SettingsActionRow(
                     icon = Icons.Outlined.Backup,
-                    title = "导出完整备份",
-                    subtitle = "包含全部课表和备注，可用于恢复",
+                    title = stringResource(R.string.settings_export_full_backup),
+                    subtitle = stringResource(R.string.settings_export_full_backup_subtitle),
                     enabled = readOnlyMessage == null,
                     onClick = { onExportBackup(false) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.Lock,
-                    title = "导出密码加密备份",
-                    subtitle = "使用密码加密全部课表，换机时可恢复",
+                    title = stringResource(R.string.settings_export_encrypted_backup),
+                    subtitle = stringResource(R.string.settings_export_encrypted_backup_subtitle),
                     enabled = readOnlyMessage == null,
                     onClick = onExportEncryptedBackup
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.Share,
-                    title = "导出脱敏副本",
-                    subtitle = "移除教师、教室、班号、院系和备注，仅用于分享",
+                    title = stringResource(R.string.settings_export_sanitized),
+                    subtitle = stringResource(R.string.settings_export_sanitized_subtitle),
                     enabled = readOnlyMessage == null,
                     onClick = { onExportBackup(true) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.Restore,
-                    title = "从备份恢复",
-                    subtitle = "先校验文件，再确认是否替换当前课表",
+                    title = stringResource(R.string.settings_import_backup),
+                    subtitle = stringResource(R.string.settings_import_backup_subtitle),
                     onClick = onImportBackup
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.History,
-                    title = "本机历史版本",
-                    subtitle = "自动保留最近 10 次改动，可预览差异后恢复",
+                    title = stringResource(R.string.settings_history),
+                    subtitle = stringResource(R.string.settings_history_subtitle),
                     onClick = onOpenHistory
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.ContentPaste,
-                    title = "粘贴导入课程",
-                    subtitle = "复制网页课表文本，每行：星期 节次 课程名 [教室] [教师] [周次]",
+                    title = stringResource(R.string.settings_paste_import),
+                    subtitle = stringResource(R.string.settings_paste_import_subtitle),
                     enabled = readOnlyMessage == null,
                     onClick = onPasteImport
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.CalendarMonth,
-                    title = "导出日历（.ics）",
-                    subtitle = "生成 iCal 文件，可导入系统日历或分享",
+                    title = stringResource(R.string.settings_export_calendar),
+                    subtitle = stringResource(R.string.settings_export_calendar_subtitle),
                     enabled = readOnlyMessage == null,
                     onClick = onExportCalendar
                 )
@@ -689,18 +691,18 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // ===== 数据诊断（只显示统计，不展示课程原文）=====
-            SettingsSection(title = "数据诊断") {
+            SettingsSection(title = stringResource(R.string.settings_section_diagnostics)) {
                 val courseCount = table.courses.size
                 val conflictCount = remember(table.courses) {
                     CourseImportAnalyzer.findConflictsAmong(table.courses).size
                 }
                 val stats = listOf(
-                    "课表总数" to "$tablesCount",
-                    "当前课表课程数" to "$courseCount",
-                    "节次数量" to "${table.periods.size}",
-                    "学期总周数" to "${table.totalWeeks}",
-                    "停课周" to "${table.excludedWeeks.size}",
-                    "课程时间冲突" to if (conflictCount > 0) "$conflictCount 处（建议在课程编辑时确认）" else "无"
+                    stringResource(R.string.settings_diag_table_count) to "$tablesCount",
+                    stringResource(R.string.settings_diag_course_count) to "$courseCount",
+                    stringResource(R.string.settings_diag_period_count) to "${table.periods.size}",
+                    stringResource(R.string.settings_diag_total_weeks) to "${table.totalWeeks}",
+                    stringResource(R.string.settings_excluded_weeks) to "${table.excludedWeeks.size}",
+                    stringResource(R.string.settings_diag_conflicts) to if (conflictCount > 0) stringResource(R.string.settings_diag_conflicts_value, conflictCount) else stringResource(R.string.settings_none)
                 )
                 stats.forEach { (label, value) ->
                     Row(
@@ -715,8 +717,8 @@ fun SettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
                     icon = Icons.Outlined.BugReport,
-                    title = "导出脱敏诊断报告",
-                    subtitle = "仅包含版本、数量和异常统计，不含课程原文",
+                    title = stringResource(R.string.settings_export_diagnostics),
+                    subtitle = stringResource(R.string.settings_export_diagnostics_subtitle),
                     onClick = onExportDiagnostics
                 )
             }
@@ -790,9 +792,9 @@ private fun TimePickerDialog(
     LaunchedEffect(state.hour, state.minute) { onTimeChange(state.hour, state.minute) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择时间") },
+        title = { Text(stringResource(R.string.settings_time_picker_title)) },
         text = { TimePicker(state = state) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("确定") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.settings_confirm)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) } }
     )
 }
