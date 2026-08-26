@@ -58,6 +58,7 @@ fun SettingsScreen(
     onImportBackup: () -> Unit,
     onPasteImport: () -> Unit = {},
     onExportCalendar: () -> Unit = {},
+    onExportExcelTemplate: () -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenCalendarExceptions: () -> Unit = {},
@@ -743,6 +744,13 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.settings_paste_import_subtitle),
                     enabled = readOnlyMessage == null,
                     onClick = onPasteImport
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsActionRow(
+                    icon = Icons.Outlined.Download,
+                    title = stringResource(R.string.settings_export_excel_template),
+                    subtitle = stringResource(R.string.settings_export_excel_template_subtitle),
+                    onClick = onExportExcelTemplate
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(

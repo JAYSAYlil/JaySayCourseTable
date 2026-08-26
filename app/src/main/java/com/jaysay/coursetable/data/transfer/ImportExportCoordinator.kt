@@ -154,4 +154,20 @@ class ImportExportCoordinator(
                 .onFailure { showError("诊断报告导出失败", it) }
         }
     }
+
+    fun handleExcelTemplateExport(uri: Uri) {
+        activity.lifecycleScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    activity.assets.open("import_template.xlsx").use { input ->
+                        activity.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                            input.copyTo(output)
+                        } ?: error("无法写入所选文件")
+                    }
+                }
+            }
+            result.onSuccess { showToast("Excel 导入模板已下载") }
+                .onFailure { showError("下载失败", it) }
+        }
+    }
 }

@@ -1,7 +1,7 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$ExpectedVersionName = "2.18.1",
-    [int]$ExpectedVersionCode = 103,
+    [string]$ExpectedVersionName = "2.18.2",
+    [int]$ExpectedVersionCode = 104,
     [switch]$AllowDirty
 )
 
@@ -52,7 +52,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "无法读取 Git 待发布文件" }
     $sensitive = @($publishable | Where-Object {
         $_ -match '(?i)(^|/)(local\.properties|keystore\.properties|signing\.properties)$' -or
-        $_ -match '(?i)\.(jks|keystore|p12|pfx|pem|key|xls|xlsx|apk|aab|apks)$' -or
+        ($_ -match '(?i)\.(jks|keystore|p12|pfx|pem|key|xls|xlsx|apk|aab|apks)$' -and $_ -notmatch '(?i)^app/src/main/assets/import_template\.xlsx$') -or
         $_ -match '(?i)(course-table-backup|课表备份).*\.json$'
     })
     Assert-Check ($sensitive.Count -eq 0) "Git 待发布文件不含签名材料、真实课表、APK 或完整备份"

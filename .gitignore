@@ -31,6 +31,8 @@ keys/
 # Personal schedules, exports and backups
 *.xls
 *.xlsx
+# Bundled Excel import template (shipped inside the APK, not user data)
+!app/src/main/assets/import_template.xlsx
 *course-table-backup*.json
 *课表备份*.json
 

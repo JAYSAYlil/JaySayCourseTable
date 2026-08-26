@@ -126,6 +126,10 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri: Uri? -> uri?.let(fileTransfer::handleDiagnosticsExport) }
 
+    private val excelTemplateExportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ) { uri: Uri? -> uri?.let(fileTransfer::handleExcelTemplateExport) }
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { reminderStatusTick.intValue++ }
@@ -571,6 +575,9 @@ class MainActivity : ComponentActivity() {
                                 onPasteImport = { showPasteImportDialog = true },
                                 onExportCalendar = {
                                     icsExportLauncher.launch("JaySay课表-日历-${LocalDate.now()}.ics")
+                                },
+                                onExportExcelTemplate = {
+                                    excelTemplateExportLauncher.launch("JaySay课表-导入模板.xlsx")
                                 },
                                 onExportDiagnostics = {
                                     diagnosticsExportLauncher.launch("JaySay课表-脱敏诊断-${LocalDate.now()}.txt")

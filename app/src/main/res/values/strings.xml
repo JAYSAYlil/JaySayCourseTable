@@ -306,6 +306,8 @@
     <string name="settings_export_diagnostics_subtitle">"仅包含版本、数量和异常统计，不含课程原文"</string>
     <string name="settings_export_encrypted_backup">"导出密码加密备份"</string>
     <string name="settings_export_encrypted_backup_subtitle">"使用密码加密全部课表，换机时可恢复"</string>
+    <string name="settings_export_excel_template">"下载 Excel 导入模板"</string>
+    <string name="settings_export_excel_template_subtitle">"保存空白课程表模板，可自行制作 Excel 导入文件"</string>
     <string name="settings_export_full_backup">"导出完整备份"</string>
     <string name="settings_export_full_backup_subtitle">"包含全部课表和备注，可用于恢复"</string>
     <string name="settings_export_sanitized">"导出脱敏副本"</string>
