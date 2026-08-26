@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.content.edit
 import com.jaysay.coursetable.MainActivity
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.AppPreferences
@@ -137,12 +138,12 @@ object ReminderScheduler {
         } else {
             registry(context).getStringSet(REGISTRY_CODES, emptySet()).orEmpty()
         }
-        registry(context).edit()
-            .putStringSet(
+        registry(context).edit(commit = true) {
+            putStringSet(
                 REGISTRY_CODES,
                 registeredCodes + plans.map { it.requestCode.toString() }
             )
-            .commit()
+        }
         plans.forEach { plan ->
             scheduleOne(context, alarmManager, plan)
         }
@@ -201,16 +202,12 @@ object ReminderScheduler {
         pending: PendingIntent
     ) {
         val showIntent = buildOpenAppIntent(context, plan.tableIndex, plan.instance.course.seriesKey)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setAlarmClock(
-                AlarmManager.AlarmClockInfo(plan.triggerMillis, showIntent),
-                pending
-            )
-        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
-        } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerMillis, pending)
-        }
+        // minSdk 26 已高于 setAlarmClock 所需的 API 21；权限在调用前后变化时，
+        // 上层 SecurityException 兜底会自动降级为 setAndAllowWhileIdle。
+        alarmManager.setAlarmClock(
+            AlarmManager.AlarmClockInfo(plan.triggerMillis, showIntent),
+            pending
+        )
     }
 
     @SuppressLint("ApplySharedPref")
@@ -229,7 +226,7 @@ object ReminderScheduler {
                 pending.cancel()
             }
         }
-        prefs.edit().remove(REGISTRY_CODES).commit()
+        prefs.edit(commit = true) { remove(REGISTRY_CODES) }
     }
 
     private fun requestCode(tableIndex: Int, instance: CourseInstance, kind: ReminderEventKind): Int =

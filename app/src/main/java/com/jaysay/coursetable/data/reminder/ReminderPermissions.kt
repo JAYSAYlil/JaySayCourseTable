@@ -34,7 +34,6 @@ object ReminderPermissions {
 
     /** "上课提醒"通知渠道是否被用户在系统设置中关闭。 */
     fun channelBlocked(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
         val manager = context.getSystemService(NotificationManager::class.java)
         val channel = manager.getNotificationChannel(ReminderScheduler.CHANNEL_ID) ?: return false
         return channel.importance == NotificationManager.IMPORTANCE_NONE

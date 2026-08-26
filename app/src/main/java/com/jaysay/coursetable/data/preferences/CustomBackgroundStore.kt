@@ -5,9 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
+import androidx.core.graphics.scale
+import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -110,7 +111,7 @@ object CustomBackgroundStore {
             } ?: return null
             val (targetWidth, targetHeight) = scaledSize(decoded.width, decoded.height)
             val scaled = if (targetWidth == decoded.width && targetHeight == decoded.height) decoded else {
-                Bitmap.createScaledBitmap(decoded, targetWidth, targetHeight, true).also { decoded.recycle() }
+                decoded.scale(targetWidth, targetHeight, true).also { decoded.recycle() }
             }
             applyLegacyExifOrientation(scaled, readExifOrientation(context, uri))
         }

@@ -17,7 +17,11 @@ class BackupCodecTest {
     fun fullBackupRoundTripPreservesAllUserData() {
         val original = BackupData(
             tables = listOf(TableData("我的课表", listOf(course()), viewMode = ScheduleViewMode.WORK_WEEK)),
-            preferences = AppPreferences(ThemeMode.DARK, 0)
+            preferences = AppPreferences(
+                themeMode = ThemeMode.DARK,
+                activeTableIndex = 0,
+                customBackgroundOverlayEnabled = false
+            )
         )
 
         val restored = BackupCodec.decode(BackupCodec.encode(original))
@@ -83,6 +87,18 @@ class BackupCodecTest {
 
         assertFalse(encoded.contains("customBackgroundRevision"))
         assertEquals(0L, restored.preferences.customBackgroundRevision)
+    }
+
+    @Test
+    fun oldBackupWithoutBackgroundOverlayPreferenceKeepsReadableDefault() {
+        val root = JSONObject(
+            BackupCodec.encode(BackupData(listOf(TableData("课表", listOf(course()))), AppPreferences()))
+        )
+        root.getJSONObject("preferences").remove("customBackgroundOverlayEnabled")
+
+        val restored = BackupCodec.decode(root.toString())
+
+        assertTrue(restored.preferences.customBackgroundOverlayEnabled)
     }
 
     private fun course() = Course(

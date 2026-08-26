@@ -23,7 +23,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
-        tools:targetApi="s"
+        tools:targetApi="33"
         android:theme="@style/Theme.JaySayCourseTable">
         <activity
             android:name=".MainActivity"

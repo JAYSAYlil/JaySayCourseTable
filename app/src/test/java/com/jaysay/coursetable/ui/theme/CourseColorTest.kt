@@ -1,8 +1,12 @@
 package com.jaysay.coursetable.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.ui.screen.courseCardBackgroundAlpha
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -74,5 +78,35 @@ class CourseColorTest {
         val courses = listOf(course("甲"))
         val color = resolveCourseColor(courses, courses.first(), dark = true)
         assertEquals(DarkCourseColors[0], color)
+    }
+
+    @Test
+    fun courseTextKeepsReadableContrastWithCustomBackgrounds() {
+        // 自定义背景会先经过页面遮罩：浅色模式至少叠加 42% 白色，
+        // 深色模式最多只保留 52% 原图亮度。分别测试最不利的明暗端点。
+        val lightUnderlays = listOf(Color.White.copy(alpha = 0.42f).compositeOver(Color.Black), Color.White)
+        val darkUnderlays = listOf(Color.Black, Color.Black.copy(alpha = 0.48f).compositeOver(Color.White))
+
+        CourseColors.forEach { card ->
+            lightUnderlays.forEach { underlay ->
+                val rendered = card.copy(alpha = courseCardBackgroundAlpha(card, true)).compositeOver(underlay)
+                assertContrastAtLeast(CourseTextColor, rendered, 4.5f, "浅色课程标题")
+                assertContrastAtLeast(CourseSubTextColor, rendered, 3.0f, "浅色课程附加信息")
+            }
+        }
+        DarkCourseColors.forEach { card ->
+            darkUnderlays.forEach { underlay ->
+                val rendered = card.copy(alpha = courseCardBackgroundAlpha(card, true)).compositeOver(underlay)
+                assertContrastAtLeast(DarkCourseTextColor, rendered, 4.5f, "深色课程标题")
+                assertContrastAtLeast(DarkCourseSubTextColor, rendered, 3.0f, "深色课程附加信息")
+            }
+        }
+    }
+
+    private fun assertContrastAtLeast(foreground: Color, background: Color, minimum: Float, label: String) {
+        val lighter = maxOf(foreground.luminance(), background.luminance())
+        val darker = minOf(foreground.luminance(), background.luminance())
+        val ratio = (lighter + 0.05f) / (darker + 0.05f)
+        assertTrue("$label 对比度 $ratio 低于 $minimum", ratio >= minimum)
     }
 }

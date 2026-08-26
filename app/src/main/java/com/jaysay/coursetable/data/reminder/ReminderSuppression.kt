@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.data.reminder
 
 import android.content.Context
+import androidx.core.content.edit
 import java.time.LocalDate
 
 /** 通知快捷操作产生的短期静音状态；只保存日期/教学周，不包含课程隐私。 */
@@ -11,14 +12,20 @@ object ReminderSuppression {
     private const val MUTED_TABLE = "muted_table"
 
     fun muteToday(context: Context, tableIndex: Int, date: LocalDate = LocalDate.now()) {
-        prefs(context).edit().putString(MUTED_DATE, date.toString()).putInt(MUTED_TABLE, tableIndex).apply()
+        prefs(context).edit {
+            putString(MUTED_DATE, date.toString())
+            putInt(MUTED_TABLE, tableIndex)
+        }
     }
 
     fun muteWeek(context: Context, tableIndex: Int, week: Int) {
-        prefs(context).edit().putInt(MUTED_WEEK, week).putInt(MUTED_TABLE, tableIndex).apply()
+        prefs(context).edit {
+            putInt(MUTED_WEEK, week)
+            putInt(MUTED_TABLE, tableIndex)
+        }
     }
 
-    fun clear(context: Context) = prefs(context).edit().clear().apply()
+    fun clear(context: Context) = prefs(context).edit { clear() }
 
     /**
      * 清理已过期的暂停状态：昨天的“今天暂停”或本周之前的“本周暂停”
@@ -27,18 +34,18 @@ object ReminderSuppression {
     fun pruneExpired(context: Context, tableIndex: Int, today: LocalDate, currentWeek: Int) {
         val values = prefs(context)
         if (values.getInt(MUTED_TABLE, -1) != tableIndex) return
-        val editor = values.edit()
         val mutedDate = values.getString(MUTED_DATE, null)
-        if (mutedDate != null &&
-            runCatching { LocalDate.parse(mutedDate) }.getOrNull()?.isBefore(today) == true
-        ) {
-            editor.remove(MUTED_DATE)
-        }
         val mutedWeek = values.getInt(MUTED_WEEK, -1)
-        if (currentWeek > 0 && mutedWeek in 1 until currentWeek) {
-            editor.remove(MUTED_WEEK)
+        values.edit {
+            if (mutedDate != null &&
+                runCatching { LocalDate.parse(mutedDate) }.getOrNull()?.isBefore(today) == true
+            ) {
+                remove(MUTED_DATE)
+            }
+            if (currentWeek > 0 && mutedWeek in 1 until currentWeek) {
+                remove(MUTED_WEEK)
+            }
         }
-        editor.apply()
     }
 
     fun isSuppressed(context: Context, tableIndex: Int, week: Int, date: LocalDate): Boolean {

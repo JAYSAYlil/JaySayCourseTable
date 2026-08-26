@@ -14,14 +14,15 @@
 - 支持上课前 5/10/15/30 分钟本地提醒；重启、升级和系统时间变化后自动恢复，精确闹钟不可用时安全降级。
 - 支持深浅色桌面小组件：默认 3 列×2 行显示今日课程，横向扩展到 4/5 列后以双栏显示今日与明日；课程名、教室和教师完整换行并可滚动查看。
 - 今日小组件会在课程结束后自动隐藏该课，仅保留进行中和待开始课程。
-- 支持停课周设置和标准 iCalendar（`.ics`）导出。
-- 支持整日停课、单课取消、补课和周标签；网格、日程、提醒、小组件与 iCalendar 使用同一日期规则。
+- 支持统一的“学期安排”设置：停课周、周标签、整日停课、单课取消和补课可集中管理和编辑，设置后仍能在停课周正常左右切换；课表提示条可直接进入该页面。
+- 周标签与日期调整原因会同步显示在课表和桌面小组件；网格、日程、提醒、小组件与 iCalendar 使用同一日期规则。
+- 支持标准 iCalendar（`.ics`）导出。
 - 提供按日期分组的日程列表、本机最近 10 次自动快照以及恢复前差异预览。
 - 支持每门课程单独开关提醒、覆盖提前时间、下课提醒，以及通知内“今天不再提醒/本周暂停”。
 - 支持密码加密的便携备份、手动文本列映射和跨进程保留导入草稿。
 - 多课表可复制、归档和恢复；归档课表不会参与提醒或小组件。
 - 支持增强对比度和减少动画，并提供脱敏诊断报告。
-- 支持全屏自定义课表背景；图片经压缩和元数据清理后仅存于本机私有目录，不进入备份。
+- 支持全屏自定义课表背景及可选可读遮罩；图片经压缩和元数据清理后仅存于本机私有目录，不进入备份。
 - 长按桌面图标可快速查看今天或新增课程。
 - 提供七天、五天和单日三种响应式视图，可点按空白节次快速添加课程。
 - 顶部提供不占用网格空间的今日/下一节课摘要，并可按课程名、教师或教室本地搜索。
@@ -33,17 +34,19 @@
 
 - Android 8.0（API 26）或更高版本
 - JDK 17
-- Android SDK 34
-- Gradle 8.7（项目已包含 Wrapper）
+- Android SDK 35
+- Gradle 9.1.0（项目已包含 Wrapper，无需单独安装 Gradle）
 
 ## 构建与测试
 
 复制 `local.properties.example` 为 `local.properties`，填入本机 Android SDK 路径，然后运行：
 
 ```powershell
-.\gradlew.bat :app:testDebugUnitTest :app:assembleRelease :app:lintRelease
+pwsh -File .\scripts\build.ps1
 pwsh -File .\scripts\pre-release-audit.ps1 -AllowDirty
 ```
+
+`build.ps1` 会在构建前验证 JDK 17，并只为本次 Gradle 子进程使用该 JDK；版本不符时给出明确提示，不会修改系统 Java、网络或代理配置。需要临时指定 JDK 时可使用 `-JavaHome "JDK 17 安装目录"`。
 
 Release 构建默认启用 R8、资源收缩和语言资源裁剪。仓库不会提供签名材料，发布者应使用自己安全保管的密钥签名。
 
@@ -60,12 +63,13 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 - Android 系统云备份和设备迁移均排除应用数据；换机请使用应用内“导出完整备份”。
 - 请勿在 Issue、日志或提交中上传真实课表、完整备份、签名密钥或本机路径。
 
-当前开发候选版本：`2.17.1`（versionCode 101）；正式发布版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
+当前开发候选版本：`2.18.1`（versionCode 103）；正式发布版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
 
 ## 自动化测试策略
 
-- 每次推送和拉取请求运行 JVM 测试、Lint、Debug 构建及 API 34 UI 测试。
-- API 26/29 UI 测试每周运行，也可在 GitHub Actions 手动勾选完整旧版矩阵，兼顾兼容性与运行成本。
+- 每次推送和拉取请求运行 JVM 测试、Lint、Debug 构建及 Release 构建。
+- API 34 UI 测试在拉取请求、手动触发和每周计划任务中运行；普通推送不启动托管模拟器，避免其偶发启动超时把 `main` 错误标红。
+- API 26/29 UI 测试每周运行，也可在 GitHub Actions 手动勾选完整旧版矩阵；正式发布前仍应在本地 API 34 模拟器完整回归。
 - CI 不读取或引用签名密钥，只生成无签名/调试构建产物。
 
 ## 下载

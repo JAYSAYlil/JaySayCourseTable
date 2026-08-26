@@ -7,21 +7,17 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
+import androidx.annotation.RequiresApi
+import androidx.core.net.toUri
 import com.jaysay.coursetable.MainActivity
 import com.jaysay.coursetable.R
-import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
-import com.jaysay.coursetable.data.preferences.AppPreferences
-import com.jaysay.coursetable.data.preferences.PreferencesManager
-import com.jaysay.coursetable.data.repository.CourseRepository
-import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -108,29 +104,45 @@ class CourseWidgetProvider : AppWidgetProvider() {
             )
             val views = RemoteViews(context.packageName, R.layout.widget_course)
             views.setTextViewText(R.id.widget_date, "${today.monthValue}月${today.dayOfMonth}日")
-            views.setTextViewText(R.id.widget_weekday, "星期${TimeUtils.getDayName(today.dayOfWeek.value).removePrefix("周")}")
+            val weekday = "星期${TimeUtils.getDayName(today.dayOfWeek.value).removePrefix("周")}"
+            val headerBadge = WidgetCalendarPresentation.headerBadge(weekday, todaySchedule)
+            views.setTextViewText(
+                R.id.widget_weekday,
+                headerBadge
+            )
             views.setContentDescription(
                 R.id.widget_header,
-                "${today.monthValue}月${today.dayOfMonth}日，星期${TimeUtils.getDayName(today.dayOfWeek.value).removePrefix("周")}"
+                "${today.monthValue}月${today.dayOfMonth}日，$headerBadge"
             )
             views.setTextViewText(
                 R.id.widget_today_title,
-                sectionTitle("今日课程", today, todaySchedule?.courses?.size ?: 0, widthMode)
+                WidgetCalendarPresentation.sectionTitle(
+                    "今日课程", today, todaySchedule?.courses?.size ?: 0, widthMode, todaySchedule
+                )
             )
             views.setTextViewText(
                 R.id.widget_tomorrow_title,
-                sectionTitle("明日课程", tomorrow, tomorrowSchedule?.courses?.size ?: 0, widthMode)
+                WidgetCalendarPresentation.sectionTitle(
+                    "明日课程", tomorrow, tomorrowSchedule?.courses?.size ?: 0, widthMode, tomorrowSchedule
+                )
             )
             views.setTextViewText(
                 R.id.widget_today_empty,
-                if (active == null) "暂无课表数据\n点击打开应用" else "今日无课"
+                if (active == null) "暂无课表数据\n点击打开应用"
+                else WidgetCalendarPresentation.emptyText("今日无课", todaySchedule)
             )
-            views.setTextViewText(R.id.widget_tomorrow_empty, "明日无课")
+            views.setTextViewText(
+                R.id.widget_tomorrow_empty,
+                WidgetCalendarPresentation.emptyText("明日无课", tomorrowSchedule)
+            )
 
             val showTomorrow = widthMode != WidgetWidthMode.COMPACT
             views.setViewVisibility(R.id.widget_tomorrow_column, if (showTomorrow) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_column_divider, if (showTomorrow) View.VISIBLE else View.GONE)
-            bindCourseList(context, views, widgetId, R.id.widget_today_list, R.id.widget_today_empty, 0, widthMode)
+            bindCourseList(
+                context, views, widgetId, R.id.widget_today_list, R.id.widget_today_empty,
+                dayOffset = 0, widthMode = widthMode, schedule = todaySchedule
+            )
             if (showTomorrow) {
                 bindCourseList(
                     context,
@@ -139,7 +151,8 @@ class CourseWidgetProvider : AppWidgetProvider() {
                     R.id.widget_tomorrow_list,
                     R.id.widget_tomorrow_empty,
                     1,
-                    widthMode
+                    widthMode,
+                    tomorrowSchedule
                 )
             }
 
@@ -153,9 +166,11 @@ class CourseWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_today_empty, openApp)
             views.setOnClickPendingIntent(R.id.widget_tomorrow_empty, openApp)
             appWidgetManager.updateAppWidget(widgetId, views)
-            appWidgetManager.notifyAppWidgetViewDataChanged(widgetId, R.id.widget_today_list)
-            if (showTomorrow) {
-                appWidgetManager.notifyAppWidgetViewDataChanged(widgetId, R.id.widget_tomorrow_list)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                notifyLegacyCollectionChanged(appWidgetManager, widgetId, R.id.widget_today_list)
+                if (showTomorrow) {
+                    notifyLegacyCollectionChanged(appWidgetManager, widgetId, R.id.widget_tomorrow_list)
+                }
             }
         }
         scheduleNextRefresh(context, agenda)
@@ -168,15 +183,14 @@ class CourseWidgetProvider : AppWidgetProvider() {
         listId: Int,
         emptyId: Int,
         dayOffset: Int,
-        widthMode: WidgetWidthMode
+        widthMode: WidgetWidthMode,
+        schedule: WidgetDaySchedule?
     ) {
-        val adapterIntent = Intent(context, CourseWidgetRemoteViewsService::class.java).apply {
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-            putExtra(EXTRA_DAY_OFFSET, dayOffset)
-            putExtra(EXTRA_WIDTH_MODE, widthMode.name)
-            data = Uri.parse("jaysay://widget/$widgetId/day/$dayOffset/${widthMode.name}")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            bindModernCollection(context, views, listId, schedule, widthMode)
+        } else {
+            bindLegacyCollection(context, views, widgetId, listId, dayOffset, widthMode)
         }
-        views.setRemoteAdapter(listId, adapterIntent)
         views.setEmptyView(listId, emptyId)
         val mutableFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         val template = PendingIntent.getActivity(
@@ -188,15 +202,52 @@ class CourseWidgetProvider : AppWidgetProvider() {
         views.setPendingIntentTemplate(listId, template)
     }
 
-    private fun sectionTitle(
-        prefix: String,
-        date: LocalDate,
-        courseCount: Int,
+    @Suppress("DEPRECATION")
+    private fun bindLegacyCollection(
+        context: Context,
+        views: RemoteViews,
+        widgetId: Int,
+        listId: Int,
+        dayOffset: Int,
         widthMode: WidgetWidthMode
-    ): String = when (widthMode) {
-        WidgetWidthMode.COMPACT -> "$prefix · $courseCount 节"
-        WidgetWidthMode.MEDIUM -> "${prefix.removeSuffix("课程")} · $courseCount 节"
-        WidgetWidthMode.EXPANDED -> "${prefix.removeSuffix("课程")} ${date.monthValue}/${date.dayOfMonth} · $courseCount 节"
+    ) {
+        val adapterIntent = Intent(context, CourseWidgetRemoteViewsService::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            putExtra(EXTRA_DAY_OFFSET, dayOffset)
+            putExtra(EXTRA_WIDTH_MODE, widthMode.name)
+            data = "jaysay://widget/$widgetId/day/$dayOffset/${widthMode.name}".toUri()
+        }
+        views.setRemoteAdapter(listId, adapterIntent)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun bindModernCollection(
+        context: Context,
+        views: RemoteViews,
+        listId: Int,
+        schedule: WidgetDaySchedule?,
+        widthMode: WidgetWidthMode
+    ) {
+        val date = schedule?.date ?: LocalDate.now()
+        val collection = RemoteViews.RemoteCollectionItems.Builder()
+            .setHasStableIds(true)
+            .setViewTypeCount(1)
+            .apply {
+                schedule?.courses.orEmpty().forEach { row ->
+                    addItem(row.stableId(date), WidgetCourseItemViews.create(context, row, widthMode))
+                }
+            }
+            .build()
+        views.setRemoteAdapter(listId, collection)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun notifyLegacyCollectionChanged(
+        manager: AppWidgetManager,
+        widgetId: Int,
+        listId: Int
+    ) {
+        manager.notifyAppWidgetViewDataChanged(widgetId, listId)
     }
 
     companion object {
@@ -256,87 +307,5 @@ class CourseWidgetProvider : AppWidgetProvider() {
                 Intent(context, CourseWidgetProvider::class.java).setAction(ACTION_UPDATE),
                 flags or PendingIntent.FLAG_IMMUTABLE
             )
-    }
-}
-
-internal enum class WidgetWidthMode(val referenceWidthDp: Int) {
-    COMPACT(180),
-    MEDIUM(250),
-    EXPANDED(320);
-
-    companion object {
-        fun fromMinWidth(widthDp: Int): WidgetWidthMode = when {
-            widthDp < 220 -> COMPACT
-            widthDp < 270 -> MEDIUM
-            else -> EXPANDED
-        }
-    }
-}
-
-internal data class WidgetActiveTable(val tableIndex: Int, val table: TableData)
-
-internal data class WidgetCourseRow(
-    val tableIndex: Int,
-    val seriesKey: String,
-    val courseName: String,
-    val classroom: String,
-    val teacher: String,
-    val timeLabel: String
-)
-
-internal data class WidgetDaySchedule(val date: LocalDate, val courses: List<WidgetCourseRow>)
-
-internal object WidgetScheduleLoader {
-    suspend fun loadActive(context: Context): WidgetActiveTable? {
-        val preferences = runCatching { PreferencesManager(context).load() }.getOrDefault(AppPreferences())
-        val tables = runCatching { CourseRepository(context).loadAllTables() }.getOrNull().orEmpty()
-        if (tables.isEmpty()) return null
-        val preferredIndex = preferences.activeTableIndex.coerceIn(tables.indices)
-        val activeIndex = preferredIndex.takeIf { !tables[it].archived }
-            ?: tables.indexOfFirst { !it.archived }.takeIf { it >= 0 }
-            ?: return null
-        return WidgetActiveTable(activeIndex, tables[activeIndex])
-    }
-}
-
-internal object WidgetScheduleBuilder {
-    fun build(
-        table: TableData,
-        tableIndex: Int,
-        date: LocalDate,
-        afterMinute: Int? = null
-    ): WidgetDaySchedule {
-        val courses = ScheduleDateResolver.coursesOn(
-            courses = table.courses,
-            semesterStart = table.semesterStart,
-            totalWeeks = table.totalWeeks,
-            excludedWeeks = table.excludedWeeks.toSet(),
-            exceptions = table.dateExceptions,
-            date = date
-        ).filter { resolved ->
-            if (afterMinute == null) true else {
-                val endMinute = table.periods.getOrNull(resolved.course.endPeriod - 1)
-                    ?.end
-                    ?.let(TimeUtils::parseMinuteOfDay)
-                endMinute == null || endMinute > afterMinute
-            }
-        }.map { resolved ->
-            val course = resolved.course
-            val start = table.periods.getOrNull(course.startPeriod - 1)?.start
-            val end = table.periods.getOrNull(course.endPeriod - 1)?.end
-            WidgetCourseRow(
-                tableIndex = tableIndex,
-                seriesKey = course.seriesKey,
-                courseName = course.courseName.trim().ifEmpty { "未命名课程" },
-                classroom = course.classroom.trim().ifEmpty { "未填写教室" },
-                teacher = course.teacher.trim().ifEmpty { "未填写教师" },
-                timeLabel = if (!start.isNullOrBlank() && !end.isNullOrBlank()) {
-                    "$start–$end"
-                } else {
-                    TimeUtils.formatPeriodRange(course.startPeriod, course.endPeriod)
-                }
-            )
-        }
-        return WidgetDaySchedule(date, courses)
     }
 }

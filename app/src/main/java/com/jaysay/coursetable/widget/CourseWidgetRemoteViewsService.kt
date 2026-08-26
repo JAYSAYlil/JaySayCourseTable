@@ -1,6 +1,5 @@
 package com.jaysay.coursetable.widget
 
-import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.util.TypedValue
@@ -23,10 +22,6 @@ private class CourseWidgetRemoteViewsFactory(
     private val context: Context,
     intent: Intent
 ) : RemoteViewsService.RemoteViewsFactory {
-    private val appWidgetId = intent.getIntExtra(
-        AppWidgetManager.EXTRA_APPWIDGET_ID,
-        AppWidgetManager.INVALID_APPWIDGET_ID
-    )
     private val dayOffset = intent.getIntExtra(CourseWidgetProvider.EXTRA_DAY_OFFSET, 0).coerceIn(0, 1)
     private val widthMode = runCatching {
         WidgetWidthMode.valueOf(intent.getStringExtra(CourseWidgetProvider.EXTRA_WIDTH_MODE).orEmpty())
@@ -61,7 +56,23 @@ private class CourseWidgetRemoteViewsFactory(
 
     override fun getViewAt(position: Int): RemoteViews? {
         val row = rows.getOrNull(position) ?: return null
-        return RemoteViews(context.packageName, R.layout.widget_course_item).apply {
+        return WidgetCourseItemViews.create(context, row, widthMode)
+    }
+
+    override fun getLoadingView(): RemoteViews? = null
+
+    override fun getViewTypeCount(): Int = 1
+
+    override fun getItemId(position: Int): Long =
+        rows.getOrNull(position)?.stableId(date) ?: position.toLong()
+
+    override fun hasStableIds(): Boolean = true
+}
+
+/** 新旧小组件集合实现共用同一条目布局，避免不同 Android 版本显示分叉。 */
+internal object WidgetCourseItemViews {
+    fun create(context: Context, row: WidgetCourseRow, widthMode: WidgetWidthMode): RemoteViews =
+        RemoteViews(context.packageName, R.layout.widget_course_item).apply {
             setTextViewText(R.id.widget_item_time, row.timeLabel)
             setTextViewText(R.id.widget_item_course_name, row.courseName)
             setTextViewText(R.id.widget_item_classroom, "教室 · ${row.classroom}")
@@ -87,16 +98,4 @@ private class CourseWidgetRemoteViewsFactory(
                 }
             )
         }
-    }
-
-    override fun getLoadingView(): RemoteViews? = null
-
-    override fun getViewTypeCount(): Int = 1
-
-    override fun getItemId(position: Int): Long {
-        val row = rows.getOrNull(position) ?: return position.toLong()
-        return "$appWidgetId|$date|${row.seriesKey}|${row.timeLabel}".hashCode().toLong()
-    }
-
-    override fun hasStableIds(): Boolean = true
 }

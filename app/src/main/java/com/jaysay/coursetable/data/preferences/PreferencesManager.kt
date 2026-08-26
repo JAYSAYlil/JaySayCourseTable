@@ -34,7 +34,9 @@ data class AppPreferences(
     val reduceMotion: Boolean = false,
     val highContrast: Boolean = false,
     /** 0 表示使用默认背景；正数同时用作图片缓存刷新标记。 */
-    val customBackgroundRevision: Long = 0L
+    val customBackgroundRevision: Long = 0L,
+    /** 自定义背景上是否叠加全屏可读遮罩；旧版数据默认开启以保持原显示效果。 */
+    val customBackgroundOverlayEnabled: Boolean = true
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -58,6 +60,7 @@ class PreferencesManager(context: Context) {
             .put("reduceMotion", prefs.reduceMotion)
             .put("highContrast", prefs.highContrast)
             .put("customBackgroundRevision", prefs.customBackgroundRevision.coerceAtLeast(0L))
+            .put("customBackgroundOverlayEnabled", prefs.customBackgroundOverlayEnabled)
         store.write(obj.toString(2))
     }
 
@@ -72,7 +75,8 @@ class PreferencesManager(context: Context) {
             reminderMinutes = obj.optInt("reminderMinutes", 10).coerceIn(1, 60),
             reduceMotion = obj.optBoolean("reduceMotion", false),
             highContrast = obj.optBoolean("highContrast", false),
-            customBackgroundRevision = obj.optLong("customBackgroundRevision", 0L).coerceAtLeast(0L)
+            customBackgroundRevision = obj.optLong("customBackgroundRevision", 0L).coerceAtLeast(0L),
+            customBackgroundOverlayEnabled = obj.optBoolean("customBackgroundOverlayEnabled", true)
         )
     }
 

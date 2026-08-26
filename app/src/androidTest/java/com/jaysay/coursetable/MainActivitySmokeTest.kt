@@ -11,7 +11,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -106,6 +105,32 @@ class MainActivitySmokeTest {
         // 导航位置必须保留，重建后仍停留在设置页而非跳回主界面
         composeRule.waitUntil(timeoutMillis = 8_000) {
             composeRule.onAllNodesWithText("外观模式").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun settingsScrollAndNestedBackChainSurviveActivityRecreation() {
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (composeRule.onAllNodesWithTag("more-actions-button").fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onNodeWithTag("more-actions-button").performClick()
+            composeRule.onNodeWithText("设置").performClick()
+        } else {
+            composeRule.onNodeWithContentDescription("设置").performClick()
+        }
+
+        composeRule.onNodeWithText("本机历史版本").performScrollTo().assertIsDisplayed()
+        composeRule.activityRule.scenario.recreate()
+        composeRule.onNodeWithText("本机历史版本").assertIsDisplayed()
+
+        composeRule.onNodeWithText("本机历史版本").performClick()
+        composeRule.onNodeWithText("历史版本").assertIsDisplayed()
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithText("本机历史版本").assertIsDisplayed()
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -226,9 +251,11 @@ class MainActivitySmokeTest {
         }
 
         composeRule.onNodeWithTag("excluded-weeks-setting").performScrollTo().performClick()
-        composeRule.onNodeWithTag("excluded-weeks-list").performScrollToNode(hasText("第 20 周"))
-        composeRule.onNodeWithText("第 20 周").assertIsDisplayed()
-        composeRule.onNodeWithText("取消").performClick()
+        composeRule.onNodeWithTag("academic-calendar-screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("excluded-week-20").performScrollTo().assertIsDisplayed()
+        composeRule.runOnUiThread {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
 
         composeRule.onNodeWithText("本机历史版本").performScrollTo().performClick()
         composeRule.onNodeWithText("历史版本").assertIsDisplayed()

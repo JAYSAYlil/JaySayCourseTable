@@ -45,7 +45,8 @@ object BackupCodec {
                 .put("reminderEnabled", data.preferences.reminderEnabled)
                 .put("reminderMinutes", data.preferences.reminderMinutes)
                 .put("reduceMotion", data.preferences.reduceMotion)
-                .put("highContrast", data.preferences.highContrast))
+                .put("highContrast", data.preferences.highContrast)
+                .put("customBackgroundOverlayEnabled", data.preferences.customBackgroundOverlayEnabled))
             .put("tables", TableDataJson.toJson(tables))
             .toString(2)
     }
@@ -74,7 +75,8 @@ object BackupCodec {
                 reminderEnabled = prefsJson.optBoolean("reminderEnabled", false),
                 reminderMinutes = prefsJson.optInt("reminderMinutes", 10).coerceIn(1, 60),
                 reduceMotion = prefsJson.optBoolean("reduceMotion", false),
-                highContrast = prefsJson.optBoolean("highContrast", false)
+                highContrast = prefsJson.optBoolean("highContrast", false),
+                customBackgroundOverlayEnabled = prefsJson.optBoolean("customBackgroundOverlayEnabled", true)
             )
         )
     }

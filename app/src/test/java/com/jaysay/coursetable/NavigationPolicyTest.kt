@@ -14,6 +14,7 @@ class NavigationPolicyTest {
         assertEquals(Screen.MAIN, Screen.AGENDA.backDestination())
         assertEquals(Screen.SETTINGS, Screen.HISTORY.backDestination())
         assertEquals(Screen.SETTINGS, Screen.CALENDAR.backDestination())
+        assertEquals(Screen.MAIN, Screen.CALENDAR.backDestination(calendarOrigin = Screen.MAIN))
     }
 
     @Test

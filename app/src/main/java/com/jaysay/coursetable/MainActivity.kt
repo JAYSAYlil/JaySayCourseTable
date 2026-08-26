@@ -38,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.jaysay.coursetable.data.backup.BackupData
@@ -79,15 +80,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
-
-internal enum class Screen { MAIN, SETTINGS, IMPORT_CONFIRM, TABLE_MANAGE, AGENDA, HISTORY, CALENDAR, COURSE_DETAIL }
-
-internal fun Screen.backDestination(detailOrigin: Screen = Screen.MAIN): Screen? = when (this) {
-    Screen.MAIN -> null
-    Screen.HISTORY, Screen.CALENDAR -> Screen.SETTINGS
-    Screen.COURSE_DETAIL -> detailOrigin.takeIf { it == Screen.MAIN || it == Screen.AGENDA } ?: Screen.MAIN
-    Screen.SETTINGS, Screen.IMPORT_CONFIRM, Screen.TABLE_MANAGE, Screen.AGENDA -> Screen.MAIN
-}
 
 class MainActivity : ComponentActivity() {
     private lateinit var model: MainViewModel
@@ -183,6 +175,7 @@ class MainActivity : ComponentActivity() {
             // 详情页使用跨编辑稳定的 seriesKey 保存恢复依据，并记录从主课表还是日程列表进入。
             var selectedCourseSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
             var detailOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
+            var calendarOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.SETTINGS.ordinal) }
             var selectedCourse by remember { mutableStateOf<Course?>(null) }
             var showAddDialog by rememberSaveable { mutableStateOf(false) }
             var showEditDialog by rememberSaveable { mutableStateOf(false) }
@@ -215,6 +208,9 @@ class MainActivity : ComponentActivity() {
                 fun detailOrigin(): Screen = Screen.entries.getOrNull(detailOriginOrdinal)
                     ?.takeIf { it == Screen.MAIN || it == Screen.AGENDA }
                     ?: Screen.MAIN
+                fun calendarOrigin(): Screen = Screen.entries.getOrNull(calendarOriginOrdinal)
+                    ?.takeIf { it == Screen.MAIN || it == Screen.SETTINGS }
+                    ?: Screen.SETTINGS
                 val closeCourseDetail: () -> Unit = {
                     selectedCourse = null
                     selectedCourseSeriesKey = null
@@ -284,10 +280,11 @@ class MainActivity : ComponentActivity() {
                             currentScreenOrdinal = Screen.MAIN.ordinal
                         }
                         Screen.COURSE_DETAIL -> closeCourseDetail()
-                        else -> screen.backDestination(detailOrigin())?.let { currentScreenOrdinal = it.ordinal }
+                        else -> screen.backDestination(detailOrigin(), calendarOrigin())
+                            ?.let { currentScreenOrdinal = it.ordinal }
                     }
                 }
-                BackHandler(enabled = currentScreen().backDestination(detailOrigin()) != null) {
+                BackHandler(enabled = currentScreen().backDestination(detailOrigin(), calendarOrigin()) != null) {
                     navigateBack()
                 }
                 val runAfterConflictCheck: (Course, List<Course>, () -> Unit) -> Unit =
@@ -307,10 +304,12 @@ class MainActivity : ComponentActivity() {
                     if (state.isLoading) return@LaunchedEffect
                     when (requestedShortcutAction.value) {
                         AppShortcuts.ACTION_TODAY -> {
+                            AppShortcuts.reportUsed(this@MainActivity, AppShortcuts.ACTION_TODAY)
                             locateToday()
                             currentScreenOrdinal = Screen.MAIN.ordinal
                         }
                         AppShortcuts.ACTION_ADD_COURSE -> {
+                            AppShortcuts.reportUsed(this@MainActivity, AppShortcuts.ACTION_ADD_COURSE)
                             currentScreenOrdinal = Screen.MAIN.ordinal
                             addCoursePresetDay = LocalDate.now().dayOfWeek.value
                             addCoursePresetPeriod = 0
@@ -577,7 +576,10 @@ class MainActivity : ComponentActivity() {
                                     diagnosticsExportLauncher.launch("JaySay课表-脱敏诊断-${LocalDate.now()}.txt")
                                 },
                                 onOpenHistory = { currentScreenOrdinal = Screen.HISTORY.ordinal },
-                                onOpenCalendarExceptions = { currentScreenOrdinal = Screen.CALENDAR.ordinal },
+                                onOpenCalendarExceptions = {
+                                    calendarOriginOrdinal = Screen.SETTINGS.ordinal
+                                    currentScreenOrdinal = Screen.CALENDAR.ordinal
+                                },
                                 reminderPauseStatus = ReminderSuppression.activeLabel(
                                     this@MainActivity,
                                     state.activeTableIndex,
@@ -597,26 +599,26 @@ class MainActivity : ComponentActivity() {
                                     }
                                 } else emptyList(),
                                 onRequestNotificationPermission = {
-                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
                                 },
                                 onOpenExactAlarmSettings = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                         startActivity(
                                             Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                                data = Uri.parse("package:" + packageName)
+                                                data = ("package:" + packageName).toUri()
                                             }
                                         )
                                     }
                                 },
                                 onOpenChannelSettings = {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        startActivity(
-                                            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
-                                                putExtra(Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID)
-                                                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
-                                            }
-                                        )
-                                    }
+                                    startActivity(
+                                        Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                                            putExtra(Settings.EXTRA_CHANNEL_ID, ReminderScheduler.CHANNEL_ID)
+                                            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                                        }
+                                    )
                                 },
                                 onOpenAutostartSettings = {
                                     AutostartHelper.launch(this@MainActivity)
@@ -722,7 +724,7 @@ class MainActivity : ComponentActivity() {
                             Screen.CALENDAR -> CalendarExceptionScreen(
                                 tableData = activeTable,
                                 onUpdate = { model.updateActiveTable(it, ::showSaveError) },
-                                onBack = { currentScreenOrdinal = Screen.SETTINGS.ordinal }
+                                onBack = { currentScreenOrdinal = calendarOrigin().ordinal }
                             )
 
                             Screen.COURSE_DETAIL -> selectedCourse?.let { course ->
@@ -754,6 +756,10 @@ class MainActivity : ComponentActivity() {
                                         onCourseClick = { openCourseDetail(it, Screen.MAIN) },
                                         onWeekChange = model::setWeek,
                                         onSettingsClick = { currentScreenOrdinal = Screen.SETTINGS.ordinal },
+                                        onCalendarContextClick = {
+                                            calendarOriginOrdinal = Screen.MAIN.ordinal
+                                            currentScreenOrdinal = Screen.CALENDAR.ordinal
+                                        },
                                         onTableMenuClick = { currentScreenOrdinal = Screen.TABLE_MANAGE.ordinal },
                                         onAddCourseClick = { addCoursePresetDay = 0; addCoursePresetPeriod = 0; showAddDialog = true },
                                         onAddCourseAt = { day, period ->
@@ -770,6 +776,7 @@ class MainActivity : ComponentActivity() {
                                         weekLabels = activeTable.weekLabels,
                                         reduceMotion = state.preferences.reduceMotion,
                                         customBackground = customBackground,
+                                        customBackgroundOverlayEnabled = state.preferences.customBackgroundOverlayEnabled,
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,
@@ -816,4 +823,3 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, getString(R.string.main_error_format, prefix, error.message ?: getString(R.string.main_error_unknown)), Toast.LENGTH_LONG).show()
     }
 }
-

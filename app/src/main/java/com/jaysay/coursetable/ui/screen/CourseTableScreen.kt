@@ -9,9 +9,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -36,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.CalendarViewDay
 import androidx.compose.material.icons.filled.FileOpen
@@ -43,6 +41,8 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.EditCalendar
+import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -57,12 +57,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.State
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -70,14 +66,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -85,12 +75,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.jaysay.coursetable.R
+import com.jaysay.coursetable.data.model.AcademicCalendarDayStatus
+import com.jaysay.coursetable.data.model.AcademicCalendarStatusResolver
+import com.jaysay.coursetable.data.model.AcademicCalendarWeekStatus
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseSearch
 import com.jaysay.coursetable.data.model.ScheduleDateException
@@ -102,67 +93,16 @@ import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
 import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
-import com.jaysay.coursetable.ui.theme.CourseColors
 import com.jaysay.coursetable.ui.theme.CourseSubTextColor
 import com.jaysay.coursetable.ui.theme.CourseTextColor
 import com.jaysay.coursetable.ui.theme.DarkBackground
-import com.jaysay.coursetable.ui.theme.DarkCourseColors
 import com.jaysay.coursetable.ui.theme.DarkCourseSubTextColor
 import com.jaysay.coursetable.ui.theme.DarkCourseTextColor
-import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
-import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
-import kotlinx.coroutines.delay
 import java.time.LocalDate
-import java.util.Calendar
 import kotlin.math.abs
 
-private data class Section(val name: String, val periods: List<Int>)
-
-private fun buildSections(periodTimes: List<PeriodTime>): List<Section> {
-    val total = periodTimes.size
-    if (total == 0) return emptyList()
-    val morningEnd = minOf(4, total)
-    val afternoonEnd = minOf(8, total)
-    return buildList {
-        add(Section("上午", (1..morningEnd).toList()))
-        if (afternoonEnd > morningEnd) add(Section("下午", (morningEnd + 1..afternoonEnd).toList()))
-        if (total > afternoonEnd) add(Section("晚上", (afternoonEnd + 1..total).toList()))
-    }
-}
-
-private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): Dp {
-    var offset = 0.dp
-    for (section in sections) {
-        offset += 20.dp
-        if (period in section.periods) {
-            return offset + cellHeight * (period - section.periods.first())
-        }
-        offset += cellHeight * section.periods.size
-    }
-    return offset
-}
-
-/**
- * 以 State 形式提供当前分钟数（每 30 秒刷新一次）。
- * 返回 State 而不是直接返回值，让读取 .value 的调用点各自建立订阅，
- * 避免在屏幕顶层读取导致整个课表每 30 秒重组一次。
- */
-@Composable
-private fun rememberCurrentMinute(): State<Int> {
-    fun nowMinute(): Int = Calendar.getInstance().let {
-        it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE)
-    }
-    val minuteState = remember { mutableIntStateOf(nowMinute()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(30_000)
-            minuteState.intValue = nowMinute()
-        }
-    }
-    return minuteState
-}
 
 /**
  * 今日摘要的分钟级订阅只发生在本组件作用域内：
@@ -201,6 +141,7 @@ fun CourseTableScreen(
     onCourseClick: (Course) -> Unit,
     onWeekChange: (Int) -> Unit,
     onSettingsClick: () -> Unit = {},
+    onCalendarContextClick: () -> Unit = {},
     onAddCourseClick: () -> Unit = {},
     onAddCourseAt: (dayOfWeek: Int, period: Int) -> Unit = { _, _ -> },
     onLocateToday: () -> Unit = {},
@@ -214,6 +155,7 @@ fun CourseTableScreen(
     weekLabels: Map<Int, String> = emptyMap(),
     reduceMotion: Boolean = false,
     customBackground: ImageBitmap? = null,
+    customBackgroundOverlayEnabled: Boolean = true,
     viewMode: ScheduleViewMode,
     onViewModeChange: (ScheduleViewMode) -> Unit,
     focusedDay: Int,
@@ -259,9 +201,22 @@ fun CourseTableScreen(
         ScheduleViewMode.WORK_WEEK -> 116.dp
         ScheduleViewMode.DAY -> 100.dp
     }
-    val isExcludedWeek = currentWeek in excludedWeekSet
     val weekCourses = remember(displayedCourses, currentWeek, excludedWeekSet) {
         displayedCourses.filter { currentWeek in it.weeks && currentWeek !in excludedWeekSet }
+    }
+    val weekStatus = remember(currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels) {
+        AcademicCalendarStatusResolver.week(
+            currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+        )
+    }
+    val dayStatuses = remember(currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels) {
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+        if (start == null) emptyMap() else (1..7).associateWith { day ->
+            val date = start.plusDays((currentWeek - 1L) * 7L + day - 1L)
+            AcademicCalendarStatusResolver.day(
+                date, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+            )
+        }
     }
     val colorMap = remember(courses, dark) { buildCourseColorMap(courses, dark) }
     val isTodayWeek = currentWeek == todayWeek
@@ -272,12 +227,14 @@ fun CourseTableScreen(
         Box(modifier = Modifier.fillMaxSize().background(bgColor)) {
             if (customBackground != null) {
                 CustomBackgroundImage(customBackground)
-                Box(
-                    Modifier.fillMaxSize().background(
-                        if (dark) Color.Black.copy(alpha = 0.48f)
-                        else Color.White.copy(alpha = 0.42f)
+                if (customBackgroundOverlayEnabled) {
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            if (dark) Color.Black.copy(alpha = 0.48f)
+                            else Color.White.copy(alpha = 0.42f)
+                        )
                     )
-                )
+                }
             }
             Column(
             modifier = Modifier
@@ -348,10 +305,22 @@ fun CourseTableScreen(
                                 maxLines = 1
                             )
                             Text(
-                                text = weekLabels[currentWeek]?.let {
-                                    stringResource(R.string.course_week_label_count, it, weekCourses.size)
-                                } ?: (stringResource(R.string.course_week_course_count, weekCourses.size) +
-                                    if (isTodayWeek) stringResource(R.string.course_week_today_suffix) else ""),
+                                text = when {
+                                    weekStatus.suspended && weekStatus.label != null -> stringResource(
+                                        R.string.course_week_label_suspended, weekStatus.label
+                                    )
+                                    weekStatus.suspended -> stringResource(R.string.course_calendar_context_suspended)
+                                    weekStatus.label != null -> stringResource(
+                                        R.string.course_week_label_count, weekStatus.label, weekCourses.size
+                                    )
+                                    weekStatus.dateAdjustmentCount > 0 -> stringResource(
+                                        R.string.course_week_adjustment_count,
+                                        weekCourses.size,
+                                        weekStatus.dateAdjustmentCount
+                                    )
+                                    else -> stringResource(R.string.course_week_course_count, weekCourses.size) +
+                                        if (isTodayWeek) stringResource(R.string.course_week_today_suffix) else ""
+                                },
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 10.sp,
                                 color = if (isTodayWeek) MaterialTheme.colorScheme.primary
@@ -441,6 +410,10 @@ fun CourseTableScreen(
                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
 
+            if (weekStatus.hasCalendarContext) {
+                CalendarContextStrip(weekStatus, onCalendarContextClick)
+            }
+
             if (viewMode == ScheduleViewMode.DAY) {
                 Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp, vertical = 2.dp)) {
                     for (day in 1..7) {
@@ -473,6 +446,7 @@ fun CourseTableScreen(
                 semesterStart = semesterStart,
                 isTodayWeek = isTodayWeek,
                 todayDow = todayDow,
+                dayStatuses = dayStatuses,
                 onDayClick = { day ->
                     onFocusedDayChange(day)
                     onViewModeChange(ScheduleViewMode.DAY)
@@ -487,74 +461,58 @@ fun CourseTableScreen(
                 onAddCourseClick = if (readOnlyMessage == null) onAddCourseClick else ({}),
                 readOnly = readOnlyMessage != null
             )
-        } else if (isExcludedWeek) {
-            // 校历停课周：本周无课，展示提示而非空网格
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(stringResource(R.string.course_week_suspended, currentWeek), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    stringResource(R.string.course_week_suspended_hint),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else if (displayedCourses.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(stringResource(R.string.course_search_no_match, searchQuery), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { searchQuery = "" }) { Text(stringResource(R.string.course_search_clear)) }
-            }
         } else {
             // 纵向滚动状态独立于周次：切换周次时保持当前位置不重置，
             // 离开详情页或 Activity 重建时也能恢复到原位置。
             val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
-            AnimatedContent(
-                targetState = currentWeek,
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                transitionSpec = {
-                    val enterMs = if (reduceMotion) 0 else 210
-                    val fadeMs = if (reduceMotion) 0 else 180
-                    if (targetState > initialState) {
-                        (slideInHorizontally(tween(enterMs)) { it / 3 } + fadeIn(tween(fadeMs))) togetherWith
-                            (slideOutHorizontally(tween(fadeMs)) { -it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
-                    } else {
-                        (slideInHorizontally(tween(enterMs)) { -it / 3 } + fadeIn(tween(fadeMs))) togetherWith
-                            (slideOutHorizontally(tween(fadeMs)) { it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
-                    }
-                },
-                label = "weekContent"
-            ) { displayedWeek ->
-                var dragDistance by remember(displayedWeek) { mutableFloatStateOf(0f) }
-                Column(
-                    modifier = Modifier.fillMaxSize()
-                        .pointerInput(displayedWeek, totalWeeks, swipeThresholdPx) {
-                            detectHorizontalDragGestures(
-                                onDragStart = { dragDistance = 0f },
-                                onDragCancel = { dragDistance = 0f },
-                                onDragEnd = {
-                                    when {
-                                        dragDistance <= -swipeThresholdPx && displayedWeek < totalWeeks -> onWeekChange(displayedWeek + 1)
-                                        dragDistance >= swipeThresholdPx && displayedWeek > 1 -> onWeekChange(displayedWeek - 1)
-                                    }
-                                    dragDistance = 0f
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f)
+                    .pointerInput(currentWeek, totalWeeks, swipeThresholdPx) {
+                        var dragDistance = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { dragDistance = 0f },
+                            onDragCancel = { dragDistance = 0f },
+                            onDragEnd = {
+                                when {
+                                    dragDistance <= -swipeThresholdPx && currentWeek < totalWeeks -> onWeekChange(currentWeek + 1)
+                                    dragDistance >= swipeThresholdPx && currentWeek > 1 -> onWeekChange(currentWeek - 1)
                                 }
-                            ) { change, amount ->
-                                dragDistance += amount
-                                change.consume()
+                                dragDistance = 0f
                             }
+                        ) { change, amount ->
+                            dragDistance += amount
+                            change.consume()
                         }
-                        .verticalScroll(scrollState)
-                        .testTag("schedule-scroll")
-                ) {
-                    TableGrid(
-                        courses = remember(displayedCourses, displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
+                    }
+                    .testTag("week-swipe-area")
+            ) {
+                AnimatedContent(
+                    targetState = currentWeek,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = {
+                        val enterMs = if (reduceMotion) 0 else 210
+                        val fadeMs = if (reduceMotion) 0 else 180
+                        if (targetState > initialState) {
+                            (slideInHorizontally(tween(enterMs)) { it / 3 } + fadeIn(tween(fadeMs))) togetherWith
+                                (slideOutHorizontally(tween(fadeMs)) { -it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
+                        } else {
+                            (slideInHorizontally(tween(enterMs)) { -it / 3 } + fadeIn(tween(fadeMs))) togetherWith
+                                (slideOutHorizontally(tween(fadeMs)) { it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
+                        }
+                    },
+                    label = "weekContent"
+                ) { displayedWeek ->
+                    val displayedStatus = remember(
+                        displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+                    ) {
+                        AcademicCalendarStatusResolver.week(
+                            displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+                        )
+                    }
+                    val resolvedCourses = remember(
+                        displayedCourses, displayedWeek, semesterStart, totalWeeks,
+                        excludedWeekSet, dateExceptions, searchQuery
+                    ) {
                             val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
                             if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
                                 val date = start.plusDays((displayedWeek - 1L) * 7L + dayOffset)
@@ -563,31 +521,137 @@ fun CourseTableScreen(
                                 ).filter { CourseSearch.filter(listOf(it.course), searchQuery).isNotEmpty() }
                                     .map { resolved -> resolved.course.copy(dayOfWeek = dayOffset.toInt() + 1) }
                             }
-                        },
-                        colorMap = colorMap,
-                        visibleDays = visibleDays,
-                        timeWidth = timeWidth,
-                        cellHeight = cellHeight,
-                        currentWeek = displayedWeek,
-                        onCourseClick = onCourseClick,
-                        onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
-                        periodTimes = periodTimes,
-                        dark = dark,
-                        cTextColor = cTextColor,
-                        cSubColor = cSubColor,
-                        todayWeek = todayWeek,
-                        todayDow = todayDow,
-                        viewMode = viewMode,
-                        hasCustomBackground = customBackground != null
-                    )
-                    // Lets the final period scroll clear of rounded display corners and
-                    // gesture navigation areas on compact phones.
-                    Spacer(Modifier.height(48.dp))
+                    }
+                    when {
+                        displayedStatus.suspended && displayedStatus.makeupCount == 0 -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(24.dp).testTag("suspended-week-content"),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.Outlined.EventBusy,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(38.dp)
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                Text(
+                                    displayedStatus.label ?: stringResource(
+                                        R.string.course_week_suspended, displayedWeek
+                                    ),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    stringResource(R.string.course_week_suspended_hint),
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        displayedCourses.isEmpty() -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    stringResource(R.string.course_search_no_match, searchQuery),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                TextButton(onClick = { searchQuery = "" }) {
+                                    Text(stringResource(R.string.course_search_clear))
+                                }
+                            }
+                        }
+                        else -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize().verticalScroll(scrollState)
+                                    .testTag("schedule-scroll")
+                            ) {
+                                TableGrid(
+                                    courses = resolvedCourses,
+                                    colorMap = colorMap,
+                                    visibleDays = visibleDays,
+                                    timeWidth = timeWidth,
+                                    cellHeight = cellHeight,
+                                    currentWeek = displayedWeek,
+                                    onCourseClick = onCourseClick,
+                                    onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
+                                    periodTimes = periodTimes,
+                                    dark = dark,
+                                    cTextColor = cTextColor,
+                                    cSubColor = cSubColor,
+                                    todayWeek = todayWeek,
+                                    todayDow = todayDow,
+                                    viewMode = viewMode,
+                                    hasCustomBackground = customBackground != null
+                                )
+                                // Lets the final period scroll clear of rounded display corners and
+                                // gesture navigation areas on compact phones.
+                                Spacer(Modifier.height(48.dp))
+                            }
+                        }
+                    }
                 }
             }
         }
         }
     }
+    }
+}
+
+@Composable
+private fun CalendarContextStrip(
+    status: AcademicCalendarWeekStatus,
+    onClick: () -> Unit
+) {
+    val details = buildList {
+        if (status.suspended) add(stringResource(R.string.course_calendar_detail_suspended))
+        if (status.dayOffCount > 0) add(stringResource(R.string.course_calendar_detail_day_off, status.dayOffCount))
+        if (status.cancelledCount > 0) add(stringResource(R.string.course_calendar_detail_cancelled, status.cancelledCount))
+        if (status.makeupCount > 0) add(stringResource(R.string.course_calendar_detail_makeup, status.makeupCount))
+    }
+    val title = status.label ?: if (status.suspended) {
+        stringResource(R.string.course_calendar_context_suspended)
+    } else {
+        stringResource(R.string.course_calendar_context_default)
+    }
+    val icon = when {
+        status.suspended -> Icons.Outlined.EventBusy
+        status.label != null -> Icons.AutoMirrored.Outlined.Label
+        else -> Icons.Outlined.EditCalendar
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+            .testTag("calendar-context-strip")
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+        border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(19.dp))
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                if (details.isNotEmpty()) {
+                    Text(
+                        details.joinToString(" · "),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontSize = 10.sp,
+                        maxLines = 1
+                    )
+                }
+            }
+            Icon(
+                Icons.Outlined.ChevronRight,
+                stringResource(R.string.course_calendar_context_open),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
@@ -599,6 +663,7 @@ private fun DayHeader(
     semesterStart: String,
     isTodayWeek: Boolean,
     todayDow: Int,
+    dayStatuses: Map<Int, AcademicCalendarDayStatus>,
     onDayClick: (Int) -> Unit
 ) {
     Row(modifier = Modifier.fillMaxWidth().height(48.dp)) {
@@ -608,11 +673,15 @@ private fun DayHeader(
         visibleDays.forEach { day ->
             key(day) {
                 val isToday = isTodayWeek && day == todayDow
-                val dayHeaderDescription = stringResource(
+                val dayStatus = dayStatuses[day]
+                val baseDescription = stringResource(
                     R.string.course_day_header_desc,
                     TimeUtils.getDayName(day),
                     TimeUtils.refDate(currentWeek, day, semesterStart)
                 )
+                val dayHeaderDescription = if (dayStatus?.hasDateAdjustment == true) {
+                    stringResource(R.string.course_day_header_adjustment_desc, baseDescription)
+                } else baseDescription
                 Box(
                     modifier = Modifier.weight(1f).fillMaxHeight()
                         .background(if (isToday) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent)
@@ -628,12 +697,21 @@ private fun DayHeader(
                             color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             lineHeight = 14.sp
                         )
-                        Text(
-                            TimeUtils.refDate(currentWeek, day, semesterStart),
-                            fontSize = 10.sp,
-                            color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 12.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                TimeUtils.refDate(currentWeek, day, semesterStart),
+                                fontSize = 10.sp,
+                                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 12.sp
+                            )
+                            if (dayStatus?.hasDateAdjustment == true) {
+                                Spacer(Modifier.width(3.dp))
+                                Box(
+                                    Modifier.size(5.dp).clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.tertiary)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -707,387 +785,6 @@ private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier
             Icon(Icons.Default.AddCircleOutline, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha))
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.course_empty_manual_button), maxLines = 1, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha))
-        }
-    }
-}
-
-@Composable
-private fun TableGrid(
-    courses: List<Course>,
-    colorMap: Map<String, Color>,
-    visibleDays: List<Int>,
-    timeWidth: Dp,
-    cellHeight: Dp,
-    currentWeek: Int,
-    onCourseClick: (Course) -> Unit,
-    onEmptyCellClick: (Int, Int) -> Unit,
-    periodTimes: List<PeriodTime>,
-    dark: Boolean,
-    cTextColor: Color,
-    cSubColor: Color,
-    todayWeek: Int,
-    todayDow: Int,
-    viewMode: ScheduleViewMode,
-    hasCustomBackground: Boolean
-) {
-    val sections = remember(periodTimes) { buildSections(periodTimes) }
-    // 只持有 State 引用而不读取 .value，本层不会随分钟刷新重组；
-    // 订阅下移到时间线覆盖层与课程卡片内部。
-    val currentMinuteState = rememberCurrentMinute()
-    val gridBackground = if (hasCustomBackground) {
-        MaterialTheme.colorScheme.background.copy(alpha = if (dark) 0.38f else 0.30f)
-    } else if (dark) DarkBackground else MaterialTheme.colorScheme.background
-    val sectionBackground = if (dark) Color(0xFF17201D) else Color(0xFFF3F7F6)
-    val sectionText = if (dark) DarkPrimaryDark.copy(alpha = 0.72f) else PrimaryDark.copy(alpha = 0.72f)
-    val isTodayVisible = currentWeek == todayWeek
-    val totalHeight = remember(periodTimes, cellHeight) { cellHeight * periodTimes.size + 20.dp * sections.size }
-    val byDay = remember(courses) {
-        (1..7).associateWith { day -> courses.filter { it.dayOfWeek == day }.sortedBy { it.startPeriod } }
-    }
-
-    Row(modifier = Modifier.fillMaxWidth().background(gridBackground)) {
-        // 在组合上下文取色，供 Canvas 绘制闭包使用（DrawScope 不能访问 @Composable 属性）。
-        val gridPrimary = MaterialTheme.colorScheme.primary
-        val gridOutline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-        val todayHighlight = gridPrimary.copy(alpha = if (dark) 0.08f else 0.045f)
-        val daySectionBg = sectionBackground.copy(alpha = 0.82f)
-        Column(modifier = Modifier.width(timeWidth)) {
-            sections.forEach { section ->
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(20.dp).background(sectionBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(section.name, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = sectionText)
-                }
-                section.periods.forEach periodLoop@{ period ->
-                    val periodTime = periodTimes.getOrNull(period - 1) ?: return@periodLoop
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(cellHeight)
-                            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxHeight().padding(vertical = 7.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(24.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (dark) 0.82f else 0.66f)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        period.toString(),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    periodTime.start,
-                                    fontSize = 8.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 10.sp
-                                )
-                                Box(
-                                    Modifier.width(12.dp).height(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f))
-                                )
-                                Text(
-                                    periodTime.end,
-                                    fontSize = 8.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 10.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        visibleDays.forEach { day ->
-            key(day) {
-                val dayCourses = byDay[day].orEmpty()
-                val isTodayColumn = isTodayVisible && day == todayDow
-                val occupiedPeriods = remember(dayCourses) {
-                    dayCourses.flatMap { it.startPeriod..it.endPeriod }.toSet()
-                }
-                Box(modifier = Modifier.weight(1f).height(totalHeight)) {
-                    // 背景高亮、分区标题条、网格线与当前时间线一次绘制，
-                    // 避免为每个节次格创建组合节点；时间线只重绘不重组。
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        if (isTodayColumn) {
-                            drawRect(todayHighlight)
-                        }
-                        sections.forEach { section ->
-                            val y = section.periods.firstOrNull()?.let {
-                                periodOffset(it, sections, cellHeight) - 20.dp
-                            } ?: 0.dp
-                            drawRect(
-                                daySectionBg,
-                                topLeft = Offset(0f, y.toPx()),
-                                size = Size(size.width, 20.dp.toPx())
-                            )
-                        }
-                        val stroke = 0.5.dp.toPx()
-                        periodTimes.indices.forEach { index ->
-                            val y = periodOffset(index + 1, sections, cellHeight).toPx()
-                            drawLine(gridOutline, Offset(0f, y), Offset(size.width, y), strokeWidth = stroke)
-                        }
-                        drawLine(
-                            gridOutline,
-                            Offset(0f, size.height - stroke / 2f),
-                            Offset(size.width, size.height - stroke / 2f),
-                            strokeWidth = stroke
-                        )
-                    }
-
-                    // 网格视觉元素由 Canvas 批量绘制；空白节次仍保留独立可点击语义节点，
-                    // 确保 TalkBack 用户能定位到具体星期和节次，而不是只能读到整列。
-                    for (index in periodTimes.indices) {
-                        val period = index + 1
-                        if (period !in occupiedPeriods) {
-                            val emptyCellDescription = stringResource(
-                                R.string.course_empty_cell_desc,
-                                TimeUtils.getDayName(day),
-                                period
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(cellHeight)
-                                    .offset(y = periodOffset(period, sections, cellHeight))
-                                    .clickable { onEmptyCellClick(day, period) }
-                                    .semantics { contentDescription = emptyCellDescription }
-                            )
-                        }
-                    }
-
-                    dayCourses.forEach { course ->
-                        val start = course.startPeriod.coerceIn(1, periodTimes.size.coerceAtLeast(1))
-                        val end = course.endPeriod.coerceIn(start, periodTimes.size.coerceAtLeast(start))
-                        val y = periodOffset(start, sections, cellHeight)
-                        val bottom = periodOffset(end, sections, cellHeight) + cellHeight
-                        val palette = if (dark) DarkCourseColors else CourseColors
-                        val cardColor = when {
-                            course.customColor != null && course.customColor in palette.indices -> palette[course.customColor]
-                            course.customColor != null -> Color(course.customColor)
-                            else -> colorMap[course.courseName] ?: palette.first()
-                        }
-                        val accent = lerp(cardColor, if (dark) Color.White else Color.Black, if (dark) 0.28f else 0.22f)
-                        val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
-                        val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
-                        CourseCard(
-                            course = course,
-                            modifier = Modifier.fillMaxWidth().height(bottom - y).offset(y = y).padding(1.dp),
-                            background = cardColor,
-                            accent = accent,
-                            textColor = cTextColor,
-                            subTextColor = cSubColor,
-                            isCurrentProvider = {
-                                // 在卡片自身作用域读取分钟状态：每 30 秒只重组发生状态变化的卡片。
-                                isTodayColumn && startMinute != null && endMinute != null &&
-                                    currentMinuteState.value >= startMinute &&
-                                    currentMinuteState.value < endMinute
-                            },
-                            viewMode = viewMode,
-                            hasCustomBackground = hasCustomBackground,
-                            onClick = { onCourseClick(course) }
-                        )
-                    }
-
-                    // 当前时间线必须在课程卡片之后绘制，否则会被卡片完全遮挡。
-                    if (isTodayColumn) {
-                        CurrentTimeLineOverlay(
-                            currentMinuteState = currentMinuteState,
-                            periodTimes = periodTimes,
-                            sections = sections,
-                            cellHeight = cellHeight,
-                            dark = dark
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 当前时间线覆盖层：在此组件作用域读取分钟状态，
- * 每 30 秒只重组并重绘这一条线，不带动网格与卡片。
- */
-@Composable
-private fun CurrentTimeLineOverlay(
-    currentMinuteState: State<Int>,
-    periodTimes: List<PeriodTime>,
-    sections: List<Section>,
-    cellHeight: Dp,
-    dark: Boolean
-) {
-    val currentMinute = currentMinuteState.value
-    val lineColor = MaterialTheme.colorScheme.error
-    Canvas(modifier = Modifier.fillMaxSize().zIndex(3f)) {
-        val activeIndex = periodTimes.indexOfFirst { period ->
-            val start = TimeUtils.parseMinuteOfDay(period.start)
-            val end = TimeUtils.parseMinuteOfDay(period.end)
-            start != null && end != null && currentMinute >= start && currentMinute < end
-        }
-        if (activeIndex >= 0) {
-            val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
-            val end = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].end) ?: currentMinute + 1
-            val fraction = ((currentMinute - start).toFloat() /
-                (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
-            val lineY = (periodOffset(activeIndex + 1, sections, cellHeight) +
-                cellHeight * fraction).toPx()
-            val halo = if (dark) Color.Black.copy(alpha = 0.78f)
-                else Color.White.copy(alpha = 0.9f)
-            drawCircle(halo, radius = 6.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
-            drawLine(
-                halo,
-                Offset(10.dp.toPx(), lineY),
-                Offset(size.width, lineY),
-                strokeWidth = 4.dp.toPx()
-            )
-            drawCircle(lineColor, radius = 4.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
-            drawLine(
-                lineColor,
-                Offset(10.dp.toPx(), lineY),
-                Offset(size.width, lineY),
-                strokeWidth = 2.dp.toPx()
-            )
-        }
-    }
-}
-
-@Composable
-private fun CourseCard(
-    course: Course,
-    modifier: Modifier,
-    background: Color,
-    accent: Color,
-    textColor: Color,
-    subTextColor: Color,
-    isCurrentProvider: () -> Boolean,
-    viewMode: ScheduleViewMode,
-    hasCustomBackground: Boolean,
-    onClick: () -> Unit
-) {
-    // 在卡片作用域内读取分钟状态：只有状态发生变化的卡片才随分钟刷新重组。
-    val isCurrent = isCurrentProvider()
-    val shape = RoundedCornerShape(if (viewMode == ScheduleViewMode.WEEK) 14.dp else 16.dp)
-    val compactWeekCard = viewMode == ScheduleViewMode.WEEK && course.periodSpan == 1
-    val textLoad = course.courseName.length + course.teacher.length + course.classroom.length
-    val titleSize = when (viewMode) {
-        ScheduleViewMode.WEEK -> when {
-            textLoad > 34 -> 8.sp
-            compactWeekCard -> 9.sp
-            else -> 10.5.sp
-        }
-        ScheduleViewMode.WORK_WEEK -> if (textLoad > 30) 11.5.sp else 13.sp
-        ScheduleViewMode.DAY -> 16.sp
-    }
-    val subSize = when (viewMode) {
-        ScheduleViewMode.WEEK -> when {
-            textLoad > 34 -> 7.sp
-            textLoad > 24 -> 7.5.sp
-            else -> 8.25.sp
-        }
-        ScheduleViewMode.WORK_WEEK -> if (textLoad > 30) 9.sp else 10.5.sp
-        ScheduleViewMode.DAY -> 12.sp
-    }
-    val titleLines = when (viewMode) {
-        ScheduleViewMode.WEEK -> if (compactWeekCard) 3 else (course.periodSpan + 2).coerceAtMost(6)
-        ScheduleViewMode.WORK_WEEK -> if (course.periodSpan == 1) 3 else (course.periodSpan + 2).coerceAtMost(6)
-        ScheduleViewMode.DAY -> 3
-    }
-    val classroomLines = when (viewMode) {
-        ScheduleViewMode.WEEK -> if (compactWeekCard) 5 else (course.periodSpan + 3).coerceAtMost(8)
-        ScheduleViewMode.WORK_WEEK -> if (course.periodSpan == 1) 6 else 7
-        ScheduleViewMode.DAY -> 5
-    }
-    val teacherLines = when (viewMode) {
-        ScheduleViewMode.WEEK -> 2
-        ScheduleViewMode.WORK_WEEK -> 2
-        ScheduleViewMode.DAY -> 3
-    }
-    val cardOverflow = TextOverflow.Clip
-    val description = listOf(course.courseName, course.teacher, course.classroom)
-        .filter { it.isNotBlank() }
-        .plus(stringResource(R.string.course_card_view_details))
-        .joinToString("，")
-    val isDarkCourseCard = background.luminance() < 0.35f
-    val highlight = if (isDarkCourseCard) Color.White.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.3f)
-    val backgroundAlpha = when {
-        !hasCustomBackground && isDarkCourseCard -> 0.96f
-        !hasCustomBackground -> 0.82f
-        isDarkCourseCard -> 0.86f
-        else -> 0.74f
-    }
-    Box(
-        modifier = modifier
-            .shadow(if (isCurrent) 4.dp else 2.dp, shape, clip = false)
-            .clip(shape)
-            .background(background.copy(alpha = backgroundAlpha))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(highlight, Color.Transparent),
-                    start = Offset.Zero,
-                    end = Offset(0f, 220f)
-                ),
-                shape
-            )
-            .border(
-                if (isCurrent) 1.8.dp else 0.65.dp,
-                if (isCurrent) MaterialTheme.colorScheme.primary else accent.copy(alpha = 0.42f),
-                shape
-            )
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description }
-            .padding(
-                start = if (viewMode == ScheduleViewMode.WEEK) 4.dp else 7.dp,
-                end = if (viewMode == ScheduleViewMode.WEEK) 3.dp else 6.dp,
-                top = 5.dp,
-                bottom = 4.dp
-            ),
-        contentAlignment = Alignment.TopStart
-    ) {
-        Column {
-            Text(
-                course.courseName,
-                fontWeight = FontWeight.Bold,
-                fontSize = titleSize,
-                maxLines = titleLines,
-                softWrap = true,
-                overflow = cardOverflow,
-                color = textColor,
-                lineHeight = titleSize * 1.24f
-            )
-            if (course.teacher.isNotBlank()) {
-                Text(
-                    course.teacher,
-                    fontSize = subSize,
-                    maxLines = teacherLines,
-                    softWrap = true,
-                    overflow = cardOverflow,
-                    color = subTextColor,
-                    lineHeight = subSize * 1.3f
-                )
-            }
-            if (course.classroom.isNotBlank()) {
-                Text(
-                    course.classroom,
-                    fontSize = subSize,
-                    maxLines = classroomLines,
-                    softWrap = true,
-                    overflow = cardOverflow,
-                    color = subTextColor,
-                    lineHeight = subSize * 1.3f
-                )
-            }
         }
     }
 }

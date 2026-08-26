@@ -6,8 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -164,7 +162,9 @@ fun SettingsScreen(
                 ) {
                     if (customBackground != null) {
                         CustomBackgroundImage(customBackground)
-                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
+                        if (preferences.customBackgroundOverlayEnabled) {
+                            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
+                        }
                     } else {
                         Icon(
                             Icons.Outlined.Wallpaper,
@@ -174,7 +174,13 @@ fun SettingsScreen(
                         )
                     }
                     Column(
-                        modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                        modifier = Modifier.align(Alignment.BottomStart)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(
+                                if (customBackground != null) Color.Black.copy(alpha = 0.52f)
+                                else Color.Transparent
+                            )
+                            .padding(10.dp)
                     ) {
                         Text(
                             if (backgroundActive) stringResource(R.string.settings_background_custom_enabled) else stringResource(R.string.settings_background_default),
@@ -210,6 +216,13 @@ fun SettingsScreen(
                         }
                     }
                 }
+                PreferenceSwitchRow(
+                    title = stringResource(R.string.settings_background_overlay),
+                    subtitle = stringResource(R.string.settings_background_overlay_subtitle),
+                    checked = preferences.customBackgroundOverlayEnabled,
+                    onCheckedChange = { save(preferences.copy(customBackgroundOverlayEnabled = it)) },
+                    switchTestTag = "background-readability-overlay-switch"
+                )
                 Text(
                     stringResource(R.string.settings_background_privacy),
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
@@ -454,81 +467,16 @@ fun SettingsScreen(
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
-                // ===== 停课周（校历）=====
-                var showExcludedWeeksDialog by remember { mutableStateOf(false) }
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .testTag("excluded-weeks-setting")
-                        .clickable(enabled = readOnlyMessage == null) { showExcludedWeeksDialog = true }
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.EventBusy, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_excluded_weeks), fontSize = 15.sp)
-                        Text(
-                            if (table.excludedWeeks.isEmpty()) stringResource(R.string.settings_excluded_weeks_unset)
-                            else stringResource(R.string.settings_excluded_weeks_value, TimeUtils.formatWeeks(table.excludedWeeks)),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
-                }
-                if (showExcludedWeeksDialog) {
-                    var selected by remember(table.excludedWeeks) {
-                        mutableStateOf(table.excludedWeeks.toSet())
-                    }
-                    AlertDialog(
-                        onDismissRequest = { showExcludedWeeksDialog = false },
-                        title = { Text(stringResource(R.string.settings_excluded_weeks_dialog_title)) },
-                        text = {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    stringResource(R.string.settings_excluded_weeks_hint),
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = 360.dp)
-                                        .testTag("excluded-weeks-list")
-                                ) {
-                                    items((1..totalWeeks).toList(), key = { it }) { week ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().clickable {
-                                                selected = if (week in selected) selected - week else selected + week
-                                            }.padding(vertical = 2.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Checkbox(checked = week in selected, onCheckedChange = {
-                                                selected = if (week in selected) selected - week else selected + week
-                                            })
-                                            Text(stringResource(R.string.settings_week_number, week), fontSize = 14.sp)
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                saveTable(table.copy(excludedWeeks = selected.sorted()))
-                                showExcludedWeeksDialog = false
-                            }) { Text(stringResource(R.string.settings_confirm)) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showExcludedWeeksDialog = false }) { Text(stringResource(R.string.settings_cancel)) }
-                        }
-                    )
-                }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 SettingsActionRow(
-                    icon = Icons.Outlined.EditCalendar,
+                    modifier = Modifier.testTag("excluded-weeks-setting"),
+                    icon = Icons.Outlined.CalendarMonth,
                     title = stringResource(R.string.settings_calendar_exceptions),
-                    subtitle = stringResource(R.string.settings_calendar_exceptions_subtitle),
+                    subtitle = stringResource(
+                        R.string.settings_calendar_exceptions_subtitle,
+                        table.excludedWeeks.size,
+                        table.weekLabels.size,
+                        table.dateExceptions.size
+                    ),
                     enabled = readOnlyMessage == null,
                     onClick = onOpenCalendarExceptions
                 )
@@ -849,7 +797,8 @@ private fun PreferenceSwitchRow(
     title: String,
     subtitle: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    switchTestTag: String? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
@@ -860,7 +809,11 @@ private fun PreferenceSwitchRow(
             Text(title, fontSize = 14.sp)
             Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = if (switchTestTag == null) Modifier else Modifier.testTag(switchTestTag)
+        )
     }
 }
 
@@ -869,11 +822,12 @@ private fun SettingsActionRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
+    modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
+        modifier = modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

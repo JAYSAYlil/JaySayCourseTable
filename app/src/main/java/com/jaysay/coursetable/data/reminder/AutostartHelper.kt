@@ -3,9 +3,9 @@ package com.jaysay.coursetable.data.reminder
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.net.toUri
 
 /**
  * 引导用户前往系统设置开启应用“后台活动”（部分厂商称自启动）。
@@ -27,7 +27,7 @@ object AutostartHelper {
     fun launchAppDetails(context: Context): Boolean = runCatching {
         context.startActivity(
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:" + context.packageName)
+                data = ("package:" + context.packageName).toUri()
             }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
         true
@@ -67,8 +67,7 @@ object AutostartHelper {
 
     private fun isMiui(): Boolean =
         Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) ||
-            Build.MANUFACTURER.equals("Redmi", ignoreCase = true) ||
-            hasSystemFeature("miui") || hasSystemFeature("miui.system")
+            Build.MANUFACTURER.equals("Redmi", ignoreCase = true)
 
     private fun isEmui(): Boolean =
         Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true) ||
@@ -86,9 +85,4 @@ object AutostartHelper {
     private fun isSamsung(): Boolean =
         Build.MANUFACTURER.equals("samsung", ignoreCase = true)
 
-    private fun hasSystemFeature(name: String): Boolean = runCatching {
-        Class.forName("android.os.SystemProperties")
-            .getMethod("get", String::class.java)
-            .invoke(null, name) as String
-    }.getOrNull()?.isNotBlank() == true
 }

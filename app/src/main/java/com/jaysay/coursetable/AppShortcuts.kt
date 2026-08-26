@@ -19,6 +19,16 @@ object AppShortcuts {
         )
     }
 
+    /** 让桌面启动器按真实使用频率排序快捷方式，不记录任何课程信息。 */
+    fun reportUsed(context: Context, action: String) {
+        val shortcutId = when (action) {
+            ACTION_TODAY -> "today"
+            ACTION_ADD_COURSE -> "add_course"
+            else -> return
+        }
+        context.getSystemService(ShortcutManager::class.java).reportShortcutUsed(shortcutId)
+    }
+
     private fun shortcut(context: Context, id: String, label: String, action: String, icon: Int): ShortcutInfo =
         ShortcutInfo.Builder(context, id)
             .setShortLabel(label)

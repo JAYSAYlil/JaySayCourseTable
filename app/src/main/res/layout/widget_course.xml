@@ -25,6 +25,8 @@
             android:paddingTop="3dp"
             android:paddingEnd="8dp"
             android:paddingBottom="3dp"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:textColor="@color/widget_status_text"
             android:textSize="11sp"
             android:textStyle="bold"
