@@ -28,12 +28,15 @@ class ReminderRestoreReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // 同上：系统广播路径不允许未预期异常崩溃进程。
+                runCatching {
                 val appContext = context.applicationContext
                 val preferences = runCatching { PreferencesManager(appContext).load() }
                     .getOrDefault(AppPreferences())
                 val tables = runCatching { CourseRepository(appContext).loadAllTables() }
                     .getOrNull() ?: return@launch
                 ReminderScheduler.rescheduleAll(appContext, tables, preferences)
+                }
             } finally {
                 pendingResult.finish()
             }

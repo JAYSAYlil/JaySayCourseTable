@@ -34,7 +34,8 @@ class CourseWidgetProvider : AppWidgetProvider() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                updateWidgets(context, appWidgetManager, appWidgetIds)
+                // 同上：小组件刷新路径不允许未预期异常崩溃进程。
+                runCatching { updateWidgets(context, appWidgetManager, appWidgetIds) }
             } finally {
                 pendingResult.finish()
             }

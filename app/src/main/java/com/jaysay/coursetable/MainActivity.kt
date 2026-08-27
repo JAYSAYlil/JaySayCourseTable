@@ -183,14 +183,16 @@ class MainActivity : ComponentActivity() {
             var selectedCourse by remember { mutableStateOf<Course?>(null) }
             var showAddDialog by rememberSaveable { mutableStateOf(false) }
             var showEditDialog by rememberSaveable { mutableStateOf(false) }
-            var editingCourse by remember { mutableStateOf<Course?>(null) }
+            // 编辑目标只按 seriesKey 持久化；课程本体从当前课表恢复，旋转后弹窗不再出现“开关在、内容丢”。
+            var editingSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
             // 新增弹窗的星期/节次预设；0 表示未预设（day 有效范围 1-7，period 1-30）
             var addCoursePresetDay by rememberSaveable { mutableIntStateOf(0) }
             var addCoursePresetPeriod by rememberSaveable { mutableIntStateOf(0) }
-            var pendingDetailDelete by remember { mutableStateOf<Course?>(null) }
+            // 详情删除确认同理只持久化 seriesKey，课程对象在数据就绪后按系列还原。
+            var pendingDeleteSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
             var pendingConflictChange by remember { mutableStateOf<PendingConflictChange?>(null) }
             var showPasteImportDialog by rememberSaveable { mutableStateOf(false) }
-            var showEncryptedExportDialog by remember { mutableStateOf(false) }
+            var showEncryptedExportDialog by rememberSaveable { mutableStateOf(false) }
             var scheduleFocusedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
@@ -239,6 +241,18 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val editTarget = if (showEditDialog) {
+                    editingSeriesKey?.let { key -> state.courses.firstOrNull { it.seriesKey == key } }
+                } else null
+
+                // 持久化的编辑目标在数据变化后已不存在（如恢复备份、删除课程）时，自动收起编辑弹窗。
+                LaunchedEffect(showEditDialog, editingSeriesKey, state.courses) {
+                    if (showEditDialog && editingSeriesKey != null && editTarget == null) {
+                        showEditDialog = false
+                        editingSeriesKey = null
+                    }
+                }
+
                 LaunchedEffect(state.isLoading, state.activeTableIndex, requestedCourseSeries.value) {
                     val requestedSeries = requestedCourseSeries.value ?: return@LaunchedEffect
                     if (state.isLoading) return@LaunchedEffect
@@ -254,15 +268,46 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // 课表或偏好变化后重新调度上课提醒并刷新桌面小组件（覆盖式，频率低）。
+                // 课表或提醒相关偏好变化后重新调度上课提醒并刷新桌面小组件（覆盖式，频率低）。
+                // 只监听影响闹钟排布的字段，切主题、换背景等纯外观改动不再触发整轮取消重建。
                 val appContext = LocalContext.current.applicationContext
-                LaunchedEffect(state.isLoading, state.tables, state.preferences) {
+                LaunchedEffect(
+                    state.isLoading,
+                    state.tables,
+                    state.preferences.activeTableIndex,
+                    state.preferences.reminderEnabled,
+                    state.preferences.reminderMinutes
+                ) {
                     if (!state.isLoading) {
                         withContext(Dispatchers.IO) {
                             ReminderScheduler.rescheduleAll(appContext, state.tables, state.preferences)
                         }
                         CourseWidgetProvider.requestUpdate(appContext)
                     }
+                }
+
+                // 提醒暂停状态与权限检查涉及 SharedPreferences 读取，按触发时机缓存而非每次重组都读盘。
+                val reminderPauseStatus = remember(
+                    reminderStatusTick.intValue,
+                    state.activeTableIndex,
+                    state.currentWeek
+                ) {
+                    ReminderSuppression.activeLabel(
+                        this@MainActivity,
+                        state.activeTableIndex,
+                        state.currentWeek,
+                        LocalDate.now()
+                    )
+                }
+                val reminderBlockers = if (state.preferences.reminderEnabled) {
+                    remember(reminderStatusTick.intValue) {
+                        ReminderPermissions.blockers(this@MainActivity)
+                    }
+                } else emptyList()
+                val widgetPresent = remember(reminderStatusTick.intValue) {
+                    AppWidgetManager.getInstance(this@MainActivity)
+                        .getAppWidgetIds(ComponentName(this@MainActivity, CourseWidgetProvider::class.java))
+                        .isNotEmpty()
                 }
 
                 val stagedImport = model.stagedCourseImport
@@ -331,7 +376,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                pendingDetailDelete?.let { deleting ->
+                pendingDeleteSeriesKey?.let { deletingKey ->
+                    state.courses.firstOrNull { it.seriesKey == deletingKey }?.let { deleting ->
                     DetailDeleteConfirmDialog(
                         courseName = deleting.courseName,
                         week = state.currentWeek,
@@ -340,7 +386,7 @@ class MainActivity : ComponentActivity() {
                             val week = state.currentWeek
                             val seriesKey = deleting.seriesKey
                             val after = CourseSeriesOperations.deleteWeek(previous, seriesKey, week)
-                            pendingDetailDelete = null
+                            pendingDeleteSeriesKey = null
                             model.updateCourses(
                                 transform = { courses -> CourseSeriesOperations.deleteWeek(courses, seriesKey, week) },
                                 onComplete = {
@@ -353,8 +399,9 @@ class MainActivity : ComponentActivity() {
                                 onError = ::showSaveError
                             )
                         },
-                        onDismiss = { pendingDetailDelete = null }
+                        onDismiss = { pendingDeleteSeriesKey = null }
                     )
+                }
                 }
 
                 if (showEncryptedExportDialog) {
@@ -395,8 +442,8 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                if (showEditDialog && editingCourse != null) {
-                    val selected = editingCourse!!
+                if (showEditDialog && editTarget != null) {
+                    val selected = editTarget
                     val oldSeriesKey = selected.seriesKey
                     val editorCourse = selected.copy(
                         weeks = state.courses.filter { it.seriesKey == oldSeriesKey }
@@ -426,7 +473,7 @@ class MainActivity : ComponentActivity() {
                                         CourseSeriesOperations.replaceWeek(courses, oldSeriesKey, week, candidate)
                                     }
                                 }, onComplete = {
-                                    showEditDialog = false; editingCourse = null
+                                    showEditDialog = false; editingSeriesKey = null
                                 }, onError = ::showSaveError)
                             }
                             runAfterConflictCheck(candidate, comparisonCourses, saveAction)
@@ -447,7 +494,7 @@ class MainActivity : ComponentActivity() {
                                     CourseSeriesOperations.deleteWeek(courses, oldSeriesKey, week)
                                 }
                             }, onComplete = {
-                                showEditDialog = false; editingCourse = null
+                                showEditDialog = false; editingSeriesKey = null
                                 if (currentScreen() == Screen.COURSE_DETAIL) closeCourseDetail()
                                 offerUndo(
                                     CourseSeriesUndo.capture(previous, after, oldSeriesKey),
@@ -456,7 +503,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }, onError = ::showSaveError)
                         },
-                        onDismiss = { showEditDialog = false; editingCourse = null })
+                        onDismiss = { showEditDialog = false; editingSeriesKey = null })
                 }
 
                 if (showAddDialog) {
@@ -587,12 +634,7 @@ class MainActivity : ComponentActivity() {
                                     calendarOriginOrdinal = Screen.SETTINGS.ordinal
                                     currentScreenOrdinal = Screen.CALENDAR.ordinal
                                 },
-                                reminderPauseStatus = ReminderSuppression.activeLabel(
-                                    this@MainActivity,
-                                    state.activeTableIndex,
-                                    state.currentWeek,
-                                    LocalDate.now()
-                                ),
+                                reminderPauseStatus = reminderPauseStatus,
                                 onClearReminderPause = {
                                     ReminderSuppression.clear(this@MainActivity)
                                     coroutineScope.launch(Dispatchers.IO) {
@@ -600,11 +642,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Toast.makeText(this@MainActivity, getString(R.string.main_toast_reminder_pause_cleared), Toast.LENGTH_SHORT).show()
                                 },
-                                reminderBlockers = if (state.preferences.reminderEnabled) {
-                                    remember(reminderStatusTick.intValue) {
-                                        ReminderPermissions.blockers(this@MainActivity)
-                                    }
-                                } else emptyList(),
+                                reminderBlockers = reminderBlockers,
                                 onRequestNotificationPermission = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -630,15 +668,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenAutostartSettings = {
                                     AutostartHelper.launch(this@MainActivity)
                                 },
-                                widgetPresent = remember(reminderStatusTick.intValue) {
-                                    AppWidgetManager.getInstance(this@MainActivity)
-                                        .getAppWidgetIds(
-                                            ComponentName(
-                                                this@MainActivity,
-                                                CourseWidgetProvider::class.java
-                                            )
-                                        ).isNotEmpty()
-                                },
+                                widgetPresent = widgetPresent,
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
                                 onBack = navigateBack
@@ -740,10 +770,10 @@ class MainActivity : ComponentActivity() {
                                     allCourses = state.courses,
                                     onClose = closeCourseDetail,
                                     onEdit = { editing ->
-                                        editingCourse = editing
+                                        editingSeriesKey = editing.seriesKey
                                         showEditDialog = true
                                     },
-                                    onDelete = { pendingDetailDelete = course }
+                                    onDelete = { pendingDeleteSeriesKey = course.seriesKey }
                                 )
                             }
 

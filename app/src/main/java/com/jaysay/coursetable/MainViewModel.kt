@@ -99,12 +99,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stageCourseImport(result: ExcelParser.ParseResult) {
         stagedCourseImport = result
-        viewModelScope.launch(Dispatchers.IO) { runCatching { importDraftStore.save(result) } }
+        // 草稿写盘失败意味着进程被杀后导入内容无法恢复，至少要留下可排查的日志。
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { importDraftStore.save(result) }
+                .onFailure { android.util.Log.w(TAG, "导入草稿暂存失败", it) }
+        }
     }
 
     fun clearStagedCourseImport() {
         stagedCourseImport = null
-        viewModelScope.launch(Dispatchers.IO) { runCatching { importDraftStore.clear() } }
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { importDraftStore.clear() }
+                .onFailure { android.util.Log.w(TAG, "导入草稿清理失败；已取消的导入可能在下次启动时重新弹出", it) }
+        }
     }
 
     fun locateToday() {
@@ -352,5 +359,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 block()
             }
         }.onFailure(onError)
+    }
+
+    private companion object {
+        const val TAG = "MainViewModel"
     }
 }

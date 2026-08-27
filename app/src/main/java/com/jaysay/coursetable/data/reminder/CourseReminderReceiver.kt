@@ -30,7 +30,9 @@ class CourseReminderReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                deliver(context.applicationContext, intent)
+                // runCatching 兜底：提醒触发路径上的任何未预期异常（如偏好写入失败）
+                // 不允许直接击穿默认异常处理器导致应用崩溃。
+                runCatching { deliver(context.applicationContext, intent) }
             } finally {
                 pendingResult.finish()
             }

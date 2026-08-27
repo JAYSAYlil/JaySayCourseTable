@@ -8,6 +8,8 @@ import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.ss.usermodel.FormulaEvaluator
 import org.apache.poi.ss.usermodel.Row
 import org.apache.poi.ss.usermodel.WorkbookFactory
+import java.io.FilterInputStream
+import java.io.IOException
 import java.io.InputStream
 import java.util.Locale
 
@@ -32,7 +34,8 @@ object ExcelParser {
     fun parse(context: Context, uri: Uri): ParseResult {
         val stream = context.contentResolver.openInputStream(uri)
             ?: return ParseResult(emptyList(), listOf("无法打开文件"))
-        return stream.use(::parse)
+        // POI 会把整本工作簿载入内存，与备份导入对齐设置大小护栏，避免超大文件导致 OOM。
+        return BoundedInputStream(stream, MAX_FILE_BYTES).use(::parse)
     }
 
     /** 独立于 Android Uri 的入口，便于自动化测试真实 Excel。 */
@@ -67,8 +70,37 @@ object ExcelParser {
                 if (sheet.lastRowNum > lastRow) errors.add("文件超过 $MAX_ROWS 行，超出部分未读取")
                 ParseResult(courses.distinctBy { it.uniqueKey }, errors)
             }
+        } catch (error: BoundedInputStream.FileTooLargeException) {
+            ParseResult(emptyList(), listOf("文件超过 $MAX_FILE_MB MB，未读取"))
         } catch (error: Exception) {
             ParseResult(emptyList(), listOf("文件解析失败：${error.message ?: error.javaClass.simpleName}"))
+        }
+    }
+
+    /**
+     * 限制总读取字节数的流：超出上限立即抛错，避免把整本超大工作簿读进内存后才失败。
+     */
+    private class BoundedInputStream(
+        input: InputStream,
+        private val maxBytes: Int
+    ) : FilterInputStream(input) {
+        private var count = 0
+
+        class FileTooLargeException : IOException()
+
+        override fun read(): Int {
+            val value = super.read()
+            if (value >= 0 && ++count > maxBytes) throw FileTooLargeException()
+            return value
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            val n = super.read(b, off, len)
+            if (n > 0) {
+                count += n
+                if (count > maxBytes) throw FileTooLargeException()
+            }
+            return n
         }
     }
 
@@ -157,4 +189,6 @@ object ExcelParser {
     private const val MAX_REPORTED_ERRORS = 20
     private const val MAX_WEEK = 30
     private const val MAX_PERIOD = 30
+    private const val MAX_FILE_MB = 20
+    private const val MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
 }

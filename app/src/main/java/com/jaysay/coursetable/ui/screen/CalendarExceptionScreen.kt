@@ -309,7 +309,7 @@ private fun WeekLabelsPanel(
                             .padding(vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AssistChip(onClick = { onEdit(week, label) }, label = { Text("第${week}周") })
+                        AssistChip(onClick = { onEdit(week, label) }, label = { Text(stringResource(R.string.calendar_week_label_short, week)) })
                         Spacer(Modifier.width(10.dp))
                         Text(label, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
                         Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -374,13 +374,9 @@ private fun DateArrangementRow(
     onDelete: (String) -> Unit
 ) {
     val date = remember(item.date) { runCatching { LocalDate.parse(item.date) }.getOrNull() }
-    val dateText = date?.format(DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)) ?: item.date
-    val week = date?.let { parsed ->
-        TimeUtils.semesterWeekStartOrNull(semesterStart)?.let { start ->
-            val days = java.time.temporal.ChronoUnit.DAYS.between(start, parsed)
-            if (days >= 0) (days / 7 + 1).toInt() else null
-        }
-    }
+    val datePatternDay = stringResource(R.string.calendar_date_pattern_day)
+    val dateText = date?.format(DateTimeFormatter.ofPattern(datePatternDay, Locale.CHINA)) ?: item.date
+    val week = date?.let { parsed -> TimeUtils.semesterWeekOf(semesterStart, parsed) }
     val detail = item.title.ifBlank {
         when (item.type) {
             ScheduleExceptionType.DAY_OFF -> stringResource(R.string.calendar_arrangement_day_off)
@@ -401,7 +397,7 @@ private fun DateArrangementRow(
                 Text(dateText, fontWeight = FontWeight.Bold)
                 week?.let {
                     Spacer(Modifier.width(8.dp))
-                    Text("第${it}周", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                    Text(stringResource(R.string.calendar_week_label_short, it), color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
                 }
             }
             Spacer(Modifier.height(4.dp))
@@ -455,6 +451,7 @@ private fun DateArrangementDialog(
     onDismiss: () -> Unit,
     onSave: (ScheduleDateException) -> Unit
 ) {
+    val fullDatePattern = stringResource(R.string.calendar_date_pattern_full)
     val initialDate = remember(initial?.id, initial?.date) {
         initial?.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
     }
@@ -511,7 +508,7 @@ private fun DateArrangementDialog(
                 OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Outlined.CalendarMonth, null)
                     Spacer(Modifier.width(8.dp))
-                    Text(date.format(DateTimeFormatter.ofPattern("yyyy年M月d日 EEEE", Locale.CHINA)))
+                    Text(date.format(DateTimeFormatter.ofPattern(fullDatePattern, Locale.CHINA)))
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     ScheduleExceptionType.entries.forEach { value ->

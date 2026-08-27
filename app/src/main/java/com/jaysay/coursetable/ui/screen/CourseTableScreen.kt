@@ -134,6 +134,43 @@ private fun rememberTodayAgenda(
 }
 
 @Composable
+private fun TodayOverviewSection(
+    tableName: String,
+    courses: List<Course>,
+    periodTimes: List<PeriodTime>,
+    semesterStart: String,
+    totalWeeks: Int,
+    excludedWeekSet: Set<Int>,
+    dateExceptions: List<ScheduleDateException>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onTableMenuClick: () -> Unit,
+    onAddCourseClick: () -> Unit,
+    onImportClick: () -> Unit,
+    onLocateToday: () -> Unit,
+    onAgendaClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    writesEnabled: Boolean
+) {
+    // 分钟订阅与本组件同作用域：每 30 秒只有本节（今日摘要条）随分钟重组，
+    // 屏幕顶层不读取分钟状态，课表网格与课程卡片不受影响。
+    val agenda = rememberTodayAgenda(courses, periodTimes, semesterStart, totalWeeks, excludedWeekSet, dateExceptions)
+    ScheduleOverviewBar(
+        tableName = tableName,
+        agenda = agenda,
+        searchQuery = searchQuery,
+        onSearchQueryChange = onSearchQueryChange,
+        onTableMenuClick = onTableMenuClick,
+        onAddCourseClick = onAddCourseClick,
+        onImportClick = onImportClick,
+        onLocateToday = onLocateToday,
+        onAgendaClick = onAgendaClick,
+        onSettingsClick = onSettingsClick,
+        writesEnabled = writesEnabled
+    )
+}
+
+@Composable
 fun CourseTableScreen(
     courses: List<Course>,
     currentWeek: Int,
@@ -177,7 +214,6 @@ fun CourseTableScreen(
     }
     val todayDow = today.dayOfWeek.value
     val excludedWeekSet = remember(excludedWeeks) { excludedWeeks.toSet() }
-    val agenda = rememberTodayAgenda(courses, periodTimes, semesterStart, totalWeeks, excludedWeekSet, dateExceptions)
     var searchQuery by remember { mutableStateOf("") }
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
@@ -244,9 +280,14 @@ fun CourseTableScreen(
                 .navigationBarsPadding()
                 .testTag("course-table-screen")
         ) {
-        ScheduleOverviewBar(
+        TodayOverviewSection(
             tableName = tableName,
-            agenda = agenda,
+            courses = courses,
+            periodTimes = periodTimes,
+            semesterStart = semesterStart,
+            totalWeeks = totalWeeks,
+            excludedWeekSet = excludedWeekSet,
+            dateExceptions = dateExceptions,
             searchQuery = searchQuery,
             onSearchQueryChange = { searchQuery = it },
             onTableMenuClick = onTableMenuClick,

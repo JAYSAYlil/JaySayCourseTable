@@ -30,9 +30,8 @@ object ScheduleDateResolver {
     ): List<ResolvedDateCourse> {
         val start = TimeUtils.semesterWeekStartOrNull(semesterStart) ?: return emptyList()
         val dayOffset = ChronoUnit.DAYS.between(start, date)
-        if (dayOffset < 0) return makeupOnly(exceptions, date)
-        val week = (dayOffset / 7 + 1).toInt()
-        if (week !in 1..totalWeeks) return makeupOnly(exceptions, date)
+        val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
+            ?: return makeupOnly(exceptions, date)
         val scheduleDay = (dayOffset % 7 + 1).toInt()
         val dayExceptions = exceptions.filter { it.date == date.toString() }
         val isDayOff = dayExceptions.any { it.type == ScheduleExceptionType.DAY_OFF }

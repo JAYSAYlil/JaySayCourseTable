@@ -1,5 +1,6 @@
 package com.jaysay.coursetable.ui.screen
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -63,7 +64,7 @@ import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
-private data class Section(val name: String, val periods: List<Int>)
+private data class Section(@StringRes val labelRes: Int, val periods: List<Int>)
 
 private fun buildSections(periodTimes: List<PeriodTime>): List<Section> {
     val total = periodTimes.size
@@ -71,9 +72,9 @@ private fun buildSections(periodTimes: List<PeriodTime>): List<Section> {
     val morningEnd = minOf(4, total)
     val afternoonEnd = minOf(8, total)
     return buildList {
-        add(Section("上午", (1..morningEnd).toList()))
-        if (afternoonEnd > morningEnd) add(Section("下午", (morningEnd + 1..afternoonEnd).toList()))
-        if (total > afternoonEnd) add(Section("晚上", (afternoonEnd + 1..total).toList()))
+        add(Section(R.string.course_section_morning, (1..morningEnd).toList()))
+        if (afternoonEnd > morningEnd) add(Section(R.string.course_section_afternoon, (morningEnd + 1..afternoonEnd).toList()))
+        if (total > afternoonEnd) add(Section(R.string.course_section_evening, (afternoonEnd + 1..total).toList()))
     }
 }
 
@@ -166,7 +167,7 @@ internal fun TableGrid(
                     modifier = Modifier.fillMaxWidth().height(20.dp).background(sectionBackground),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(section.name, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = sectionText)
+                    Text(stringResource(section.labelRes), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = sectionText)
                 }
                 section.periods.forEach periodLoop@{ period ->
                     val periodTime = periodTimes.getOrNull(period - 1) ?: return@periodLoop

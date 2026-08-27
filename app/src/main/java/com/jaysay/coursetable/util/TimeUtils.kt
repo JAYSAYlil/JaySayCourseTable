@@ -60,12 +60,25 @@ object TimeUtils {
         return date.format(DateTimeFormatter.ofPattern("M/d", locale))
     }
 
-    /** 根据开学日期计算今天是第几周，超出范围则夹紧 */
+    /**
+     * 某日期相对开学周的自然周序号（不做学期总周数裁剪）。
+     * 这是全应用唯一的周次计算公式；开学日期非法或早于开学时返回 null。
+     */
+    fun semesterWeekOf(semesterStart: String, date: LocalDate): Int? {
+        val start = semesterWeekStartOrNull(semesterStart) ?: return null
+        val days = ChronoUnit.DAYS.between(start, date)
+        if (days < 0) return null
+        return (days / 7L + 1L).toInt()
+    }
+
+    /** 同 [semesterWeekOf]，但要求结果落在 1..[totalWeeks] 的学期范围内，否则返回 null。 */
+    fun semesterWeekOrNull(semesterStart: String, totalWeeks: Int, date: LocalDate): Int? =
+        semesterWeekOf(semesterStart, date)?.takeIf { it in 1..totalWeeks }
+
+    /** 根据开学日期计算今天是第几周：学期结束后夹紧到最后一周，非法输入回退第 1 周。 */
     fun todayWeek(semesterStart: String, totalWeeks: Int): Int {
         val safeTotalWeeks = totalWeeks.coerceAtLeast(1)
-        val start = semesterWeekStartOrNull(semesterStart) ?: return 1
-        val days = ChronoUnit.DAYS.between(start, LocalDate.now())
-        return if (days >= 0) (days / 7L + 1L).toInt().coerceIn(1, safeTotalWeeks) else 1
+        return semesterWeekOf(semesterStart, LocalDate.now())?.coerceIn(1, safeTotalWeeks) ?: 1
     }
 
     /** Parse day string like "星期一" or "周一" to Int 1-7 */

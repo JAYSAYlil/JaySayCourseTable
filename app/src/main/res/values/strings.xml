@@ -163,6 +163,13 @@
     <string name="edit_label_class_number">"课序号"</string>
     <string name="edit_label_classroom">"教室"</string>
     <string name="edit_label_color">"卡片颜色"</string>
+    <string name="edit_color_option_desc">"选择第 %1$d 种颜色"</string>
+    <string name="course_section_morning">"上午"</string>
+    <string name="course_section_afternoon">"下午"</string>
+    <string name="course_section_evening">"晚上"</string>
+    <string name="calendar_week_label_short">"第%1$d周"</string>
+    <string name="calendar_date_pattern_day">"M月d日 EEEE"</string>
+    <string name="calendar_date_pattern_full">"yyyy年M月d日 EEEE"</string>
     <string name="edit_label_course_category">"课程类别"</string>
     <string name="edit_label_course_id">"课程号"</string>
     <string name="edit_label_course_name">"课程名称 *"</string>

@@ -42,11 +42,7 @@ object AcademicCalendarStatusResolver {
         exceptions: List<ScheduleDateException>,
         weekLabels: Map<Int, String>
     ): AcademicCalendarDayStatus {
-        val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
-        val week = start?.let {
-            val days = java.time.temporal.ChronoUnit.DAYS.between(it, date)
-            if (days >= 0) (days / 7 + 1).toInt().takeIf { value -> value in 1..totalWeeks } else null
-        }
+        val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
         val items = exceptions.filter { it.date == date.toString() }
         val dayOff = items.firstOrNull { it.type == ScheduleExceptionType.DAY_OFF }
         return AcademicCalendarDayStatus(

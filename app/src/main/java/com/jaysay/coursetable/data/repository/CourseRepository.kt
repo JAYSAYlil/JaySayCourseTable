@@ -66,7 +66,8 @@ class CourseRepository private constructor(
 
     suspend fun loadAllTables(): List<TableData> = withContext(Dispatchers.IO) {
         synchronized(storageLock) {
-            store.read(::parseTables)?.let(TableDataJson::normalize) ?: listOf(TableData.placeholder())
+            // parseTables 内部经 TableDataJson.fromJson 已规范化，无需重复 normalize。
+            store.read(::parseTables) ?: listOf(TableData.placeholder())
         }
     }
 
@@ -93,8 +94,7 @@ class CourseRepository private constructor(
 
     suspend fun previewSnapshot(id: String): CourseSnapshotDiff = withContext(Dispatchers.IO) {
         synchronized(storageLock) {
-            val current = store.read(::parseTables)?.let(TableDataJson::normalize)
-                ?: listOf(TableData.placeholder())
+            val current = store.read(::parseTables) ?: listOf(TableData.placeholder())
             val target = historyStore.loadSnapshot(id, ::parseTables).tables
             CourseSnapshotDiffer.compare(current, target)
         }
@@ -129,7 +129,7 @@ class CourseRepository private constructor(
         val normalized = TableDataJson.normalize(tables)
         return JSONObject()
             .put("schemaVersion", SCHEMA_VERSION)
-            .put("tables", TableDataJson.toJson(normalized))
+            .put("tables", TableDataJson.toArray(normalized))
             .toString(2)
     }
 
@@ -139,7 +139,7 @@ class CourseRepository private constructor(
         allowCorruptCurrent: Boolean = false
     ) {
         val currentTables = try {
-            store.read(::parseTables)?.let(TableDataJson::normalize)
+            store.read(::parseTables)
         } catch (error: DataCorruptionException) {
             if (!allowCorruptCurrent) throw error
             null
@@ -172,8 +172,11 @@ object TableDataJson {
         return normalized
     }
 
-    fun toJson(tables: List<TableData>): JSONArray = JSONArray().apply {
-        normalize(tables).forEach { put(tableToJson(it)) }
+    fun toJson(tables: List<TableData>): JSONArray = toArray(normalize(tables))
+
+    /** 编码已经由调用方 [normalize] 过的数据，避免同一份数据被重复规范化。 */
+    internal fun toArray(tables: List<TableData>): JSONArray = JSONArray().apply {
+        tables.forEach { put(tableToJson(it)) }
     }
 
     private fun parseTable(obj: JSONObject, strict: Boolean): TableData {
