@@ -110,6 +110,9 @@ internal object WidgetScheduleBuilder {
 
 /** 小组件的校历文案集中生成，保证三档宽度表达同一状态。 */
 internal object WidgetCalendarPresentation {
+    /** 表头第二行的课表名：去空白；空名称返回空串（调用方据此隐藏该行）。 */
+    fun tableNameLabel(rawName: String?): String = rawName?.trim().orEmpty()
+
     fun headerBadge(defaultWeekday: String, schedule: WidgetDaySchedule?): String {
         val status = schedule?.calendarStatus ?: return defaultWeekday
         val suffix = status.weekLabel ?: status.week?.let { "第${it}周" }

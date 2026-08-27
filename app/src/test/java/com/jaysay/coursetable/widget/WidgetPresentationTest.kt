@@ -21,6 +21,14 @@ class WidgetPresentationTest {
     }
 
     @Test
+    fun widgetTableNameTrimsAndHidesWhenBlank() {
+        assertEquals("大三上课表", WidgetCalendarPresentation.tableNameLabel("大三上课表"))
+        assertEquals("大三上课表", WidgetCalendarPresentation.tableNameLabel("  大三上课表 "))
+        assertEquals("", WidgetCalendarPresentation.tableNameLabel("   "))
+        assertEquals("", WidgetCalendarPresentation.tableNameLabel(null))
+    }
+
+    @Test
     fun widthModesMatchThreeFourAndFiveColumnLayouts() {
         assertEquals(WidgetWidthMode.COMPACT, WidgetWidthMode.fromMinWidth(180))
         assertEquals(WidgetWidthMode.COMPACT, WidgetWidthMode.fromMinWidth(219))

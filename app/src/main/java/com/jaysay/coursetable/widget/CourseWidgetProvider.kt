@@ -105,6 +105,14 @@ class CourseWidgetProvider : AppWidgetProvider() {
             )
             val views = RemoteViews(context.packageName, R.layout.widget_course)
             views.setTextViewText(R.id.widget_date, "${today.monthValue}月${today.dayOfMonth}日")
+            // 表头第二行显示当前课表名；无课表或名称为空时整行隐藏，不额外占高度。
+            val tableName = WidgetCalendarPresentation.tableNameLabel(active?.table?.name)
+            if (tableName.isEmpty()) {
+                views.setViewVisibility(R.id.widget_table_name, View.GONE)
+            } else {
+                views.setViewVisibility(R.id.widget_table_name, View.VISIBLE)
+                views.setTextViewText(R.id.widget_table_name, tableName)
+            }
             val weekday = "星期${TimeUtils.getDayName(today.dayOfWeek.value).removePrefix("周")}"
             val headerBadge = WidgetCalendarPresentation.headerBadge(weekday, todaySchedule)
             views.setTextViewText(
@@ -113,7 +121,9 @@ class CourseWidgetProvider : AppWidgetProvider() {
             )
             views.setContentDescription(
                 R.id.widget_header,
-                "${today.monthValue}月${today.dayOfMonth}日，$headerBadge"
+                listOf("${today.monthValue}月${today.dayOfMonth}日", tableName.ifEmpty { null }, headerBadge)
+                    .filterNotNull()
+                    .joinToString("，")
             )
             views.setTextViewText(
                 R.id.widget_today_title,
