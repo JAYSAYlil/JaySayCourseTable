@@ -442,12 +442,15 @@ fun CourseTableScreen(
                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
 
-            // 停课/特殊安排提示条：切到相关周次时展开淡入，离开时收起，与翻页动效同节奏。
+            // 停课/特殊安排提示条：切到相关周次时快速展开淡入，离开时立即收起。
+            // 快速左右滑周时提示条会连续进出，必须用短补间（收起 100ms/展开 180ms），
+            // 弹簧的低刚度拖尾会让板块在连续翻周时显得反应迟钝。
             AnimatedVisibility(
                 visible = weekStatus.hasCalendarContext,
-                enter = fadeIn(Motion.eased()) + expandVertically(Motion.page()),
-                exit = fadeOut(tween(Motion.DURATION_SHORT, easing = Motion.exit)) +
-                    shrinkVertically(Motion.page())
+                enter = fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard)) +
+                    expandVertically(tween(Motion.DURATION_SHORT + 30, easing = Motion.standard)),
+                exit = fadeOut(tween(90, easing = Motion.exit)) +
+                    shrinkVertically(tween(100, easing = Motion.exit))
             ) {
                 CalendarContextStrip(weekStatus, onCalendarContextClick)
             }
