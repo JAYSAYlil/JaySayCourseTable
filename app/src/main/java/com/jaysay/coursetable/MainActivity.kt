@@ -41,6 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import com.jaysay.coursetable.data.backup.AutoBackup
 import com.jaysay.coursetable.data.backup.BackupData
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseImportAnalyzer
@@ -133,6 +134,24 @@ class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { reminderStatusTick.intValue++ }
+
+    private val autoBackupLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri ?: return@registerForActivityResult
+        // CreateDocument 授予的写权限默认只在本次进程内有效；
+        // 申请持久化后重启应用仍可向同一位置自动覆盖备份。
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }
+        model.updatePreferences(
+            model.state.preferences.copy(autoBackupUri = uri.toString(), autoBackupEnabled = true),
+            ::showSaveError
+        )
+    }
 
     private val backgroundImageLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -287,9 +306,27 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // 启动自动备份：数据就绪后每个启动只执行一次，静默覆盖写入用户选择的位置。
+                var autoBackupRanForLaunch by rememberSaveable { mutableStateOf(false) }
+                LaunchedEffect(state.isLoading) {
+                    val prefs = state.preferences
+                    if (state.isLoading || autoBackupRanForLaunch) return@LaunchedEffect
+                    if (!prefs.autoBackupEnabled || prefs.autoBackupUri.isBlank()) return@LaunchedEffect
+                    autoBackupRanForLaunch = true
+                    val uri = runCatching { Uri.parse(prefs.autoBackupUri) }.getOrNull()
+                        ?: return@LaunchedEffect
+                    AutoBackup.write(this@MainActivity, uri, model.backupSnapshot())
+                        .onFailure { error ->
+                            Toast.makeText(
+                                this@MainActivity,
+                                getString(R.string.main_error_format, getString(R.string.settings_auto_backup), error.message ?: getString(R.string.main_error_unknown)),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                }
+
                 // 提醒暂停状态与权限检查涉及 SharedPreferences 读取，按触发时机缓存而非每次重组都读盘。
-                val reminderPauseStatus = remember(
-                    reminderStatusTick.intValue,
+                val reminderPauseStatus = remember(                    reminderStatusTick.intValue,
                     state.activeTableIndex,
                     state.currentWeek
                 ) {
@@ -672,6 +709,9 @@ class MainActivity : ComponentActivity() {
                                     AutostartHelper.launch(this@MainActivity)
                                 },
                                 widgetPresent = widgetPresent,
+                                onChooseAutoBackupLocation = {
+                                    autoBackupLocationLauncher.launch("JaySay课表-自动备份.json")
+                                },
                                 tablesCount = state.tables.size,
                                 readOnlyMessage = state.persistentDataError,
                                 onBack = navigateBack

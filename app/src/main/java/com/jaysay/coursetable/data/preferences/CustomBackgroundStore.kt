@@ -71,8 +71,21 @@ object CustomBackgroundStore {
         File(target.parentFile, BACKUP_FILE_NAME).delete()
     }
 
-    fun decodeStored(context: Context): Bitmap? =
-        backgroundFile(context).takeIf(File::isFile)?.let { BitmapFactory.decodeFile(it.absolutePath) }
+    fun decodeStored(context: Context): Bitmap? {
+        val file = backgroundFile(context)
+        if (!file.isFile) return null
+        // 读取端按显示上限降采样：存储端允许到 2160px，但显示 2400px 内足够，
+        // 避免 2160×3840 全尺寸位图在低端机常驻 30MB+ 内存。
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val sample = calculateInSampleSize(bounds.outWidth, bounds.outHeight, DECODE_TARGET_DIMENSION)
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        return BitmapFactory.decodeFile(file.absolutePath, options)
+    }
+
+    /** 显示用途的解码上限（calculateInSampleSize 为 2 倍语义，最终边长不超过其 2 倍）。 */
+    private const val DECODE_TARGET_DIMENSION = 1200
 
     internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int = MAX_DIMENSION): Int {
         if (width <= 0 || height <= 0 || maxDimension <= 0) return 1

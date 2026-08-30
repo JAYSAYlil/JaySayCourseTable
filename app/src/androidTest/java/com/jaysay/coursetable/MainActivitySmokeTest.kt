@@ -226,7 +226,8 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithText("课程详情").assertIsDisplayed()
 
         composeRule.onNodeWithContentDescription("编辑").performClick()
-        composeRule.onNodeWithText("编辑课程").assertIsDisplayed()
+        // 详情页底部新增了同名按钮，改用编辑弹窗自身的 testTag 断言避免多节点歧义
+        composeRule.onNodeWithTag("course-edit-dialog").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("关闭").performClick()
         composeRule.onNodeWithText("课程详情").assertIsDisplayed()
         composeRule.activityRule.scenario.recreate()

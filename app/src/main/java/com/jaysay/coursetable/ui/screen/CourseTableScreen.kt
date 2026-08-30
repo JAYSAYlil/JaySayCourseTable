@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.CalendarViewDay
+import androidx.compose.material.icons.filled.CalendarViewMonth
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ViewWeek
@@ -106,6 +107,13 @@ import java.time.LocalDate
  * 今日摘要的分钟级订阅只发生在本组件作用域内：
  * 每 30 秒只重组摘要组件，课表网格与课程卡片不随分钟刷新重组。
  */
+/** 视图模式对应的切换按钮图标：月视图用整月日历图标，其余沿用原图标。 */
+private fun viewModeIcon(mode: ScheduleViewMode) = when (mode) {
+    ScheduleViewMode.DAY -> Icons.Default.CalendarViewDay
+    ScheduleViewMode.MONTH -> Icons.Default.CalendarViewMonth
+    else -> Icons.Default.ViewWeek
+}
+
 @Composable
 private fun rememberTodayAgenda(
     courses: List<Course>,
@@ -216,12 +224,14 @@ fun CourseTableScreen(
             ScheduleViewMode.WEEK -> (1..7).toList()
             ScheduleViewMode.WORK_WEEK -> (1..5).toList()
             ScheduleViewMode.DAY -> listOf(focusedDay.coerceIn(1, 7))
+            ScheduleViewMode.MONTH -> (1..7).toList()
         }
     }
     val timeWidth = when (viewMode) {
         ScheduleViewMode.WEEK -> 38.dp
         ScheduleViewMode.WORK_WEEK -> 44.dp
         ScheduleViewMode.DAY -> 58.dp
+        ScheduleViewMode.MONTH -> 38.dp
     }
     // The seven-day columns are narrow, so they need more vertical room to show
     // course, teacher and classroom text without truncation.
@@ -229,6 +239,7 @@ fun CourseTableScreen(
         ScheduleViewMode.WEEK -> 106.dp
         ScheduleViewMode.WORK_WEEK -> 116.dp
         ScheduleViewMode.DAY -> 100.dp
+        ScheduleViewMode.MONTH -> 106.dp
     }
     val weekCourses = remember(displayedCourses, currentWeek, excludedWeekSet) {
         displayedCourses.filter { currentWeek in it.weeks && currentWeek !in excludedWeekSet }
@@ -390,7 +401,7 @@ fun CourseTableScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             Icon(
-                                if (viewMode == ScheduleViewMode.DAY) Icons.Default.CalendarViewDay else Icons.Default.ViewWeek,
+                                viewModeIcon(viewMode),
                                 stringResource(R.string.course_view_mode_current_desc, viewMode.label),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(21.dp)
@@ -416,7 +427,7 @@ fun CourseTableScreen(
                                 },
                                 leadingIcon = {
                                     Icon(
-                                        if (mode == ScheduleViewMode.DAY) Icons.Default.CalendarViewDay else Icons.Default.ViewWeek,
+                                        viewModeIcon(mode),
                                         null,
                                         tint = if (mode == viewMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -459,20 +470,24 @@ fun CourseTableScreen(
                 DayChipRow(focusedDay = focusedDay, onFocusedDayChange = onFocusedDayChange)
             }
 
-            DayHeader(
-                visibleDays = visibleDays,
-                timeWidth = timeWidth,
-                currentWeek = currentWeek,
-                semesterStart = semesterStart,
-                isTodayWeek = isTodayWeek,
-                todayDow = todayDow,
-                dayStatuses = dayStatuses,
-                onDayClick = { day ->
-                    onFocusedDayChange(day)
-                    onViewModeChange(ScheduleViewMode.DAY)
-                }
-            )
-            HorizontalDivider(thickness = 0.75.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+            // 月视图不展示课程表头（星期标题由月历自带），周导航胶囊与进度条仍然保留。
+            if (viewMode != ScheduleViewMode.MONTH) {
+                DayHeader(
+                    visibleDays = visibleDays,
+                    timeWidth = timeWidth,
+                    currentWeek = currentWeek,
+                    semesterStart = semesterStart,
+                    isTodayWeek = isTodayWeek,
+                    todayDow = todayDow,
+                    dayStatuses = dayStatuses,
+                    onDayClick = { day ->
+                        // 只切换聚焦日：单日视图下点击表头即换天；
+                        // 周/工作日视图不再被表头误触直接跳进单日视图（切视图走“视图”菜单）。
+                        onFocusedDayChange(day)
+                    }
+                )
+                HorizontalDivider(thickness = 0.75.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+            }
         }
 
         if (courses.isEmpty()) {
@@ -481,6 +496,32 @@ fun CourseTableScreen(
                 onAddCourseClick = if (readOnlyMessage == null) onAddCourseClick else ({}),
                 readOnly = readOnlyMessage != null
             )
+        } else if (viewMode == ScheduleViewMode.MONTH) {
+            // 月视图：整月网格放纵向滚动容器里（格子约 74dp，一般整月一屏放得下）。
+            // 不做横向翻月——周导航箭头切换周次时，月份跟随锚点周自动变化。
+            val monthScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f)
+                    .verticalScroll(monthScrollState)
+                    .testTag("month-grid")
+            ) {
+                MonthGrid(
+                    courses = displayedCourses,
+                    currentWeek = currentWeek,
+                    totalWeeks = totalWeeks,
+                    semesterStart = semesterStart,
+                    excludedWeekSet = excludedWeekSet,
+                    dateExceptions = dateExceptions,
+                    dark = dark,
+                    onDayClick = { semesterWeek, dayOfWeek ->
+                        // 点击某天：跳到该天所在周并切到单日视图。
+                        onWeekChange(semesterWeek)
+                        onFocusedDayChange(dayOfWeek)
+                        onViewModeChange(ScheduleViewMode.DAY)
+                    }
+                )
+                Spacer(Modifier.height(48.dp))
+            }
         } else {
             WeekPagerSection(
                 modifier = Modifier.fillMaxWidth().weight(1f),

@@ -2,16 +2,13 @@ package com.jaysay.coursetable.data.parser
 
 import android.content.Context
 import android.net.Uri
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.util.TimeUtils
-import org.apache.poi.ss.usermodel.DataFormatter
-import org.apache.poi.ss.usermodel.FormulaEvaluator
-import org.apache.poi.ss.usermodel.Row
-import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
-import java.util.Locale
+import java.io.PushbackInputStream
 
 object ExcelParser {
     private val requiredColumns = listOf("课程号", "课程名", "上课星期", "开始节次", "结束节次", "上课周次")
@@ -26,6 +23,10 @@ object ExcelParser {
         "教室" to "教室名称", "上课教室" to "教室名称"
     )
 
+    /** data 层错误文案为硬编码中文，与 strings.xml 的 parser_legacy_xls 保持同款。 */
+    private const val LEGACY_XLS_MESSAGE =
+        "不支持旧版 .xls 格式，请在 Office/WPS 中另存为 .xlsx 后重新导入"
+
     data class ParseResult(
         val courses: List<Course>,
         val errors: List<String>
@@ -34,47 +35,67 @@ object ExcelParser {
     fun parse(context: Context, uri: Uri): ParseResult {
         val stream = context.contentResolver.openInputStream(uri)
             ?: return ParseResult(emptyList(), listOf("无法打开文件"))
-        // POI 会把整本工作簿载入内存，与备份导入对齐设置大小护栏，避免超大文件导致 OOM。
-        return BoundedInputStream(stream, MAX_FILE_BYTES).use(::parse)
+        // 与备份导入对齐设置大小护栏，避免超大文件导致 OOM。
+        return BoundedInputStream(stream, MAX_FILE_BYTES).use {
+            parseInternal(it, context.getString(R.string.parser_legacy_xls))
+        }
     }
 
     /** 独立于 Android Uri 的入口，便于自动化测试真实 Excel。 */
     fun parse(inputStream: InputStream): ParseResult {
-        return try {
-            WorkbookFactory.create(inputStream).use { workbook ->
-                if (workbook.numberOfSheets == 0) return ParseResult(emptyList(), listOf("文件中没有工作表"))
-                val sheet = workbook.getSheetAt(0)
-                val formatter = DataFormatter(Locale.CHINA)
-                val evaluator = workbook.creationHelper.createFormulaEvaluator()
-                val header = findHeader(sheet, formatter, evaluator)
-                    ?: return ParseResult(emptyList(), listOf("前 10 行中未找到课表表头"))
-                val missing = requiredColumns.filterNot(header.columns::containsKey)
-                if (missing.isNotEmpty()) {
-                    return ParseResult(emptyList(), missing.map { "缺少必要列：$it" })
-                }
+        return parseInternal(inputStream, LEGACY_XLS_MESSAGE)
+    }
 
-                val courses = mutableListOf<Course>()
-                val errors = mutableListOf<String>()
-                val lastRow = minOf(sheet.lastRowNum, MAX_ROWS + header.rowIndex)
-                for (rowIndex in (header.rowIndex + 1)..lastRow) {
-                    val row = sheet.getRow(rowIndex) ?: continue
-                    if (row.physicalNumberOfCells == 0) continue
-                    parseRow(row, header.columns, formatter, evaluator)
-                        .onSuccess { course -> if (course != null) courses.add(course) }
-                        .onFailure { error ->
-                            if (errors.size < MAX_REPORTED_ERRORS) {
-                                errors.add("第${rowIndex + 1}行：${error.message ?: "格式不正确"}")
-                            }
-                        }
-                }
-                if (sheet.lastRowNum > lastRow) errors.add("文件超过 $MAX_ROWS 行，超出部分未读取")
-                ParseResult(courses.distinctBy { it.uniqueKey }, errors)
+    private fun parseInternal(input: InputStream, legacyXlsMessage: String): ParseResult {
+        return try {
+            val pushback = PushbackInputStream(input, 2)
+            val header = ByteArray(2)
+            var read = 0
+            while (read < 2) {
+                val n = pushback.read(header, read, 2 - read)
+                if (n < 0) break
+                read += n
             }
+            val isZip = read == 2 && header[0] == 'P'.code.toByte() && header[1] == 'K'.code.toByte()
+            if (read == 2 && !isZip) {
+                // 旧版 .xls（OLE2 复合文档）等非 zip 容器不再支持，引导用户另存为 .xlsx。
+                return ParseResult(emptyList(), listOf(legacyXlsMessage))
+            }
+            if (read > 0) pushback.unread(header, 0, read)
+            parseGrid(MinimalXlsxReader.read(pushback))
         } catch (error: BoundedInputStream.FileTooLargeException) {
             ParseResult(emptyList(), listOf("文件超过 $MAX_FILE_MB MB，未读取"))
+        } catch (error: MinimalXlsxReader.InvalidXlsxException) {
+            ParseResult(emptyList(), listOf(error.message ?: "文件解析失败"))
         } catch (error: Exception) {
             ParseResult(emptyList(), listOf("文件解析失败：${error.message ?: error.javaClass.simpleName}"))
         }
+    }
+
+    private fun parseGrid(grid: MinimalXlsxReader.SheetGrid): ParseResult {
+        val header = findHeader(grid)
+            ?: return ParseResult(emptyList(), listOf("前 10 行中未找到课表表头"))
+        val missing = requiredColumns.filterNot(header.columns::containsKey)
+        if (missing.isNotEmpty()) {
+            return ParseResult(emptyList(), missing.map { "缺少必要列：$it" })
+        }
+
+        val courses = mutableListOf<Course>()
+        val errors = mutableListOf<String>()
+        val lastRow = minOf(grid.lastRowNum, MAX_ROWS + header.rowIndex)
+        for (rowIndex in (header.rowIndex + 1)..lastRow) {
+            val row = grid.row(rowIndex) ?: continue
+            if (row.isEmpty()) continue
+            parseRow(row, header.columns)
+                .onSuccess { course -> if (course != null) courses.add(course) }
+                .onFailure { error ->
+                    if (errors.size < MAX_REPORTED_ERRORS) {
+                        errors.add("第${rowIndex + 1}行：${error.message ?: "格式不正确"}")
+                    }
+                }
+        }
+        if (grid.lastRowNum > lastRow) errors.add("文件超过 $MAX_ROWS 行，超出部分未读取")
+        return ParseResult(courses.distinctBy { it.uniqueKey }, errors)
     }
 
     /**
@@ -106,20 +127,15 @@ object ExcelParser {
 
     private data class Header(val rowIndex: Int, val columns: Map<String, Int>)
 
-    private fun findHeader(
-        sheet: org.apache.poi.ss.usermodel.Sheet,
-        formatter: DataFormatter,
-        evaluator: FormulaEvaluator
-    ): Header? {
+    private fun findHeader(grid: MinimalXlsxReader.SheetGrid): Header? {
         var best: Header? = null
         var bestMatches = 0
-        for (rowIndex in 0..minOf(sheet.lastRowNum, 9)) {
-            val row = sheet.getRow(rowIndex) ?: continue
+        for (rowIndex in 0..minOf(grid.lastRowNum, 9)) {
+            val row = grid.row(rowIndex) ?: continue
             val columns = mutableMapOf<String, Int>()
-            row.forEach { cell ->
-                val raw = formatter.formatCellValue(cell, evaluator)
+            row.forEach { (columnIndex, raw) ->
                 val canonical = canonicalHeader(raw)
-                if (canonical.isNotEmpty()) columns.putIfAbsent(canonical, cell.columnIndex)
+                if (canonical.isNotEmpty()) columns.putIfAbsent(canonical, columnIndex)
             }
             val matches = requiredColumns.count(columns::containsKey)
             if (matches > bestMatches) {
@@ -132,14 +148,10 @@ object ExcelParser {
     }
 
     private fun parseRow(
-        row: Row,
-        columns: Map<String, Int>,
-        formatter: DataFormatter,
-        evaluator: FormulaEvaluator
+        row: Map<Int, String>,
+        columns: Map<String, Int>
     ): Result<Course?> = runCatching {
-        fun value(key: String): String = columns[key]?.let { column ->
-            row.getCell(column)?.let { formatter.formatCellValue(it, evaluator).trim() }
-        }.orEmpty()
+        fun value(key: String): String = columns[key]?.let(row::get)?.trim().orEmpty()
 
         val courseId = value("课程号")
         val courseName = value("课程名")

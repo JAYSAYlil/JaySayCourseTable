@@ -163,6 +163,36 @@ fun CourseDetailScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 底部主操作：编辑入口除了顶栏铅笔外提供明显的按钮，避免藏在图标里。
+                if (onEdit != null) {
+                    Button(
+                        onClick = { onEdit(course) },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = AppShapes.small
+                    ) {
+                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.detail_open_editor))
+                    }
+                }
+                if (onDelete != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = AppShapes.small,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.detail_delete))
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }

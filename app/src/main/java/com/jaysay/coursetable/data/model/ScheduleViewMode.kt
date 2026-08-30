@@ -4,5 +4,6 @@ package com.jaysay.coursetable.data.model
 enum class ScheduleViewMode(val label: String) {
     WEEK("七天"),
     WORK_WEEK("五天"),
-    DAY("单日")
+    DAY("单日"),
+    MONTH("月")
 }

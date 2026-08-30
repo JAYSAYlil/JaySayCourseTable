@@ -12,8 +12,8 @@ android {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 108
-        versionName = "3.0.0"
+        versionCode = 109
+        versionName = "3.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     androidResources {
@@ -48,13 +48,7 @@ android {
             "META-INF/LICENSE",
             "META-INF/LICENSE.txt",
             "META-INF/NOTICE",
-            "META-INF/NOTICE.txt",
-            // POI 中课表用不到的非 Excel 模块资源（PowerPoint/幻灯片渲染资产），
-            // 排除可缩小 APK；XLS/XLSX 读取不依赖这些文件。
-            "org/apache/poi/sl/draw/geom/presetShapeDefinitions.xml",
-            "org/apache/poi/xslf/usermodel/empty.pptx",
-            "org/apache/poi/xslf/usermodel/notesMaster.xml",
-            "font_metrics.properties"
+            "META-INF/NOTICE.txt"
         )
     }
     dependenciesInfo {
@@ -92,8 +86,9 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
 
-    // Apache POI for Excel parsing
-    implementation(libs.apache.poi.ooxml)
+    // Excel 解析改用手写的 MinimalXlsxReader（JDK 内置 zip+DOM），主包不再依赖 POI；
+    // POI 仅保留在测试侧，用于在单元测试中构造 xlsx/xls 样本文件。
+    testImplementation(libs.apache.poi.ooxml)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

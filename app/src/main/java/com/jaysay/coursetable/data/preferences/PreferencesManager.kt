@@ -34,6 +34,9 @@ data class AppPreferences(
     val highContrast: Boolean = false,
     /** Android 12+ 跟随系统壁纸取色；低版本或关闭时使用内置青绿主题。 */
     val dynamicColor: Boolean = false,
+    /** 启动时向用户选择的位置静默写入完整备份（SAF 持久化 URI）。 */
+    val autoBackupEnabled: Boolean = false,
+    val autoBackupUri: String = "",
     /** 0 表示使用默认背景；正数同时用作图片缓存刷新标记。 */
     val customBackgroundRevision: Long = 0L,
     /** 自定义背景上是否叠加全屏可读遮罩；旧版数据默认开启以保持原显示效果。 */
@@ -60,6 +63,8 @@ class PreferencesManager(context: Context) {
             .put("reminderMinutes", prefs.reminderMinutes.coerceIn(1, 60))
             .put("highContrast", prefs.highContrast)
             .put("dynamicColor", prefs.dynamicColor)
+            .put("autoBackupEnabled", prefs.autoBackupEnabled)
+            .put("autoBackupUri", prefs.autoBackupUri)
             .put("customBackgroundRevision", prefs.customBackgroundRevision.coerceAtLeast(0L))
             .put("customBackgroundOverlayEnabled", prefs.customBackgroundOverlayEnabled)
         store.write(obj.toString(2))
@@ -76,6 +81,8 @@ class PreferencesManager(context: Context) {
             reminderMinutes = obj.optInt("reminderMinutes", 10).coerceIn(1, 60),
             highContrast = obj.optBoolean("highContrast", false),
             dynamicColor = obj.optBoolean("dynamicColor", false),
+            autoBackupEnabled = obj.optBoolean("autoBackupEnabled", false),
+            autoBackupUri = obj.optString("autoBackupUri"),
             customBackgroundRevision = obj.optLong("customBackgroundRevision", 0L).coerceAtLeast(0L),
             customBackgroundOverlayEnabled = obj.optBoolean("customBackgroundOverlayEnabled", true)
         )

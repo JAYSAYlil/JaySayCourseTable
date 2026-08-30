@@ -394,6 +394,8 @@ private fun CourseCard(
         }
         ScheduleViewMode.WORK_WEEK -> if (textLoad > 30) 11.5.sp else 13.sp
         ScheduleViewMode.DAY -> 16.sp
+        // MONTH 不渲染课程卡片（月视图走 MonthGrid），分支仅为 when 穷尽性补齐。
+        ScheduleViewMode.MONTH -> if (textLoad > 30) 11.5.sp else 13.sp
     }
     val subSize = when (viewMode) {
         ScheduleViewMode.WEEK -> when {
@@ -403,21 +405,25 @@ private fun CourseCard(
         }
         ScheduleViewMode.WORK_WEEK -> if (textLoad > 30) 9.sp else 10.5.sp
         ScheduleViewMode.DAY -> 12.sp
+        ScheduleViewMode.MONTH -> if (textLoad > 30) 9.sp else 10.5.sp
     }
     val titleLines = when (viewMode) {
         ScheduleViewMode.WEEK -> if (compactWeekCard) 3 else (course.periodSpan + 2).coerceAtMost(6)
         ScheduleViewMode.WORK_WEEK -> if (course.periodSpan == 1) 3 else (course.periodSpan + 2).coerceAtMost(6)
         ScheduleViewMode.DAY -> 3
+        ScheduleViewMode.MONTH -> 3
     }
     val classroomLines = when (viewMode) {
         ScheduleViewMode.WEEK -> if (compactWeekCard) 5 else (course.periodSpan + 3).coerceAtMost(8)
         ScheduleViewMode.WORK_WEEK -> if (course.periodSpan == 1) 6 else 7
         ScheduleViewMode.DAY -> 5
+        ScheduleViewMode.MONTH -> 6
     }
     val teacherLines = when (viewMode) {
         ScheduleViewMode.WEEK -> 2
         ScheduleViewMode.WORK_WEEK -> 2
         ScheduleViewMode.DAY -> 3
+        ScheduleViewMode.MONTH -> 2
     }
     val cardOverflow = TextOverflow.Clip
     val description = listOf(course.courseName, course.teacher, course.classroom)

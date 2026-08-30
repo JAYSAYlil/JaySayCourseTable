@@ -277,6 +277,11 @@ class CourseWidgetProvider : AppWidgetProvider() {
         fun requestUpdate(context: Context) {
             val intent = Intent(context, CourseWidgetProvider::class.java).setAction(ACTION_UPDATE)
             context.sendBroadcast(intent)
+            // 同步刷新整周网格小组件，保证两套小组件的数据一致。
+            context.sendBroadcast(
+                Intent(context, CourseWeekWidgetProvider::class.java)
+                    .setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+            )
         }
 
         /** 在下一次上课、下课或跨日边界刷新。 */
