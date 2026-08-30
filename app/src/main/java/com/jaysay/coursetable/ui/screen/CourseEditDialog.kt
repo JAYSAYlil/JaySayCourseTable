@@ -508,22 +508,26 @@ fun CourseEditDialog(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        // 三个按钮统一宽高：等分剩余宽度、同高 44dp，删除按钮收窄水平内边距
+                        // 保证“删除全部”四字在窄屏弹窗内也完整显示。
                         if (!isNew && onDelete != null) {
                             OutlinedButton(
                                 onClick = { showDeleteConfirm = true },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).height(44.dp),
                                 shape = AppShapes.small,
+                                contentPadding = PaddingValues(horizontal = 6.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error)) {
-                                Text(if (form.applyToAll) stringResource(R.string.edit_delete_all) else stringResource(R.string.edit_delete_week))
+                                Text(if (form.applyToAll) stringResource(R.string.edit_delete_all) else stringResource(R.string.edit_delete_week), maxLines = 1)
                             }
                         }
                         OutlinedButton(
                             onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                            shape = AppShapes.small
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = AppShapes.small,
+                            contentPadding = PaddingValues(horizontal = 6.dp)
                         ) {
-                            Text(stringResource(R.string.edit_button_cancel))
+                            Text(stringResource(R.string.edit_button_cancel), maxLines = 1)
                         }
                         Button(onClick = {
                             // 校验
@@ -559,8 +563,8 @@ fun CourseEditDialog(
                                 reminderMinutesOverride = form.reminderMinutesOverride,
                                 endReminderEnabled = form.endReminderEnabled
                             ), form.applyToAll)
-                        }, modifier = Modifier.weight(1f).testTag("course-save-button"), shape = AppShapes.small) {
-                            Text(stringResource(R.string.edit_save), fontWeight = FontWeight.Bold)
+                        }, modifier = Modifier.weight(1f).height(44.dp).testTag("course-save-button"), shape = AppShapes.small, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                            Text(stringResource(R.string.edit_save), fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
                 }

@@ -56,7 +56,6 @@ import com.jaysay.coursetable.ui.theme.CourseColors
 import com.jaysay.coursetable.ui.theme.DarkBackground
 import com.jaysay.coursetable.ui.theme.DarkCourseColors
 import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
-import com.jaysay.coursetable.ui.theme.LocalReduceMotion
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.courseCardBorderColor
@@ -384,7 +383,6 @@ private fun CourseCard(
 ) {
     // 在卡片作用域内读取分钟状态：只有状态发生变化的卡片才随分钟刷新重组。
     val isCurrent = isCurrentProvider()
-    val reduceMotion = LocalReduceMotion.current
     val shape = RoundedCornerShape(if (viewMode == ScheduleViewMode.WEEK) 12.dp else 14.dp)
     val compactWeekCard = viewMode == ScheduleViewMode.WEEK && course.periodSpan == 1
     val textLoad = course.courseName.length + course.teacher.length + course.classroom.length
@@ -431,7 +429,7 @@ private fun CourseCard(
     // 当前正在上的课：描边平滑过渡到品牌色并加重阴影，形成呼吸感高亮。
     val borderColor by animateColorAsState(
         targetValue = if (isCurrent) MaterialTheme.colorScheme.primary else baseBorder,
-        animationSpec = Motion.eased<Color>(reduceMotion),
+        animationSpec = Motion.eased(),
         label = "courseCardBorder"
     )
     val backgroundAlpha = courseCardBackgroundAlpha(background, hasCustomBackground)

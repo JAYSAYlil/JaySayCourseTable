@@ -83,7 +83,6 @@ class CourseTableVisualContractTest {
                         )
                     ),
                     weekLabels = mapOf(1 to "实践周"),
-                    reduceMotion = true,
                     viewMode = ScheduleViewMode.WEEK,
                     onViewModeChange = {},
                     focusedDay = 1,
@@ -117,7 +116,6 @@ class CourseTableVisualContractTest {
                     onWeekChange = {},
                     semesterStart = "2030-02-04",
                     totalWeeks = 20,
-                    reduceMotion = true,
                     customBackground = customBackground,
                     viewMode = viewMode,
                     onViewModeChange = {},

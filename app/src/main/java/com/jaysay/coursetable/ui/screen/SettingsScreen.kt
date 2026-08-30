@@ -92,7 +92,6 @@ fun SettingsScreen(
     // 拦截系统返回手势，回到主界面而非退出
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    val reduceMotion = LocalReduceMotion.current
 
     var table by remember(tableData) { mutableStateOf(tableData) }
     // 外观和背景不修改课表文件，数据保护模式下仍可正常使用。
@@ -208,7 +207,7 @@ fun SettingsScreen(
                         val interaction = remember { MutableInteractionSource() }
                         Row(
                             modifier = Modifier.fillMaxWidth()
-                                .pressScale(interaction, reduceMotion)
+                                .pressScale(interaction)
                                 .clickable(interactionSource = interaction, indication = null) {
                                     save(preferences.copy(themeMode = mode))
                                 }
@@ -353,19 +352,6 @@ fun SettingsScreen(
                         onCheckedChange = { save(preferences.copy(highContrast = it)) }
                     )
                 },
-                SettingsItem(
-                    keywords = listOf(
-                        stringResource(R.string.settings_reduce_motion),
-                        stringResource(R.string.settings_reduce_motion_subtitle)
-                    )
-                ) {
-                    PreferenceSwitchRow(
-                        title = stringResource(R.string.settings_reduce_motion),
-                        subtitle = stringResource(R.string.settings_reduce_motion_subtitle),
-                        checked = preferences.reduceMotion,
-                        onCheckedChange = { save(preferences.copy(reduceMotion = it)) }
-                    )
-                },
             )
 
             // —— 上课提醒 ——
@@ -498,7 +484,7 @@ fun SettingsScreen(
                             val chipColor by animateColorAsState(
                                 targetValue = if (selected) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.surfaceVariant,
-                                animationSpec = Motion.eased(reduceMotion),
+                                animationSpec = Motion.eased(),
                                 label = "reminderChipColor"
                             )
                             Box(
@@ -506,7 +492,7 @@ fun SettingsScreen(
                                     .padding(start = 6.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(chipColor)
-                                    .pressScale(chipInteraction, reduceMotion)
+                                    .pressScale(chipInteraction)
                                     .clickable(
                                         interactionSource = chipInteraction,
                                         indication = null,
@@ -1067,10 +1053,9 @@ private fun PreferenceSwitchRow(
     switchTestTag: String? = null
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val reduceMotion = LocalReduceMotion.current
     Row(
         modifier = Modifier.fillMaxWidth()
-            .pressScale(interaction, reduceMotion)
+            .pressScale(interaction)
             .clickable(interactionSource = interaction, indication = null) { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1097,10 +1082,9 @@ private fun SettingsActionRow(
     onClick: () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val reduceMotion = LocalReduceMotion.current
     Row(
         modifier = modifier.fillMaxWidth()
-            .pressScale(interaction, reduceMotion)
+            .pressScale(interaction)
             .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically

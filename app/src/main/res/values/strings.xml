@@ -337,8 +337,6 @@
     <string name="settings_readonly_message">"%1$s
 课表结构编辑、导入与提醒已停用；外观和背景仍可调整。"</string>
     <string name="settings_readonly_title">"课表数据处于只读保护"</string>
-    <string name="settings_reduce_motion">"减少动态效果"</string>
-    <string name="settings_reduce_motion_subtitle">"缩短页面与周次切换动画"</string>
     <string name="settings_reminder_advance">"提前提醒"</string>
     <string name="settings_reminder_disabled">"提醒已关闭"</string>
     <string name="settings_reminder_enable">"提醒上课"</string>

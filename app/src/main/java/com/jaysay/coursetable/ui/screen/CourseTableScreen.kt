@@ -1,6 +1,12 @@
 package com.jaysay.coursetable.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -90,7 +96,6 @@ import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
 import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.AppShapes
-import com.jaysay.coursetable.ui.theme.LocalReduceMotion
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
@@ -183,7 +188,6 @@ fun CourseTableScreen(
     excludedWeeks: List<Int> = emptyList(),
     dateExceptions: List<ScheduleDateException> = emptyList(),
     weekLabels: Map<Int, String> = emptyMap(),
-    reduceMotion: Boolean = false,
     customBackground: ImageBitmap? = null,
     customBackgroundOverlayEnabled: Boolean = true,
     viewMode: ScheduleViewMode,
@@ -438,7 +442,13 @@ fun CourseTableScreen(
                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
 
-            if (weekStatus.hasCalendarContext) {
+            // 停课/特殊安排提示条：切到相关周次时展开淡入，离开时收起，与翻页动效同节奏。
+            AnimatedVisibility(
+                visible = weekStatus.hasCalendarContext,
+                enter = fadeIn(Motion.eased()) + expandVertically(Motion.page()),
+                exit = fadeOut(tween(Motion.DURATION_SHORT, easing = Motion.exit)) +
+                    shrinkVertically(Motion.page())
+            ) {
                 CalendarContextStrip(weekStatus, onCalendarContextClick)
             }
 
@@ -492,8 +502,7 @@ fun CourseTableScreen(
                 semesterStart = semesterStart,
                 excludedWeekSet = excludedWeekSet,
                 dateExceptions = dateExceptions,
-                weekLabels = weekLabels,
-                reduceMotion = reduceMotion
+                weekLabels = weekLabels
             )
         }
         }
@@ -529,8 +538,7 @@ private fun WeekPagerSection(
     semesterStart: String,
     excludedWeekSet: Set<Int>,
     dateExceptions: List<ScheduleDateException>,
-    weekLabels: Map<Int, String>,
-    reduceMotion: Boolean
+    weekLabels: Map<Int, String>
 ) {
     val onWeekChangeState by rememberUpdatedState(onWeekChange)
     val currentWeekState by rememberUpdatedState(currentWeek)
@@ -547,7 +555,7 @@ private fun WeekPagerSection(
     LaunchedEffect(currentWeek, totalWeeks) {
         val target = (currentWeek - 1).coerceIn(0, totalWeeks - 1)
         if (pagerState.settledPage != target && !pagerState.isScrollInProgress) {
-            if (reduceMotion) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
+            pagerState.animateScrollToPage(target)
         }
     }
 
@@ -662,7 +670,7 @@ private fun DayChipRow(focusedDay: Int, onFocusedDayChange: (Int) -> Unit) {
             val selected = day == focusedDay
             val chipColor by animateColorAsState(
                 if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                animationSpec = Motion.eased<Color>(LocalReduceMotion.current),
+                animationSpec = Motion.eased(),
                 label = "dayChip"
             )
             val dayChipDescription = stringResource(R.string.course_view_day_desc, TimeUtils.getDayName(day))

@@ -41,7 +41,6 @@ import com.jaysay.coursetable.data.model.ScheduleDateException
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.theme.AppShapes
-import com.jaysay.coursetable.ui.theme.LocalReduceMotion
 import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
@@ -209,13 +208,12 @@ private fun AgendaCourseCard(instance: AgendaCourseInstance, onClick: () -> Unit
         add(doubleTapHint)
     }.joinToString("，")
     val interactionSource = remember { MutableInteractionSource() }
-    val reduceMotion = LocalReduceMotion.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("agenda-course-${course.courseId}-${instance.date}")
             .semantics(mergeDescendants = true) { contentDescription = details }
-            .pressScale(interactionSource, reduceMotion)
+            .pressScale(interactionSource)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

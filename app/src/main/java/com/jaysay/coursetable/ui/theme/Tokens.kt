@@ -10,7 +10,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -40,12 +39,6 @@ object AppSpacing {
     val cardInner = 16.dp
 }
 
-/**
- * 减弱动效统一通道：偏好设置中的“减弱动效”通过该 CompositionLocal 下发，
- * 所有新增动效必须经过 [Motion] 的工厂方法，开启后自动退化为零时长/无位移。
- */
-val LocalReduceMotion: ProvidableCompositionLocal<Boolean> = compositionLocalOf { false }
-
 /** 动效令牌：弹簧用于交互跟随，缓动用于页面级转场。 */
 object Motion {
     val emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
@@ -57,30 +50,23 @@ object Motion {
     const val DURATION_LONG = 380
 
     /** 交互弹簧：快速跟随、轻微过冲。 */
-    fun <T> interactive(reduceMotion: Boolean): SpringSpec<T> = if (reduceMotion) {
-        spring(stiffness = Spring.StiffnessHigh, dampingRatio = 1f, visibilityThreshold = null)
-    } else {
+    fun <T> interactive(): SpringSpec<T> =
         spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
-    }
 
     /** 页面级弹簧：更稳重，几乎无过冲。 */
-    fun <T> page(reduceMotion: Boolean): SpringSpec<T> = if (reduceMotion) {
-        spring(stiffness = Spring.StiffnessHigh, dampingRatio = 1f, visibilityThreshold = null)
-    } else {
+    fun <T> page(): SpringSpec<T> =
         spring(dampingRatio = 0.92f, stiffness = Spring.StiffnessMedium)
-    }
 
     /** 缓动补间：用于不能弹簧化的场景（颜色、共享元素淡入等）。 */
-    fun <T> eased(reduceMotion: Boolean, duration: Int = DURATION_BASE): androidx.compose.animation.core.FiniteAnimationSpec<T> =
-        if (reduceMotion) tween(0) else tween(duration, easing = emphasized)
+    fun <T> eased(duration: Int = DURATION_BASE): androidx.compose.animation.core.FiniteAnimationSpec<T> =
+        tween(duration, easing = emphasized)
 }
 
-/** 按压反馈：按住缩至 0.97，抬起弹回；减弱动效下禁用。 */
+/** 按压反馈：按住缩至 0.97，抬起弹回。 */
 fun Modifier.pressScale(
     interactionSource: InteractionSource,
-    reduceMotion: Boolean,
     pressedScale: Float = 0.97f
-): Modifier = if (reduceMotion) this else composed {
+): Modifier = composed {
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,

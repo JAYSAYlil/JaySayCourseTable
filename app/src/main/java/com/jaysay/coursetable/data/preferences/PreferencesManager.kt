@@ -31,7 +31,6 @@ data class AppPreferences(
     val reminderEnabled: Boolean = false,
     /** 上课前提前提醒分钟数（5/10/15/30）。 */
     val reminderMinutes: Int = 10,
-    val reduceMotion: Boolean = false,
     val highContrast: Boolean = false,
     /** Android 12+ 跟随系统壁纸取色；低版本或关闭时使用内置青绿主题。 */
     val dynamicColor: Boolean = false,
@@ -59,7 +58,6 @@ class PreferencesManager(context: Context) {
             .put("activeTableIndex", prefs.activeTableIndex.coerceAtLeast(0))
             .put("reminderEnabled", prefs.reminderEnabled)
             .put("reminderMinutes", prefs.reminderMinutes.coerceIn(1, 60))
-            .put("reduceMotion", prefs.reduceMotion)
             .put("highContrast", prefs.highContrast)
             .put("dynamicColor", prefs.dynamicColor)
             .put("customBackgroundRevision", prefs.customBackgroundRevision.coerceAtLeast(0L))
@@ -76,7 +74,6 @@ class PreferencesManager(context: Context) {
             activeTableIndex = obj.optInt("activeTableIndex", 0).coerceAtLeast(0),
             reminderEnabled = obj.optBoolean("reminderEnabled", false),
             reminderMinutes = obj.optInt("reminderMinutes", 10).coerceIn(1, 60),
-            reduceMotion = obj.optBoolean("reduceMotion", false),
             highContrast = obj.optBoolean("highContrast", false),
             dynamicColor = obj.optBoolean("dynamicColor", false),
             customBackgroundRevision = obj.optLong("customBackgroundRevision", 0L).coerceAtLeast(0L),
