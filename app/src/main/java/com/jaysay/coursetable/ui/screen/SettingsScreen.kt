@@ -187,9 +187,6 @@ fun SettingsScreen(
             // ===== 分区数据（标题/副标题参与搜索匹配）=====
 
             // —— 通用：外观模式 + 课表背景 + 显示与无障碍 ——
-            val dynamicColorSubtitle =
-                if (Build.VERSION.SDK_INT >= 31) stringResource(R.string.settings_dynamic_color_subtitle)
-                else stringResource(R.string.settings_dynamic_color_unavailable)
             val generalItems = listOf(
                 SettingsItem(
                     keywords = listOf(
@@ -226,17 +223,6 @@ fun SettingsScreen(
                             )
                         }
                     }
-                },
-                SettingsItem(
-                    keywords = listOf(stringResource(R.string.settings_dynamic_color), dynamicColorSubtitle)
-                ) {
-                    PreferenceSwitchRow(
-                        title = stringResource(R.string.settings_dynamic_color),
-                        subtitle = dynamicColorSubtitle,
-                        checked = preferences.dynamicColor,
-                        onCheckedChange = { save(preferences.copy(dynamicColor = it)) },
-                        switchTestTag = "dynamic-color-switch"
-                    )
                 },
                 SettingsItem(
                     keywords = listOf(

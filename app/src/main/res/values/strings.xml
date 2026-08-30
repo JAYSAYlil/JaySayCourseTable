@@ -398,9 +398,6 @@
     <string name="settings_search_no_results">"没有找到相关设置项"</string>
     <string name="settings_search_no_results_hint">"换个关键词试试，例如“提醒”“主题”“备份”"</string>
     <string name="settings_search_clear">"清除搜索"</string>
-    <string name="settings_dynamic_color">"跟随系统取色"</string>
-    <string name="settings_dynamic_color_subtitle">"使用桌面壁纸派生的主题色（Android 12 及以上支持）"</string>
-    <string name="settings_dynamic_color_unavailable">"需要 Android 12 及以上系统"</string>
     <string name="settings_section_general">"通用"</string>
     <string name="settings_section_data">"数据与版本"</string>
     <string name="settings_check_update">"检查更新"</string>

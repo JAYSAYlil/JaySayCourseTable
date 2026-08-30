@@ -2,18 +2,14 @@
 package com.jaysay.coursetable.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.jaysay.coursetable.data.preferences.ThemeMode
@@ -52,7 +48,6 @@ fun JaySayTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     highContrast: Boolean = false,
     transparentSystemBars: Boolean = false,
-    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -61,12 +56,7 @@ fun JaySayTheme(
         ThemeMode.DARK -> true
         ThemeMode.SYSTEM -> systemDark
     }
-    val context = LocalContext.current
-    val baseColors = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        if (isDark) DarkColors else LightColors
-    }
+    val baseColors = if (isDark) DarkColors else LightColors
     val colors = if (highContrast) baseColors.copy(
         onSurfaceVariant = baseColors.onSurface,
         outline = baseColors.onSurface,

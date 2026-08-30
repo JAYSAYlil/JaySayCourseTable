@@ -223,8 +223,7 @@ class MainActivity : ComponentActivity() {
             JaySayTheme(
                 themeMode = state.preferences.themeMode,
                 highContrast = state.preferences.highContrast,
-                transparentSystemBars = customBackgroundActive && currentScreen() == Screen.MAIN,
-                dynamicColor = state.preferences.dynamicColor
+                transparentSystemBars = customBackgroundActive && currentScreen() == Screen.MAIN
             ) {
                 if (state.isLoading) {
                     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
