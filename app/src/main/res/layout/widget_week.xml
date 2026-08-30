@@ -56,19 +56,358 @@
         android:layout_marginTop="6dp"
         android:background="@color/widget_divider" />
 
+    <LinearLayout
+        android:id="@+id/widget_week_weekdays"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_week_divider"
+        android:layout_marginTop="3dp"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_week_dow_1"
+            style="@style/WidgetWeekDayLabel"
+            tools:text="一" />
+        <TextView
+            android:id="@+id/widget_week_dow_2"
+            style="@style/WidgetWeekDayLabel"
+            tools:text="二" />
+        <TextView
+            android:id="@+id/widget_week_dow_3"
+            style="@style/WidgetWeekDayLabel"
+            tools:text="三" />
+        <TextView
+            android:id="@+id/widget_week_dow_4"
+            style="@style/WidgetWeekDayLabel"
+            tools:text="四" />
+        <TextView
+            android:id="@+id/widget_week_dow_5"
+            style="@style/WidgetWeekDayLabel"
+            tools:text="五" />
+        <TextView
+            android:id="@+id/widget_week_dow_6"
+            style="@style/WidgetWeekDayLabel"
+            tools:text="六" />
+        <TextView
+            android:id="@+id/widget_week_dow_7"
+            style="@style/WidgetWeekDayLabel"
+            tools:text="日" />
+    </LinearLayout>
+
     <FrameLayout
         android:id="@+id/widget_week_body"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/widget_week_divider"
-        android:layout_marginTop="4dp">
+        android:layout_below="@id/widget_week_weekdays"
+        android:layout_marginTop="2dp">
 
         <LinearLayout
             android:id="@+id/widget_week_grid"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:baselineAligned="false"
-            android:orientation="horizontal" />
+            android:orientation="vertical">
+    <LinearLayout
+        android:id="@+id/grid_row_0"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r0_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r0_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r0_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r0_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r0_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r0_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r0_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_1"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r1_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r1_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r1_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r1_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r1_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r1_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r1_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_2"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r2_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r2_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r2_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r2_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r2_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r2_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r2_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_3"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r3_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r3_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r3_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r3_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r3_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r3_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r3_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_4"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r4_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r4_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r4_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r4_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r4_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r4_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r4_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_5"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r5_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r5_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r5_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r5_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r5_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r5_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r5_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_6"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r6_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r6_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r6_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r6_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r6_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r6_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r6_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_7"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r7_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r7_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r7_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r7_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r7_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r7_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r7_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_8"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r8_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r8_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r8_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r8_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r8_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r8_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r8_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_9"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r9_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r9_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r9_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r9_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r9_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r9_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r9_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_10"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r10_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r10_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r10_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r10_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r10_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r10_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r10_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/grid_row_11"
+        style="@style/WidgetWeekRow">
+        <TextView
+            android:id="@+id/cell_r11_c0"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r11_c1"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r11_c2"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r11_c3"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r11_c4"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r11_c5"
+            style="@style/WidgetWeekCell" />
+        <TextView
+            android:id="@+id/cell_r11_c6"
+            style="@style/WidgetWeekCell" />
+    </LinearLayout>
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_week_empty"
@@ -77,6 +416,6 @@
             android:gravity="center"
             android:textColor="@color/widget_text_secondary"
             android:textSize="12sp"
-            tools:text="本周无课\n点击打开应用" />
+            tools:text="本周无课" />
     </FrameLayout>
 </RelativeLayout>

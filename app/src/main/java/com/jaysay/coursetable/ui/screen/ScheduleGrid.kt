@@ -144,9 +144,9 @@ internal fun TableGrid(
     // 只持有 State 引用而不读取 .value，本层不会随分钟刷新重组；
     // 订阅下移到时间线覆盖层与课程卡片内部。
     val currentMinuteState = rememberCurrentMinute()
-    val gridBackground = if (hasCustomBackground) {
-        MaterialTheme.colorScheme.background.copy(alpha = if (dark) 0.38f else 0.30f)
-    } else if (dark) DarkBackground else MaterialTheme.colorScheme.background
+    // 网格不再叠加半透明底色层：页面底色由屏幕层统一绘制，
+    // 自定义背景壁纸直接透出，课程卡片自身的不透明度保证可读性。
+    val gridBackground = Color.Transparent
     val sectionBackground = if (dark) Color(0xFF17191B) else Color(0xFFEFF2F1)
     val sectionText = if (dark) DarkPrimaryDark.copy(alpha = 0.72f) else PrimaryDark.copy(alpha = 0.72f)
     val isTodayVisible = currentWeek == todayWeek

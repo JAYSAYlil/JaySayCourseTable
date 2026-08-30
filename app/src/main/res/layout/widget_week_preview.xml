@@ -24,6 +24,8 @@
             android:paddingTop="3dp"
             android:paddingEnd="8dp"
             android:paddingBottom="3dp"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:textColor="@color/widget_status_text"
             android:textSize="11sp"
             android:textStyle="bold"
@@ -38,6 +40,7 @@
             android:layout_toStartOf="@id/widget_week_badge"
             android:ellipsize="end"
             android:maxLines="1"
+            android:singleLine="true"
             android:textColor="@color/widget_text_primary"
             android:textSize="16sp"
             android:textStyle="bold"
@@ -45,160 +48,105 @@
     </RelativeLayout>
 
     <LinearLayout
-        android:id="@+id/widget_week_grid"
+        android:id="@+id/widget_week_weekdays"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:layout_below="@id/widget_week_header"
         android:layout_marginTop="6dp"
         android:baselineAligned="false"
         android:orientation="horizontal">
+        <TextView style="@style/WidgetWeekDayLabel" android:textColor="@color/widget_accent" android:text="一" />
+        <TextView style="@style/WidgetWeekDayLabel" android:text="二" />
+        <TextView style="@style/WidgetWeekDayLabel" android:text="三" />
+        <TextView style="@style/WidgetWeekDayLabel" android:text="四" />
+        <TextView style="@style/WidgetWeekDayLabel" android:text="五" />
+        <TextView style="@style/WidgetWeekDayLabel" android:text="六" />
+        <TextView style="@style/WidgetWeekDayLabel" android:text="日" />
+    </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@drawable/widget_week_today_border"
-            android:orientation="vertical"
-            android:padding="1dp">
-
-            <TextView
-                style="@style/WidgetWeekPreviewDayHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="一\n1" />
-
-            <TextView
-                style="@style/WidgetWeekPreviewCell"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_margin="1dp"
-                android:background="#D1E3F0FB"
-                android:text="高等数学" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                style="@style/WidgetWeekPreviewDayHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="二\n2" />
-
-            <TextView
-                style="@style/WidgetWeekPreviewCell"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_margin="1dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                style="@style/WidgetWeekPreviewDayHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="三\n3" />
-
-            <TextView
-                style="@style/WidgetWeekPreviewCell"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_margin="1dp"
-                android:background="#D1E2F6E9"
-                android:text="大学英语" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                style="@style/WidgetWeekPreviewDayHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="四\n4" />
-
-            <TextView
-                style="@style/WidgetWeekPreviewCell"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_margin="1dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                style="@style/WidgetWeekPreviewDayHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="五\n5" />
-
-            <TextView
-                style="@style/WidgetWeekPreviewCell"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_margin="1dp"
-                android:background="#D1FDF2D2"
-                android:text="数据结构" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                style="@style/WidgetWeekPreviewDayHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="六\n6" />
-
-            <TextView
-                style="@style/WidgetWeekPreviewCell"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_margin="1dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                style="@style/WidgetWeekPreviewDayHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="日\n7" />
-
-            <TextView
-                style="@style/WidgetWeekPreviewCell"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_margin="1dp" />
-        </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/widget_week_weekdays"
+        android:layout_marginTop="3dp"
+        android:orientation="vertical">
+    <LinearLayout style="@style/WidgetWeekRow">
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="高等数学"
+        android:background="#E3F0FB" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="大学英语"
+        android:background="#E2F6E9" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="操作系统"
+        android:background="#FDF2D2" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+    </LinearLayout>
+    <LinearLayout style="@style/WidgetWeekRow">
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="高等数学"
+        android:background="#E3F0FB" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="大学英语"
+        android:background="#E2F6E9" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="操作系统"
+        android:background="#FDF2D2" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+    </LinearLayout>
+    <LinearLayout style="@style/WidgetWeekRow">
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="移动应用开发实践"
+        android:background="#DCF3F0" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+    </LinearLayout>
+    <LinearLayout style="@style/WidgetWeekRow">
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="移动应用开发实践"
+        android:background="#DCF3F0" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+    </LinearLayout>
+    <LinearLayout style="@style/WidgetWeekRow">
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="马克思主义基本原理"
+        android:background="#FBEEDF" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="体育"
+        android:background="#FCE7EA" />
+    </LinearLayout>
+    <LinearLayout style="@style/WidgetWeekRow">
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="马克思主义基本原理"
+        android:background="#FBEEDF" />
+        <TextView style="@style/WidgetWeekPreviewCell"
+        android:text="体育"
+        android:background="#FCE7EA" />
+    </LinearLayout>
     </LinearLayout>
 </RelativeLayout>

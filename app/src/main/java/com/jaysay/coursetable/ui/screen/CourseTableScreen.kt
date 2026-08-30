@@ -697,6 +697,9 @@ private fun WeekPagerSection(
                         viewMode = viewMode,
                         hasCustomBackground = hasCustomBackground
                     )
+                    // 底部 48dp 收尾：让最后一节的时间标签能滚出圆角屏 R 角与手势区，
+                    // 空隙本身透明，不遮挡自定义背景。
+                    Spacer(Modifier.height(48.dp))
                 }
             }
         }

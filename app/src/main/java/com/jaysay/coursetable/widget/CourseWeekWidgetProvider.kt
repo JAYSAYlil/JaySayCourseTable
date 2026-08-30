@@ -38,6 +38,8 @@ class CourseWeekWidgetProvider : AppWidgetProvider() {
             try {
                 // 刷新路径不允许未预期异常崩溃进程，与两天列表小组件保持一致。
                 runCatching { updateWidgets(context, appWidgetManager, appWidgetIds) }
+                    .onFailure { android.util.Log.e("WeekWidget", "update failed", it) }
+                    .onSuccess { android.util.Log.d("WeekWidget", "updated ids=${appWidgetIds.joinToString()}") }
             } finally {
                 pendingResult.finish()
             }
@@ -46,7 +48,11 @@ class CourseWeekWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action in REFRESH_ACTIONS) {
+        // 框架 action（APPWIDGET_UPDATE）由 super.onReceive 完成派发（自带 PendingResult），
+        // 这里只补发 super 不处理的系统事件，避免二次进入 onUpdate 时 goAsync() 返回 null 崩溃。
+        if (intent.action != AppWidgetManager.ACTION_APPWIDGET_UPDATE &&
+            intent.action in REFRESH_ACTIONS
+        ) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, CourseWeekWidgetProvider::class.java))
             onUpdate(context, manager, ids)
@@ -148,7 +154,8 @@ class CourseWeekWidgetProvider : AppWidgetProvider() {
                 Intent(context, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_week_header, openApp)
+            // 整个小组件可点：根布局 + 空态文案都挂打开应用的 PendingIntent。
+            views.setOnClickPendingIntent(R.id.widget_week_root, openApp)
             views.setOnClickPendingIntent(R.id.widget_week_empty, openApp)
             appWidgetManager.updateAppWidget(widgetId, views)
         }
@@ -170,82 +177,110 @@ class CourseWeekWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_week_badge, View.GONE)
         }
 
-        views.removeAllViews(R.id.widget_week_grid)
+        // 星期标签行：一 到 日，今天的标签用品牌色高亮。
+        val todayAccent = context.getColor(R.color.widget_accent)
+        val headerSecondary = context.getColor(R.color.widget_text_secondary)
+        val weekdayIds = intArrayOf(
+            R.id.widget_week_dow_1, R.id.widget_week_dow_2, R.id.widget_week_dow_3,
+            R.id.widget_week_dow_4, R.id.widget_week_dow_5, R.id.widget_week_dow_6,
+            R.id.widget_week_dow_7
+        )
+        data.dayCourses.forEachIndexed { index, (date, _) ->
+            val id = weekdayIds[index]
+            views.setTextViewText(id, TimeUtils.getDayName(date.dayOfWeek.value).removePrefix("周").take(1))
+            views.setTextColor(id, if (date == data.today) todayAccent else headerSecondary)
+        }
+
+        // 网格为静态预置的 MAX_ROWS 行 × 7 列：
+        // RemoteViews 动态 addView 的子项会丢失 XML 里的 layout_weight（宽度塌成 0），
+        // 静态子节点不受影响，因此这里只设置文本/颜色/可见性。
         val hasCourses = data.minPeriod != null && data.maxPeriod != null
         if (!data.hasTable) {
-            views.setTextViewText(R.id.widget_week_empty, "暂无课表数据\n点击打开应用")
+            views.setTextViewText(R.id.widget_week_empty, "暂无课表数据，点击打开应用")
         } else if (!hasCourses) {
             views.setTextViewText(
                 R.id.widget_week_empty,
-                if (data.suspendedWeek) "停课周\n本周无课程" else "本周无课\n点击打开应用"
+                if (data.suspendedWeek) "停课周，本周无课程" else "本周无课，点击打开应用"
             )
         }
         views.setViewVisibility(R.id.widget_week_grid, if (hasCourses) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_week_empty, if (hasCourses) View.GONE else View.VISIBLE)
-        if (!hasCourses) return views
 
-        val todayAccent = context.getColor(R.color.widget_accent)
-        val headerSecondary = context.getColor(R.color.widget_text_secondary)
-        data.dayCourses.forEach { (date, courses) ->
-            val isToday = date == data.today
-            val stack = RemoteViews(context.packageName, R.layout.widget_week_day_stack)
-            val header = RemoteViews(context.packageName, R.layout.widget_week_day_header)
-            val weekdayChar = TimeUtils.getDayName(date.dayOfWeek.value)
-                .removePrefix("周")
-                .take(1)
-            header.setTextViewText(
-                R.id.widget_week_day_header_text,
-                "$weekdayChar\n${date.dayOfMonth}"
-            )
-            header.setTextColor(
-                R.id.widget_week_day_header_text,
-                if (isToday) todayAccent else headerSecondary
-            )
-            stack.addView(R.id.widget_week_day_stack, header)
-
-            for (period in data.minPeriod..data.maxPeriod) {
-                stack.addView(R.id.widget_week_day_stack, buildCell(context, dark, data, courses, period))
-            }
-
-            if (isToday) {
-                val wrapper = RemoteViews(context.packageName, R.layout.widget_week_day_today)
-                wrapper.addView(R.id.widget_week_today_frame, stack)
-                views.addView(R.id.widget_week_grid, wrapper)
-            } else {
-                views.addView(R.id.widget_week_grid, stack)
+        if (hasCourses) {
+            val visibleRows = (data.maxPeriod!! - data.minPeriod + 1).coerceAtMost(MAX_ROWS)
+            for (rowIndex in 0 until MAX_ROWS) {
+                val rowId = rowIdOf(rowIndex)
+                if (rowIndex >= visibleRows) {
+                    views.setViewVisibility(rowId, View.GONE)
+                    continue
+                }
+                views.setViewVisibility(rowId, View.VISIBLE)
+                val period = data.minPeriod + rowIndex
+                data.dayCourses.forEachIndexed { dayIndex, (_, courses) ->
+                    val isToday = data.dayCourses[dayIndex].first == data.today
+                    val (text, bg, title) = cellContent(dark, data, courses, period, isToday)
+                    val cellId = cellIdOf(context, rowIndex, dayIndex)
+                    views.setTextViewText(cellId, text)
+                    if (bg != null) {
+                        views.setInt(cellId, "setBackgroundColor", bg)
+                        views.setTextColor(cellId, title)
+                    } else {
+                        views.setInt(cellId, "setBackgroundColor", Color.TRANSPARENT)
+                        views.setTextColor(cellId, headerSecondary)
+                    }
+                }
             }
         }
         return views
     }
 
-    private fun buildCell(
-        context: Context,
+    /** 单格内容：返回 文本 to (背景色, 文字色)；无课时背景为 null。 */
+    private fun cellContent(
         dark: Boolean,
         data: WeekGridData,
         courses: List<ResolvedDateCourse>,
-        period: Int
-    ): RemoteViews {
-        val cell = RemoteViews(context.packageName, R.layout.widget_week_cell)
-        val textId = R.id.widget_week_cell_text
+        period: Int,
+        isTodayColumn: Boolean
+    ): Triple<String, Int?, Int> {
         val resolved = courses.asSequence()
             .filter { it.course.startPeriod <= period && period <= it.course.endPeriod }
-            .maxByOrNull { it.course.startPeriod }
-        if (resolved == null) {
-            cell.setTextViewText(textId, "")
-            cell.setInt(textId, "setBackgroundColor", Color.TRANSPARENT)
-        } else {
-            val name = resolved.course.courseName.trim().ifEmpty { "未命名课程" }
-            val (bg, title) = courseCellColors(
-                courseName = name,
-                customColor = resolved.course.customColor,
-                colorIndex = data.colorIndex,
-                dark = dark
-            )
-            cell.setTextViewText(textId, name)
-            cell.setInt(textId, "setBackgroundColor", bg)
-            cell.setTextColor(textId, title)
+            .maxByOrNull { it.course.startPeriod } ?: return Triple("", null, 0)
+        val name = resolved.course.courseName.trim().ifEmpty { "未命名课程" }
+        var (bg, title) = courseCellColors(
+            courseName = name,
+            customColor = resolved.course.customColor,
+            colorIndex = data.colorIndex,
+            dark = dark
+        )
+        if (isTodayColumn) {
+            // 今天列：在课程底色上叠加品牌色调，整列形成可辨识的竖向高亮。
+            bg = blendTodayTint(bg)
         }
-        return cell
+        return Triple(name, bg, title)
+    }
+
+    private fun rowIdOf(rowIndex: Int): Int = when (rowIndex) {
+        0 -> R.id.grid_row_0; 1 -> R.id.grid_row_1; 2 -> R.id.grid_row_2; 3 -> R.id.grid_row_3
+        4 -> R.id.grid_row_4; 5 -> R.id.grid_row_5; 6 -> R.id.grid_row_6; 7 -> R.id.grid_row_7
+        8 -> R.id.grid_row_8; 9 -> R.id.grid_row_9; 10 -> R.id.grid_row_10; else -> R.id.grid_row_11
+    }
+
+    private fun cellIdOf(context: Context, rowIndex: Int, column: Int): Int {
+        fun res(name: String): Int =
+            context.resources.getIdentifier(name, "id", context.packageName)
+        return res("cell_r" + rowIndex + "_c" + column)
+    }
+
+    /** 把预乘 alpha 的卡片底色向品牌色靠近 18%，作为今天列的轻量高亮。 */
+    private fun blendTodayTint(background: Int): Int {
+        val accent = 0xFF0F8F82.toInt()
+        fun mix(shift: Int): Int {
+            val a = (background shr shift and 0xFF)
+            val b = (accent shr shift and 0xFF)
+            return (a + (b - a) * 18 / 100)
+        }
+        return (background and 0xFF000000.toInt()) or
+            (mix(16) shl 16) or (mix(8) shl 8) or mix(0)
     }
 
     companion object {

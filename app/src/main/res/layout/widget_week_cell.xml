@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_week_cell_text"
-    android:layout_width="match_parent"
-    android:layout_height="0dp"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
     android:layout_margin="1dp"
-    android:layout_weight="1"
     android:ellipsize="end"
     android:gravity="center"
+    android:includeFontPadding="false"
     android:lineSpacingMultiplier="0.9"
     android:maxLines="2"
     android:paddingStart="2dp"
@@ -14,4 +14,4 @@
     android:paddingEnd="2dp"
     android:paddingBottom="1dp"
     android:textColor="@color/widget_text_primary"
-    android:textSize="10sp" />
+    android:textSize="9sp" />

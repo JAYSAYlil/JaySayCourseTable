@@ -91,6 +91,7 @@ dependencies {
     // POI 仅用于旧版 .xls（OLE2/BIFF8）；.xlsx 由自研 MinimalXlsxReader 处理，无 POI。
     implementation(libs.apache.poi)
     testImplementation(libs.apache.poi.ooxml)
+    androidTestImplementation(libs.apache.poi.ooxml)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
