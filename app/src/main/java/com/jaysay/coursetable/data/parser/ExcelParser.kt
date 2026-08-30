@@ -2,7 +2,6 @@ package com.jaysay.coursetable.data.parser
 
 import android.content.Context
 import android.net.Uri
-import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.util.TimeUtils
 import java.io.FilterInputStream
@@ -23,10 +22,6 @@ object ExcelParser {
         "教室" to "教室名称", "上课教室" to "教室名称"
     )
 
-    /** data 层错误文案为硬编码中文，与 strings.xml 的 parser_legacy_xls 保持同款。 */
-    private const val LEGACY_XLS_MESSAGE =
-        "不支持旧版 .xls 格式，请在 Office/WPS 中另存为 .xlsx 后重新导入"
-
     data class ParseResult(
         val courses: List<Course>,
         val errors: List<String>
@@ -36,33 +31,40 @@ object ExcelParser {
         val stream = context.contentResolver.openInputStream(uri)
             ?: return ParseResult(emptyList(), listOf("无法打开文件"))
         // 与备份导入对齐设置大小护栏，避免超大文件导致 OOM。
-        return BoundedInputStream(stream, MAX_FILE_BYTES).use {
-            parseInternal(it, context.getString(R.string.parser_legacy_xls))
-        }
+        return BoundedInputStream(stream, MAX_FILE_BYTES).use(::parseInternal)
     }
 
     /** 独立于 Android Uri 的入口，便于自动化测试真实 Excel。 */
     fun parse(inputStream: InputStream): ParseResult {
-        return parseInternal(inputStream, LEGACY_XLS_MESSAGE)
+        return parseInternal(inputStream)
     }
 
-    private fun parseInternal(input: InputStream, legacyXlsMessage: String): ParseResult {
+    private fun parseInternal(input: InputStream): ParseResult {
         return try {
-            val pushback = PushbackInputStream(input, 2)
-            val header = ByteArray(2)
+            val pushback = PushbackInputStream(input, 8)
+            val header = ByteArray(8)
             var read = 0
-            while (read < 2) {
-                val n = pushback.read(header, read, 2 - read)
+            while (read < 8) {
+                val n = pushback.read(header, read, 8 - read)
                 if (n < 0) break
                 read += n
             }
-            val isZip = read == 2 && header[0] == 'P'.code.toByte() && header[1] == 'K'.code.toByte()
-            if (read == 2 && !isZip) {
-                // 旧版 .xls（OLE2 复合文档）等非 zip 容器不再支持，引导用户另存为 .xlsx。
-                return ParseResult(emptyList(), listOf(legacyXlsMessage))
+            val isZip = read >= 2 && header[0] == 'P'.code.toByte() && header[1] == 'K'.code.toByte()
+            val ole2Magic = byteArrayOf(0xD0.toByte(), 0xCF.toByte(), 0x11.toByte(), 0xE0.toByte())
+            val isOle2 = read >= 4 && header.copyOfRange(0, 4).contentEquals(ole2Magic)
+            if (read in 1..3 || (read >= 4 && !isZip && !isOle2)) {
+                // 既不是 zip（xlsx）也不是 OLE2（xls）的容器一律拒绝。
+                return ParseResult(emptyList(), listOf("文件解析失败：不是有效的 Excel 文件"))
             }
             if (read > 0) pushback.unread(header, 0, read)
-            parseGrid(MinimalXlsxReader.read(pushback))
+            parseGrid(
+                if (isOle2) {
+                    // 学校教务系统常导出旧版 .xls：命中 OLE2 魔数后交给 POI-core 读取。
+                    LegacyXlsReader.read(pushback)
+                } else {
+                    MinimalXlsxReader.read(pushback)
+                }
+            )
         } catch (error: BoundedInputStream.FileTooLargeException) {
             ParseResult(emptyList(), listOf("文件超过 $MAX_FILE_MB MB，未读取"))
         } catch (error: MinimalXlsxReader.InvalidXlsxException) {

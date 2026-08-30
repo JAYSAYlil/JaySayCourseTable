@@ -248,107 +248,6 @@ fun SettingsScreen(
                 },
                 SettingsItem(
                     keywords = listOf(
-                        stringResource(R.string.settings_auto_backup),
-                        stringResource(R.string.settings_auto_backup_subtitle)
-                    )
-                ) {
-                    PreferenceSwitchRow(
-                        title = stringResource(R.string.settings_auto_backup),
-                        subtitle = stringResource(R.string.settings_auto_backup_subtitle),
-                        checked = preferences.autoBackupEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled && preferences.autoBackupUri.isBlank()) {
-                                onChooseAutoBackupLocation()
-                            } else {
-                                save(preferences.copy(autoBackupEnabled = enabled))
-                            }
-                        },
-                        switchTestTag = "auto-backup-switch"
-                    )
-                    val chosenName = preferences.autoBackupUri.substringAfterLast('/')
-                        .ifBlank { stringResource(R.string.settings_auto_backup_none) }
-                    SettingsActionRow(
-                        icon = Icons.Outlined.FolderOpen,
-                        title = stringResource(R.string.settings_auto_backup_choose),
-                        subtitle = stringResource(R.string.settings_auto_backup_chosen, chosenName),
-                        onClick = onChooseAutoBackupLocation
-                    )
-                },
-                SettingsItem(
-                    keywords = listOf(
-                        stringResource(R.string.settings_check_update),
-                        stringResource(R.string.settings_check_update_subtitle)
-                    )
-                ) {
-                    val scope = rememberCoroutineScope()
-                    var checkingUpdate by remember { mutableStateOf(false) }
-                    var updateResult by remember { mutableStateOf<UpdateChecker.Result?>(null) }
-                    SettingsActionRow(
-                        icon = Icons.Outlined.SystemUpdateAlt,
-                        title = stringResource(R.string.settings_check_update),
-                        subtitle = stringResource(R.string.settings_check_update_subtitle),
-                        enabled = !checkingUpdate,
-                        onClick = {
-                            checkingUpdate = true
-                            scope.launch {
-                                val result = withContext(Dispatchers.IO) { UpdateChecker.check() }
-                                updateResult = result
-                                checkingUpdate = false
-                            }
-                        }
-                    )
-                    updateResult?.let { result ->
-                        val currentVersion = remember {
-                            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-                        }
-                        val hasNewer = result.error == null &&
-                            UpdateChecker.isNewer(result.latestVersion.orEmpty(), currentVersion)
-                        AlertDialog(
-                            onDismissRequest = { updateResult = null },
-                            title = {
-                                Text(
-                                    when {
-                                        result.error != null -> stringResource(R.string.settings_update_failed, result.error)
-                                        hasNewer -> stringResource(R.string.settings_update_available, result.latestVersion.orEmpty(), currentVersion)
-                                        else -> stringResource(R.string.settings_update_latest, currentVersion)
-                                    },
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            text = {
-                                Text(
-                                    when {
-                                        result.error != null -> result.error
-                                        else -> stringResource(R.string.settings_check_update_subtitle)
-                                    }
-                                )
-                            },
-                            confirmButton = {
-                                if (hasNewer && result.releaseUrl != null) {
-                                    TextButton(onClick = {
-                                        updateResult = null
-                                        runCatching {
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.releaseUrl)))
-                                        }
-                                    }) { Text(stringResource(R.string.settings_update_open)) }
-                                } else {
-                                    TextButton(onClick = { updateResult = null }) {
-                                        Text(stringResource(R.string.overview_dialog_got_it))
-                                    }
-                                }
-                            },
-                            dismissButton = {
-                                if (hasNewer && result.releaseUrl != null) {
-                                    TextButton(onClick = { updateResult = null }) {
-                                        Text(stringResource(R.string.edit_button_cancel))
-                                    }
-                                }
-                            }
-                        )
-                    }
-                },
-                SettingsItem(
-                    keywords = listOf(
                         stringResource(R.string.settings_section_background),
                         stringResource(R.string.settings_choose_image),
                         stringResource(R.string.settings_change_image),
@@ -1120,12 +1019,117 @@ fun SettingsScreen(
                 },
             )
 
+            // —— 数据与版本：自动备份 + 检查更新 + 备份恢复 + 诊断 ——
+            val dataItems = listOf(
+            SettingsItem(
+                keywords = listOf(
+                    stringResource(R.string.settings_auto_backup),
+                    stringResource(R.string.settings_auto_backup_subtitle)
+                )
+            ) {
+                PreferenceSwitchRow(
+                    title = stringResource(R.string.settings_auto_backup),
+                    subtitle = stringResource(R.string.settings_auto_backup_subtitle),
+                    checked = preferences.autoBackupEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled && preferences.autoBackupUri.isBlank()) {
+                            onChooseAutoBackupLocation()
+                        } else {
+                            save(preferences.copy(autoBackupEnabled = enabled))
+                        }
+                    },
+                    switchTestTag = "auto-backup-switch"
+                )
+                val chosenName = preferences.autoBackupUri.substringAfterLast('/')
+                    .ifBlank { stringResource(R.string.settings_auto_backup_none) }
+                SettingsActionRow(
+                    icon = Icons.Outlined.FolderOpen,
+                    title = stringResource(R.string.settings_auto_backup_choose),
+                    subtitle = stringResource(R.string.settings_auto_backup_chosen, chosenName),
+                    onClick = onChooseAutoBackupLocation
+                )
+            },
+            SettingsItem(
+                keywords = listOf(
+                    stringResource(R.string.settings_check_update),
+                    stringResource(R.string.settings_check_update_subtitle)
+                )
+            ) {
+                val scope = rememberCoroutineScope()
+                var checkingUpdate by remember { mutableStateOf(false) }
+                var updateResult by remember { mutableStateOf<UpdateChecker.Result?>(null) }
+                SettingsActionRow(
+                    icon = Icons.Outlined.SystemUpdateAlt,
+                    title = stringResource(R.string.settings_check_update),
+                    subtitle = stringResource(R.string.settings_check_update_subtitle),
+                    enabled = !checkingUpdate,
+                    onClick = {
+                        checkingUpdate = true
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) { UpdateChecker.check() }
+                            updateResult = result
+                            checkingUpdate = false
+                        }
+                    }
+                )
+                updateResult?.let { result ->
+                    val currentVersion = remember {
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+                    }
+                    val hasNewer = result.error == null &&
+                        UpdateChecker.isNewer(result.latestVersion.orEmpty(), currentVersion)
+                    AlertDialog(
+                        onDismissRequest = { updateResult = null },
+                        title = {
+                            Text(
+                                when {
+                                    result.error != null -> stringResource(R.string.settings_update_failed, result.error)
+                                    hasNewer -> stringResource(R.string.settings_update_available, result.latestVersion.orEmpty(), currentVersion)
+                                    else -> stringResource(R.string.settings_update_latest, currentVersion)
+                                },
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        text = {
+                            Text(
+                                when {
+                                    result.error != null -> result.error
+                                    else -> stringResource(R.string.settings_check_update_subtitle)
+                                }
+                            )
+                        },
+                        confirmButton = {
+                            if (hasNewer && result.releaseUrl != null) {
+                                TextButton(onClick = {
+                                    updateResult = null
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.releaseUrl)))
+                                    }
+                                }) { Text(stringResource(R.string.settings_update_open)) }
+                            } else {
+                                TextButton(onClick = { updateResult = null }) {
+                                    Text(stringResource(R.string.overview_dialog_got_it))
+                                }
+                            }
+                        },
+                        dismissButton = {
+                            if (hasNewer && result.releaseUrl != null) {
+                                TextButton(onClick = { updateResult = null }) {
+                                    Text(stringResource(R.string.edit_button_cancel))
+                                }
+                            }
+                        }
+                    )
+                }
+            },
+            )
+
             val sections = listOf(
+
                 SettingsSectionData(stringResource(R.string.settings_section_general), generalItems),
                 SettingsSectionData(stringResource(R.string.settings_section_reminder), reminderItems),
                 SettingsSectionData(stringResource(R.string.settings_section_semester), semesterItems),
-                SettingsSectionData(stringResource(R.string.settings_section_backup), backupItems),
-                SettingsSectionData(stringResource(R.string.settings_section_diagnostics), diagnosticsItems),
+                SettingsSectionData(stringResource(R.string.settings_section_data), dataItems + backupItems + diagnosticsItems),
             )
 
             val renderedSections: List<Pair<SettingsSectionData, List<SettingsItem>>> = if (!isSearching) {

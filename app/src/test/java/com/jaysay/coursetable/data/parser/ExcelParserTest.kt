@@ -28,13 +28,12 @@ class ExcelParserTest {
     }
 
     @Test
-    fun rejectsLegacyXlsWithFriendlyMessage() {
+    fun parsesLegacyXlsWorkbook() {
         val bytes = createSyntheticWorkbook(HSSFWorkbook())
         val result = ByteArrayInputStream(bytes).use(ExcelParser::parse)
 
-        assertTrue(result.courses.isEmpty())
-        assertTrue("Unexpected errors: ${result.errors}", result.errors.first().contains(".xls"))
-        assertTrue(result.errors.first().contains(".xlsx"))
+        assertTrue("Unexpected errors: ${result.errors}", result.errors.isEmpty())
+        assertEquals(1, result.courses.size)
     }
 
     @Test

@@ -88,6 +88,8 @@ dependencies {
 
     // Excel 解析改用手写的 MinimalXlsxReader（JDK 内置 zip+DOM），主包不再依赖 POI；
     // POI 仅保留在测试侧，用于在单元测试中构造 xlsx/xls 样本文件。
+    // POI 仅用于旧版 .xls（OLE2/BIFF8）；.xlsx 由自研 MinimalXlsxReader 处理，无 POI。
+    implementation(libs.apache.poi)
     testImplementation(libs.apache.poi.ooxml)
 
     // Coroutines

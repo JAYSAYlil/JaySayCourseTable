@@ -481,9 +481,8 @@ fun CourseTableScreen(
                     todayDow = todayDow,
                     dayStatuses = dayStatuses,
                     onDayClick = { day ->
-                        // 只切换聚焦日：单日视图下点击表头即换天；
-                        // 周/工作日视图不再被表头误触直接跳进单日视图（切视图走“视图”菜单）。
                         onFocusedDayChange(day)
+                        onViewModeChange(ScheduleViewMode.DAY)
                     }
                 )
                 HorizontalDivider(thickness = 0.75.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
@@ -698,9 +697,6 @@ private fun WeekPagerSection(
                         viewMode = viewMode,
                         hasCustomBackground = hasCustomBackground
                     )
-                    // Lets the final period scroll clear of rounded display corners and
-                    // gesture navigation areas on compact phones.
-                    Spacer(Modifier.height(48.dp))
                 }
             }
         }

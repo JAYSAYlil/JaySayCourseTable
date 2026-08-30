@@ -254,6 +254,9 @@ class CourseWeekWidgetProvider : AppWidgetProvider() {
         private const val MAX_ROWS = 12
         private val REFRESH_ACTIONS = setOf(
             ACTION_UPDATE,
+            // 数据变化时 CourseWidgetProvider.requestUpdate 会显式发框架 action，
+            // 两条刷新链必须一致，否则整周网格不跟随课表编辑。
+            AppWidgetManager.ACTION_APPWIDGET_UPDATE,
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED,

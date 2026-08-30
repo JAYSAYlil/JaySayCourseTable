@@ -41,6 +41,19 @@ object MinimalXlsxReader {
 
         /** 返回指定行的 列号→文本 映射；行不存在返回 null。 */
         fun row(rowIndex: Int): Map<Int, String>? = rows[rowIndex]
+
+        companion object {
+            /** 供 .xls 路径（LegacyXlsReader）把 POI 行列转成统一网格。 */
+            internal fun fromRows(source: Map<Int, Map<Int, String>>): SheetGrid {
+                val tree = TreeMap<Int, TreeMap<Int, String>>()
+                source.forEach { (rowIndex, cells) ->
+                    val row = TreeMap<Int, String>()
+                    cells.forEach { (columnIndex, value) -> row[columnIndex] = value }
+                    tree[rowIndex] = row
+                }
+                return SheetGrid(tree)
+            }
+        }
     }
 
     private const val MAX_DECOMPRESSED_BYTES = 64L * 1024 * 1024
