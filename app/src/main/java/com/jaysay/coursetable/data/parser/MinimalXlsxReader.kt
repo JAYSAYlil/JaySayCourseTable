@@ -180,63 +180,6 @@ object MinimalXlsxReader {
 
     // ---------- 工作表网格 ----------
 
-    private fun parseSheet(
-        root: Element,
-        sharedStrings: List<String>,
-        styles: Styles,
-        date1904: Boolean
-    ): SheetGrid {
-        val rows = TreeMap<Int, TreeMap<Int, String>>()
-        val sheetData = root.getElementsByTagName("sheetData")
-        if (sheetData.length == 0) return SheetGrid(rows)
-        val rowNodes = (sheetData.item(0) as Element).getElementsByTagName("row")
-
-        // <row r="..."> 的 r 是 1 基行号；转成与 POI 一致的 0 基索引。
-        var nextRowNumber = 1
-        for (i in 0 until rowNodes.length) {
-            val rowElement = rowNodes.item(i) as Element
-            val rowNumber = rowElement.getAttribute("r").toIntOrNull() ?: nextRowNumber
-            val rowIndex = rowNumber - 1
-            nextRowNumber = rowNumber + 1
-
-            val cells = TreeMap<Int, String>()
-            var nextColumnIndex = 0
-            val cellNodes = rowElement.getElementsByTagName("c")
-            for (j in 0 until cellNodes.length) {
-                val cell = cellNodes.item(j) as Element
-                val ref = cell.getAttribute("r")
-                val columnIndex = if (ref.isEmpty()) nextColumnIndex else columnIndex(ref) ?: nextColumnIndex
-                nextColumnIndex = columnIndex + 1
-
-                val type = cell.getAttribute("t")
-                val raw = when (type) {
-                    "s" -> {
-                        val index = firstChildText(cell, "v")?.trim()?.toIntOrNull()
-                        if (index == null) "" else sharedStrings.getOrElse(index) { "" }
-                    }
-                    "inlineStr" -> {
-                        val isElement = firstChildElement(cell, "is")
-                        if (isElement == null) "" else richText(isElement)
-                    }
-                    "b" -> when (firstChildText(cell, "v")?.trim()) {
-                        "1", "true", "TRUE" -> "TRUE"
-                        else -> "FALSE"
-                    }
-                    else -> firstChildText(cell, "v") ?: ""
-                }
-                val value = if (type.isEmpty() || type == "n") {
-                    formatNumeric(raw, cell.getAttribute("s").toIntOrNull(), styles, date1904)
-                } else {
-                    raw
-                }
-                if (value.isNotEmpty()) cells[columnIndex] = value
-            }
-            if (cells.isNotEmpty()) rows[rowIndex] = cells
-        }
-        applyMergedCells(root, rows)
-        return SheetGrid(rows)
-    }
-
     /** SAX 流式读取工作表，避免为数万行课程表构造庞大的 DOM 树。 */
     private fun parseSheetStreaming(
         bytes: ByteArray,
@@ -326,14 +269,6 @@ object MinimalXlsxReader {
         // SAX 不保留文档树，合并区域先缓存引用，再复用同一套有界展开逻辑。
         applyMergedCells(merges, rows)
         return SheetGrid(rows)
-    }
-
-    /** 将合并区域左上角的值复制到其余格，兼容合并表头和分组表头。 */
-    private fun applyMergedCells(root: Element, rows: TreeMap<Int, TreeMap<Int, String>>) {
-        val mergeNodes = root.getElementsByTagName("mergeCell")
-        val refs = (0 until mergeNodes.length.coerceAtMost(MAX_MERGE_RANGES))
-            .mapNotNull { (mergeNodes.item(it) as? Element)?.getAttribute("ref") }
-        applyMergedCells(refs, rows)
     }
 
     private fun applyMergedCells(refs: List<String>, rows: TreeMap<Int, TreeMap<Int, String>>) {
