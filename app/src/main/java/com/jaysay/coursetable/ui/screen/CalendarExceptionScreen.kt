@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -69,6 +68,7 @@ import com.jaysay.coursetable.data.model.ScheduleExceptionType
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.Instant
 import java.time.LocalDate
@@ -156,7 +156,7 @@ fun CalendarExceptionScreen(
                 AppPanel(selected = table.excludedWeeks.isNotEmpty() || table.dateExceptions.isNotEmpty()) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = AppShapes.small,
                             color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier.size(44.dp)
                         ) {
@@ -357,7 +357,10 @@ private fun DateArrangementsPanel(
             } else {
                 Spacer(Modifier.height(8.dp))
                 exceptions.sortedBy(ScheduleDateException::date).forEachIndexed { index, item ->
-                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    if (index > 0) HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
                     DateArrangementRow(item, courses, semesterStart, onEdit, onDelete)
                 }
             }
@@ -402,7 +405,7 @@ private fun DateArrangementRow(
             }
             Spacer(Modifier.height(4.dp))
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = AppShapes.small,
                 color = MaterialTheme.colorScheme.secondaryContainer
             ) {
                 Text(

@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -204,7 +205,9 @@ class MainActivity : ComponentActivity() {
             JaySayTheme(
                 themeMode = state.preferences.themeMode,
                 highContrast = state.preferences.highContrast,
-                transparentSystemBars = customBackgroundActive && currentScreen() == Screen.MAIN
+                transparentSystemBars = customBackgroundActive && currentScreen() == Screen.MAIN,
+                reduceMotion = state.preferences.reduceMotion,
+                dynamicColor = state.preferences.dynamicColor
             ) {
                 if (state.isLoading) {
                     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
@@ -559,18 +562,23 @@ class MainActivity : ComponentActivity() {
                             else MaterialTheme.colorScheme.background
                         ),
                         transitionSpec = {
-                            val enterMs = if (state.preferences.reduceMotion) 0 else 220
-                            val fadeMs = if (state.preferences.reduceMotion) 0 else 180
-                            if (initialState == Screen.COURSE_DETAIL) {
+                            val reduceMotion = state.preferences.reduceMotion
+                            if (reduceMotion) {
+                                fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                            } else if (initialState == Screen.COURSE_DETAIL) {
                                 // 仅课程详情返回一级课表/日程时使用短淡化，避免详情页返回时产生明显位移。
-                                fadeIn(tween(if (state.preferences.reduceMotion) 0 else 150)) togetherWith
-                                    fadeOut(tween(if (state.preferences.reduceMotion) 0 else 90))
+                                fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard)) togetherWith
+                                    fadeOut(tween(90, easing = Motion.exit))
                             } else if (targetState.ordinal > initialState.ordinal) {
-                                (slideInHorizontally(tween(enterMs)) { it / 4 } + fadeIn(tween(fadeMs))) togetherWith
-                                    (slideOutHorizontally(tween(fadeMs)) { -it / 5 } + fadeOut(tween(if (state.preferences.reduceMotion) 0 else 130)))
+                                (slideInHorizontally(Motion.page<IntOffset>(reduceMotion)) { it / 4 } +
+                                    fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard))) togetherWith
+                                    (slideOutHorizontally(tween(Motion.DURATION_BASE, easing = Motion.exit)) { -it / 5 } +
+                                        fadeOut(tween(110, easing = Motion.exit)))
                             } else {
-                                (slideInHorizontally(tween(enterMs)) { -it / 4 } + fadeIn(tween(fadeMs))) togetherWith
-                                    (slideOutHorizontally(tween(fadeMs)) { it / 5 } + fadeOut(tween(if (state.preferences.reduceMotion) 0 else 130)))
+                                (slideInHorizontally(Motion.page<IntOffset>(reduceMotion)) { -it / 4 } +
+                                    fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard))) togetherWith
+                                    (slideOutHorizontally(tween(Motion.DURATION_BASE, easing = Motion.exit)) { it / 5 } +
+                                        fadeOut(tween(110, easing = Motion.exit)))
                             }
                         },
                         label = "screen"

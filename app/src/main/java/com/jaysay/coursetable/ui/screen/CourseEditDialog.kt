@@ -30,7 +30,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
@@ -246,7 +245,7 @@ fun CourseEditDialog(
         Dialog(onDismissRequest = onDismiss) {
             Surface(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f).testTag("course-edit-dialog"),
-                shape = RoundedCornerShape(20.dp),
+                shape = AppShapes.sheet,
                 color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(
                     0.8.dp,
@@ -261,7 +260,7 @@ fun CourseEditDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(if (isNew) stringResource(R.string.edit_title_add) else stringResource(R.string.edit_title_edit),
-                            fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, stringResource(R.string.edit_close)) }
                     }
                     HorizontalDivider()
@@ -269,42 +268,46 @@ fun CourseEditDialog(
                     // 错误提示条
                     if (errorMsg != null) {
                         Surface(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
                             color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = AppShapes.small
                         ) {
                             Text(errorMsg!!, color = MaterialTheme.colorScheme.onErrorContainer,
-                                fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+                                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
                         }
                     }
 
                     // 表单
                     Column(
                         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // 课程名称
                         OutlinedTextField(value = form.name, onValueChange = { form = form.copy(name = it); errorMsg = null },
                             label = { Text(stringResource(R.string.edit_label_course_name)) }, singleLine = true,
+                            shape = AppShapes.input,
                             modifier = Modifier.fillMaxWidth().testTag("course-name-input"))
 
                         // 教师 + 教室
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = form.teacher, onValueChange = { form = form.copy(teacher = it) },
-                                label = { Text(stringResource(R.string.edit_label_teacher)) }, singleLine = true, modifier = Modifier.weight(1f))
+                                label = { Text(stringResource(R.string.edit_label_teacher)) }, singleLine = true,
+                                shape = AppShapes.input, modifier = Modifier.weight(1f))
                             OutlinedTextField(value = form.classroom, onValueChange = { form = form.copy(classroom = it) },
-                                label = { Text(stringResource(R.string.edit_label_classroom)) }, singleLine = true, modifier = Modifier.weight(1f))
+                                label = { Text(stringResource(R.string.edit_label_classroom)) }, singleLine = true,
+                                shape = AppShapes.input, modifier = Modifier.weight(1f))
                         }
 
                         // 星期选择
-                        Text(stringResource(R.string.edit_label_day), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.edit_label_day), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             for (d in 1..7) {
                                 val sel = d == form.day
                                 Box(
                                     modifier = Modifier.weight(1f).height(48.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .clip(AppShapes.small)
                                         .background(
                                             if (sel) MaterialTheme.colorScheme.primary
                                             else MaterialTheme.colorScheme.surfaceVariant
@@ -314,7 +317,7 @@ fun CourseEditDialog(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(TimeUtils.getDayName(d).replace("周", ""),
-                                        fontSize = 11.sp,
+                                        style = MaterialTheme.typography.labelSmall,
                                         fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
                                         color = if (sel) MaterialTheme.colorScheme.onPrimary
                                                 else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -323,74 +326,87 @@ fun CourseEditDialog(
                         }
 
                         // 节次
-                        Text(stringResource(R.string.edit_label_period), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.edit_label_period), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.edit_period_prefix), fontSize = 14.sp)
+                            Text(stringResource(R.string.edit_period_prefix), style = MaterialTheme.typography.bodyMedium)
                             OutlinedTextField(value = form.startText, onValueChange = { v ->
                                 val f = v.filter { it.isDigit() }.take(2)
                                 form = form.copy(startText = f)
                                 f.toIntOrNull()?.let { form = form.copy(startPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1))) }
                                 errorMsg = null
                             }, modifier = Modifier.width(60.dp).testTag("course-start-period-input"), singleLine = true,
+                                shape = AppShapes.input,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            Text(stringResource(R.string.edit_period_range), fontSize = 14.sp)
+                            Text(stringResource(R.string.edit_period_range), style = MaterialTheme.typography.bodyMedium)
                             OutlinedTextField(value = form.endText, onValueChange = { v ->
                                 val f = v.filter { it.isDigit() }.take(2)
                                 form = form.copy(endText = f)
                                 f.toIntOrNull()?.let { form = form.copy(endPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1))) }
                                 errorMsg = null
                             }, modifier = Modifier.width(60.dp).testTag("course-end-period-input"), singleLine = true,
+                                shape = AppShapes.input,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            Text(stringResource(R.string.edit_period_suffix), fontSize = 14.sp)
+                            Text(stringResource(R.string.edit_period_suffix), style = MaterialTheme.typography.bodyMedium)
                         }
                         if (form.endPeriod < form.startPeriod) {
-                            Text(stringResource(R.string.edit_error_end_before_start), fontSize = 12.sp,
+                            Text(stringResource(R.string.edit_error_end_before_start),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error)
                         }
 
                         // 周次
                         OutlinedTextField(value = form.weekStr, onValueChange = { form = form.copy(weekStr = it) },
                             label = { Text(stringResource(R.string.edit_label_weeks)) }, singleLine = true,
+                            shape = AppShapes.input,
                             modifier = Modifier.fillMaxWidth())
 
                         // 学分
                         OutlinedTextField(value = form.creditsStr, onValueChange = { form = form.copy(creditsStr = it) },
                             label = { Text(stringResource(R.string.edit_label_credits)) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = AppShapes.input,
                             modifier = Modifier.width(120.dp))
 
                         // 课程性质 + 线上
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically) {
                             OutlinedTextField(value = form.courseType, onValueChange = { form = form.copy(courseType = it) },
-                                label = { Text(stringResource(R.string.edit_label_course_type)) }, singleLine = true, modifier = Modifier.weight(1f))
-                            Text(stringResource(R.string.edit_label_online), fontSize = 13.sp)
+                                label = { Text(stringResource(R.string.edit_label_course_type)) }, singleLine = true,
+                                shape = AppShapes.input, modifier = Modifier.weight(1f))
+                            Text(stringResource(R.string.edit_label_online), style = MaterialTheme.typography.bodyMedium)
                             Switch(checked = form.isOnline, onCheckedChange = { form = form.copy(isOnline = it) })
                         }
 
                         // 课程类别 + 考核方式
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = form.courseCategory, onValueChange = { form = form.copy(courseCategory = it) },
-                                label = { Text(stringResource(R.string.edit_label_course_category)) }, singleLine = true, modifier = Modifier.weight(1f))
+                                label = { Text(stringResource(R.string.edit_label_course_category)) }, singleLine = true,
+                                shape = AppShapes.input, modifier = Modifier.weight(1f))
                             OutlinedTextField(value = form.assessmentMethod, onValueChange = { form = form.copy(assessmentMethod = it) },
-                                label = { Text(stringResource(R.string.edit_label_assessment)) }, singleLine = true, modifier = Modifier.weight(1f))
+                                label = { Text(stringResource(R.string.edit_label_assessment)) }, singleLine = true,
+                                shape = AppShapes.input, modifier = Modifier.weight(1f))
                         }
 
                         // 课程号 + 课序号
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = form.courseId, onValueChange = { form = form.copy(courseId = it) },
-                                label = { Text(stringResource(R.string.edit_label_course_id)) }, singleLine = true, modifier = Modifier.weight(1f))
+                                label = { Text(stringResource(R.string.edit_label_course_id)) }, singleLine = true,
+                                shape = AppShapes.input, modifier = Modifier.weight(1f))
                             OutlinedTextField(value = form.classNumber, onValueChange = { form = form.copy(classNumber = it) },
-                                label = { Text(stringResource(R.string.edit_label_class_number)) }, singleLine = true, modifier = Modifier.weight(1f))
+                                label = { Text(stringResource(R.string.edit_label_class_number)) }, singleLine = true,
+                                shape = AppShapes.input, modifier = Modifier.weight(1f))
                         }
 
                         // 开课单位
                         OutlinedTextField(value = form.department, onValueChange = { form = form.copy(department = it) },
                             label = { Text(stringResource(R.string.edit_label_department)) }, singleLine = true,
+                            shape = AppShapes.input,
                             modifier = Modifier.fillMaxWidth())
 
                         // 自定义颜色
-                        Text(stringResource(R.string.edit_label_color), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.edit_label_color), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -414,9 +430,11 @@ fun CourseEditDialog(
                         // 备注
                         OutlinedTextField(value = form.notes, onValueChange = { form = form.copy(notes = it) },
                             label = { Text(stringResource(R.string.edit_label_notes)) }, maxLines = 3,
+                            shape = AppShapes.input,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp))
 
-                        Text(stringResource(R.string.edit_label_reminder), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.edit_label_reminder), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -434,7 +452,9 @@ fun CourseEditDialog(
                             }
                         }
                         if (form.reminderMode != CourseReminderMode.DISABLED) {
-                            Text(stringResource(R.string.edit_label_advance_minutes), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.edit_label_advance_minutes),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(
                                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -458,8 +478,9 @@ fun CourseEditDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.edit_label_end_reminder), fontSize = 14.sp)
-                                    Text(stringResource(R.string.edit_end_reminder_desc), fontSize = 12.sp,
+                                    Text(stringResource(R.string.edit_label_end_reminder), style = MaterialTheme.typography.bodyMedium)
+                                    Text(stringResource(R.string.edit_end_reminder_desc),
+                                        style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Switch(checked = form.endReminderEnabled, onCheckedChange = { form = form.copy(endReminderEnabled = it) })
@@ -473,7 +494,7 @@ fun CourseEditDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(stringResource(R.string.edit_apply_to_all), fontSize = 14.sp)
+                                Text(stringResource(R.string.edit_apply_to_all), style = MaterialTheme.typography.bodyMedium)
                                 Switch(checked = form.applyToAll, onCheckedChange = { form = form.copy(applyToAll = it) })
                             }
                         }
@@ -484,14 +505,14 @@ fun CourseEditDialog(
                     // 底部按钮
                     HorizontalDivider()
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (!isNew && onDelete != null) {
                             OutlinedButton(
                                 onClick = { showDeleteConfirm = true },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = AppShapes.small,
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error)) {
                                 Text(if (form.applyToAll) stringResource(R.string.edit_delete_all) else stringResource(R.string.edit_delete_week))
@@ -500,7 +521,7 @@ fun CourseEditDialog(
                         OutlinedButton(
                             onClick = onDismiss,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = AppShapes.small
                         ) {
                             Text(stringResource(R.string.edit_button_cancel))
                         }
@@ -538,7 +559,7 @@ fun CourseEditDialog(
                                 reminderMinutesOverride = form.reminderMinutesOverride,
                                 endReminderEnabled = form.endReminderEnabled
                             ), form.applyToAll)
-                        }, modifier = Modifier.weight(1f).testTag("course-save-button"), shape = RoundedCornerShape(12.dp)) {
+                        }, modifier = Modifier.weight(1f).testTag("course-save-button"), shape = AppShapes.small) {
                             Text(stringResource(R.string.edit_save), fontWeight = FontWeight.Bold)
                         }
                     }

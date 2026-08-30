@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_background">#1B1B1F</color>
-    <color name="widget_border">#45464F</color>
-    <color name="widget_accent">#7DD9D0</color>
-    <color name="widget_text_primary">#F2F0F4</color>
-    <color name="widget_text_secondary">#C8C5CC</color>
-    <color name="widget_status_background">#173E2D</color>
-    <color name="widget_status_text">#B6F2D3</color>
-    <color name="widget_item_background">#22312C</color>
-    <color name="widget_divider">#3A4A44</color>
+    <color name="widget_background">#16181A</color>
+    <color name="widget_border">#33363A</color>
+    <color name="widget_accent">#3ADBC4</color>
+    <color name="widget_text_primary">#E4E6E5</color>
+    <color name="widget_text_secondary">#9CA1A0</color>
+    <color name="widget_status_background">#12433D</color>
+    <color name="widget_status_text">#6FEADD</color>
+    <color name="widget_item_background">#232628</color>
+    <color name="widget_divider">#2C2F32</color>
 </resources>

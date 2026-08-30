@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.ui.screen
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -34,9 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -52,14 +53,14 @@ import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.theme.CourseColors
-import com.jaysay.coursetable.ui.theme.CourseSubTextColor
-import com.jaysay.coursetable.ui.theme.CourseTextColor
 import com.jaysay.coursetable.ui.theme.DarkBackground
 import com.jaysay.coursetable.ui.theme.DarkCourseColors
-import com.jaysay.coursetable.ui.theme.DarkCourseSubTextColor
-import com.jaysay.coursetable.ui.theme.DarkCourseTextColor
 import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
+import com.jaysay.coursetable.ui.theme.LocalReduceMotion
+import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.PrimaryDark
+import com.jaysay.coursetable.ui.theme.courseCardBorderColor
+import com.jaysay.coursetable.ui.theme.courseCardTextColors
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -90,7 +91,9 @@ private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): 
     return offset
 }
 
-/** 课程卡片透明度的单一来源，供视觉对比度回归测试复用。 */
+/**
+ * 课程卡片透明度的单一来源，供视觉对比度回归测试复用。
+ */
 internal fun courseCardBackgroundAlpha(background: Color, hasCustomBackground: Boolean): Float {
     val isDarkCourseCard = background.luminance() < 0.35f
     return when {
@@ -133,8 +136,6 @@ internal fun TableGrid(
     onEmptyCellClick: (Int, Int) -> Unit,
     periodTimes: List<PeriodTime>,
     dark: Boolean,
-    cTextColor: Color,
-    cSubColor: Color,
     todayWeek: Int,
     todayDow: Int,
     viewMode: ScheduleViewMode,
@@ -147,7 +148,7 @@ internal fun TableGrid(
     val gridBackground = if (hasCustomBackground) {
         MaterialTheme.colorScheme.background.copy(alpha = if (dark) 0.38f else 0.30f)
     } else if (dark) DarkBackground else MaterialTheme.colorScheme.background
-    val sectionBackground = if (dark) Color(0xFF17201D) else Color(0xFFF3F7F6)
+    val sectionBackground = if (dark) Color(0xFF17191B) else Color(0xFFEFF2F1)
     val sectionText = if (dark) DarkPrimaryDark.copy(alpha = 0.72f) else PrimaryDark.copy(alpha = 0.72f)
     val isTodayVisible = currentWeek == todayWeek
     val totalHeight = remember(periodTimes, cellHeight) { cellHeight * periodTimes.size + 20.dp * sections.size }
@@ -158,9 +159,9 @@ internal fun TableGrid(
     Row(modifier = Modifier.fillMaxWidth().background(gridBackground)) {
         // 在组合上下文取色，供 Canvas 绘制闭包使用（DrawScope 不能访问 @Composable 属性）。
         val gridPrimary = MaterialTheme.colorScheme.primary
-        val gridOutline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-        val todayHighlight = gridPrimary.copy(alpha = if (dark) 0.08f else 0.045f)
-        val daySectionBg = sectionBackground.copy(alpha = 0.82f)
+        val gridOutline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)
+        val todayHighlight = gridPrimary.copy(alpha = if (dark) 0.10f else 0.05f)
+        val daySectionBg = sectionBackground.copy(alpha = 0.86f)
         Column(modifier = Modifier.width(timeWidth)) {
             sections.forEach { section ->
                 Box(
@@ -173,7 +174,7 @@ internal fun TableGrid(
                     val periodTime = periodTimes.getOrNull(period - 1) ?: return@periodLoop
                     Box(
                         modifier = Modifier.fillMaxWidth().height(cellHeight)
-                            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)),
+                            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -182,14 +183,14 @@ internal fun TableGrid(
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             Surface(
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(22.dp),
                                 shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (dark) 0.82f else 0.66f)
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (dark) 0.72f else 0.55f)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         period.toString(),
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
@@ -204,7 +205,7 @@ internal fun TableGrid(
                                 )
                                 Box(
                                     Modifier.width(12.dp).height(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f))
+                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
                                 )
                                 Text(
                                     periodTime.end,
@@ -288,16 +289,12 @@ internal fun TableGrid(
                             course.customColor != null -> Color(course.customColor)
                             else -> colorMap[course.courseName] ?: palette.first()
                         }
-                        val accent = lerp(cardColor, if (dark) Color.White else Color.Black, if (dark) 0.28f else 0.22f)
                         val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
                         CourseCard(
                             course = course,
                             modifier = Modifier.fillMaxWidth().height(bottom - y).offset(y = y).padding(1.dp),
                             background = cardColor,
-                            accent = accent,
-                            textColor = cTextColor,
-                            subTextColor = cSubColor,
                             isCurrentProvider = {
                                 // 在卡片自身作用域读取分钟状态：每 30 秒只重组发生状态变化的卡片。
                                 isTodayColumn && startMinute != null && endMinute != null &&
@@ -306,6 +303,7 @@ internal fun TableGrid(
                             },
                             viewMode = viewMode,
                             hasCustomBackground = hasCustomBackground,
+                            dark = dark,
                             onClick = { onCourseClick(course) }
                         )
                     }
@@ -362,7 +360,7 @@ private fun CurrentTimeLineOverlay(
                 Offset(size.width, lineY),
                 strokeWidth = 4.dp.toPx()
             )
-            drawCircle(lineColor, radius = 4.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
+            drawCircle(lineColor, radius = 3.5.dp.toPx(), center = Offset(6.dp.toPx(), lineY))
             drawLine(
                 lineColor,
                 Offset(10.dp.toPx(), lineY),
@@ -378,17 +376,16 @@ private fun CourseCard(
     course: Course,
     modifier: Modifier,
     background: Color,
-    accent: Color,
-    textColor: Color,
-    subTextColor: Color,
     isCurrentProvider: () -> Boolean,
     viewMode: ScheduleViewMode,
     hasCustomBackground: Boolean,
+    dark: Boolean,
     onClick: () -> Unit
 ) {
     // 在卡片作用域内读取分钟状态：只有状态发生变化的卡片才随分钟刷新重组。
     val isCurrent = isCurrentProvider()
-    val shape = RoundedCornerShape(if (viewMode == ScheduleViewMode.WEEK) 14.dp else 16.dp)
+    val reduceMotion = LocalReduceMotion.current
+    val shape = RoundedCornerShape(if (viewMode == ScheduleViewMode.WEEK) 12.dp else 14.dp)
     val compactWeekCard = viewMode == ScheduleViewMode.WEEK && course.periodSpan == 1
     val textLoad = course.courseName.length + course.teacher.length + course.classroom.length
     val titleSize = when (viewMode) {
@@ -429,35 +426,32 @@ private fun CourseCard(
         .filter { it.isNotBlank() }
         .plus(stringResource(R.string.course_card_view_details))
         .joinToString("，")
-    val isDarkCourseCard = background.luminance() < 0.35f
-    val highlight = if (isDarkCourseCard) Color.White.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.3f)
+    val (titleColor, subColor) = courseCardTextColors(background, dark)
+    val baseBorder = courseCardBorderColor(background, dark)
+    // 当前正在上的课：描边平滑过渡到品牌色并加重阴影，形成呼吸感高亮。
+    val borderColor by animateColorAsState(
+        targetValue = if (isCurrent) MaterialTheme.colorScheme.primary else baseBorder,
+        animationSpec = Motion.eased<Color>(reduceMotion),
+        label = "courseCardBorder"
+    )
     val backgroundAlpha = courseCardBackgroundAlpha(background, hasCustomBackground)
+    val contentPadding = when (viewMode) {
+        ScheduleViewMode.WEEK -> PaddingValues(4.dp, 5.dp, 3.dp, 4.dp)
+        else -> PaddingValues(7.dp, 5.dp, 6.dp, 4.dp)
+    }
     Box(
         modifier = modifier
-            .shadow(if (isCurrent) 4.dp else 2.dp, shape, clip = false)
+            .shadow(if (isCurrent) 6.dp else 2.dp, shape, clip = false)
             .clip(shape)
             .background(background.copy(alpha = backgroundAlpha))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(highlight, Color.Transparent),
-                    start = Offset.Zero,
-                    end = Offset(0f, 220f)
-                ),
-                shape
-            )
             .border(
-                if (isCurrent) 1.8.dp else 0.65.dp,
-                if (isCurrent) MaterialTheme.colorScheme.primary else accent.copy(alpha = 0.42f),
+                if (isCurrent) 1.6.dp else 0.75.dp,
+                borderColor,
                 shape
             )
             .clickable(onClick = onClick)
             .semantics { contentDescription = description }
-            .padding(
-                start = if (viewMode == ScheduleViewMode.WEEK) 4.dp else 7.dp,
-                end = if (viewMode == ScheduleViewMode.WEEK) 3.dp else 6.dp,
-                top = 5.dp,
-                bottom = 4.dp
-            ),
+            .padding(contentPadding),
         contentAlignment = Alignment.TopStart
     ) {
         Column {
@@ -469,7 +463,7 @@ private fun CourseCard(
                 maxLines = titleLines,
                 softWrap = true,
                 overflow = cardOverflow,
-                color = textColor,
+                color = titleColor,
                 lineHeight = titleSize * 1.24f
             )
             if (course.teacher.isNotBlank()) {
@@ -480,7 +474,7 @@ private fun CourseCard(
                     maxLines = teacherLines,
                     softWrap = true,
                     overflow = cardOverflow,
-                    color = subTextColor,
+                    color = subColor,
                     lineHeight = subSize * 1.3f
                 )
             }
@@ -492,7 +486,7 @@ private fun CourseCard(
                     maxLines = classroomLines,
                     softWrap = true,
                     overflow = cardOverflow,
-                    color = subTextColor,
+                    color = subColor,
                     lineHeight = subSize * 1.3f
                 )
             }

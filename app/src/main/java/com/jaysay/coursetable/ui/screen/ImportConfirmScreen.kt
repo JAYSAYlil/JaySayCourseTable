@@ -46,6 +46,7 @@ import com.jaysay.coursetable.data.model.ImportPreview
 import com.jaysay.coursetable.data.model.ImportPreviewItem
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.util.TimeUtils
 
 private enum class PreviewFilter(val labelRes: Int, val status: ImportItemStatus?) {
@@ -290,7 +291,7 @@ private fun StatusBadge(status: ImportItemStatus) {
         ImportItemStatus.DUPLICATE -> R.string.import_status_duplicate to MaterialTheme.colorScheme.onSurfaceVariant
         ImportItemStatus.CONFLICT -> R.string.import_status_conflict to MaterialTheme.colorScheme.error
     }
-    Surface(color = color.copy(alpha = 0.12f), shape = MaterialTheme.shapes.small) {
+    Surface(color = color.copy(alpha = 0.12f), shape = AppShapes.small) {
         Text(
             stringResource(labelRes),
             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -15,10 +14,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.jaysay.coursetable.ui.theme.AppShapes
 
-val AppPanelShape = RoundedCornerShape(16.dp)
+/** 兼容别名：旧调用点仍引用 AppPanelShape，语义与 AppShapes.medium 一致。 */
+val AppPanelShape = AppShapes.medium
 
 /** Shared top chrome keeps navigation, titles and dividers consistent across screens. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,22 +32,28 @@ fun AppTopBar(
 ) {
     Column {
         TopAppBar(
-            title = { Text(title, fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
             navigationIcon = navigationIcon,
             actions = actions,
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
             )
         )
         HorizontalDivider(
             thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         )
     }
 }
 
-/** Shared panel treatment: quiet surface, 16 dp radius and a theme-aware hairline. */
+/** Shared panel treatment: quiet surface, 20 dp radius and a theme-aware hairline. */
 @Composable
 fun AppPanel(
     modifier: Modifier = Modifier,
@@ -54,7 +62,7 @@ fun AppPanel(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = AppPanelShape,
+        shape = AppShapes.panel,
         color = if (selected) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
         } else {
@@ -65,7 +73,7 @@ fun AppPanel(
             if (selected) {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.48f)
             } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.62f)
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             }
         ),
         tonalElevation = 0.dp,

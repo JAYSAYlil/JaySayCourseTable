@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,9 +36,10 @@ fun CourseDetailScreen(
     onDelete: (() -> Unit)? = null
 ) {
     BackHandler(onBack = onClose)
-    val dark = MaterialTheme.colorScheme.background == DarkBackground
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.4f
     // 与课表网格共用同一配色映射，保证同一课程在两处的颜色一致。
     val courseColor = remember(course, allCourses, dark) { resolveCourseColor(allCourses, course, dark) }
+    val headerTextColors = remember(courseColor, dark) { courseCardTextColors(courseColor, dark) }
 
     Scaffold(
         topBar = {
@@ -69,9 +70,9 @@ fun CourseDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                shape = RoundedCornerShape(18.dp),
+                shape = AppShapes.card,
                 color = courseColor.copy(alpha = if (dark) 0.22f else 0.15f),
-                border = BorderStroke(0.9.dp, courseColor.copy(alpha = if (dark) 0.66f else 0.48f))
+                border = BorderStroke(0.75.dp, courseCardBorderColor(courseColor, dark))
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     // Course name
@@ -79,7 +80,7 @@ fun CourseDetailScreen(
                         text = course.courseName,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = headerTextColors.first
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -213,7 +214,7 @@ private fun DetailRow(label: String, value: String) {
             )
         }
         HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
             thickness = 0.5.dp
         )
     }
@@ -222,7 +223,7 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun InfoChip(icon: ImageVector, text: String) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = AppShapes.panel,
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
         border = BorderStroke(
             0.6.dp,

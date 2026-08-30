@@ -6,11 +6,15 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.jaysay.coursetable.data.preferences.ThemeMode
@@ -23,14 +27,14 @@ private val LightColors = lightColorScheme(
     tertiary = Tertiary, onTertiary = Color.White,
     tertiaryContainer = TertiaryLight, onTertiaryContainer = TertiaryDark,
     surface = Surface, onSurface = OnSurface,
-    surfaceVariant = Color(0xFFEEF5F1), onSurfaceVariant = OnSurfaceVariant,
+    surfaceVariant = Color(0xFFECF0EF), onSurfaceVariant = OnSurfaceVariant,
     background = Background, onBackground = OnSurface,
-    outline = Color(0xFF789087), outlineVariant = Color(0xFFD3E2DC),
+    outline = Color(0xFF7C8280), outlineVariant = Color(0xFFD8DEDC),
     error = Error
 )
 
 private val DarkColors = darkColorScheme(
-    primary = DarkPrimary, onPrimary = Color(0xFF1A1A1A),
+    primary = DarkPrimary, onPrimary = Color(0xFF00332C),
     primaryContainer = DarkPrimaryLight, onPrimaryContainer = DarkPrimaryDark,
     secondary = DarkSecondary, onSecondary = Color(0xFF0A261B),
     secondaryContainer = DarkSecondaryLight, onSecondaryContainer = DarkSecondaryDark,
@@ -39,6 +43,7 @@ private val DarkColors = darkColorScheme(
     surface = DarkSurface, onSurface = DarkOnSurface,
     surfaceVariant = DarkSurfaceVariant, onSurfaceVariant = DarkOnSurfaceVariant,
     background = DarkBackground, onBackground = DarkOnSurface,
+    outline = Color(0xFF8A8F8D),
     outlineVariant = DarkOutlineVariant,
     error = Color(0xFFEF5350)
 )
@@ -48,6 +53,8 @@ fun JaySayTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     highContrast: Boolean = false,
     transparentSystemBars: Boolean = false,
+    reduceMotion: Boolean = false,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -56,7 +63,12 @@ fun JaySayTheme(
         ThemeMode.DARK -> true
         ThemeMode.SYSTEM -> systemDark
     }
-    val baseColors = if (isDark) DarkColors else LightColors
+    val context = LocalContext.current
+    val baseColors = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else {
+        if (isDark) DarkColors else LightColors
+    }
     val colors = if (highContrast) baseColors.copy(
         onSurfaceVariant = baseColors.onSurface,
         outline = baseColors.onSurface,
@@ -78,5 +90,7 @@ fun JaySayTheme(
             }
         }
     }
-    MaterialTheme(colorScheme = colors, typography = Typography, content = content)
+    CompositionLocalProvider(LocalReduceMotion provides reduceMotion) {
+        MaterialTheme(colorScheme = colors, typography = Typography, content = content)
+    }
 }

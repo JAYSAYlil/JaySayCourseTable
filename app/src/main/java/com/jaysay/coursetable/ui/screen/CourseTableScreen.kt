@@ -1,17 +1,9 @@
 package com.jaysay.coursetable.ui.screen
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -29,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -57,19 +51,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -93,15 +89,12 @@ import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
 import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
-import com.jaysay.coursetable.ui.theme.CourseSubTextColor
-import com.jaysay.coursetable.ui.theme.CourseTextColor
-import com.jaysay.coursetable.ui.theme.DarkBackground
-import com.jaysay.coursetable.ui.theme.DarkCourseSubTextColor
-import com.jaysay.coursetable.ui.theme.DarkCourseTextColor
+import com.jaysay.coursetable.ui.theme.AppShapes
+import com.jaysay.coursetable.ui.theme.LocalReduceMotion
+import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
-import kotlin.math.abs
 
 
 /**
@@ -201,12 +194,8 @@ fun CourseTableScreen(
     readOnlyMessage: String? = null,
     onRecoveryClick: () -> Unit = {}
 ) {
-    val dark = MaterialTheme.colorScheme.background == DarkBackground
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.4f
     val bgColor = MaterialTheme.colorScheme.background
-    val cTextColor = if (dark) DarkCourseTextColor else CourseTextColor
-    val cSubColor = if (dark) DarkCourseSubTextColor else CourseSubTextColor
-    val density = LocalDensity.current
-    val swipeThresholdPx = remember(density) { with(density) { 64.dp.toPx() } }
 
     val today = LocalDate.now()
     val todayWeek = remember(semesterStart, totalWeeks, today) {
@@ -299,21 +288,19 @@ fun CourseTableScreen(
             writesEnabled = readOnlyMessage == null
         )
 
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-
         readOnlyMessage?.let { message ->
             ReadOnlyRecoveryBanner(message = message, onRecoveryClick = onRecoveryClick)
         }
 
         if (courses.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
                     modifier = Modifier.weight(1f).fillMaxHeight().testTag("week-navigation"),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = AppShapes.medium,
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (dark) 0.76f else 0.62f),
                     border = BorderStroke(
                         0.75.dp,
@@ -387,7 +374,7 @@ fun CourseTableScreen(
                     Surface(
                         onClick = { viewMenuExpanded = true },
                         modifier = Modifier.width(70.dp).fillMaxHeight().testTag("view-mode-button"),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = AppShapes.medium,
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (dark) 0.92f else 0.78f),
                         border = BorderStroke(
                             0.9.dp,
@@ -445,7 +432,7 @@ fun CourseTableScreen(
 
             LinearProgressIndicator(
                 progress = { currentWeek.toFloat() / totalWeeks.coerceAtLeast(1) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(2.dp).clip(CircleShape),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(2.dp).clip(CircleShape),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = if (dark) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -456,28 +443,7 @@ fun CourseTableScreen(
             }
 
             if (viewMode == ScheduleViewMode.DAY) {
-                Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                    for (day in 1..7) {
-                        val selected = day == focusedDay
-                        val chipColor by animateColorAsState(
-                            if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                            label = "dayChip"
-                        )
-                        val dayChipDescription = stringResource(R.string.course_view_day_desc, TimeUtils.getDayName(day))
-                        Box(
-                            modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(10.dp))
-                                .background(chipColor).clickable { onFocusedDayChange(day) }
-                                .semantics { contentDescription = dayChipDescription },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                TimeUtils.getDayName(day).replace("周", ""),
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                DayChipRow(focusedDay = focusedDay, onFocusedDayChange = onFocusedDayChange)
             }
 
             DayHeader(
@@ -503,144 +469,216 @@ fun CourseTableScreen(
                 readOnly = readOnlyMessage != null
             )
         } else {
-            // 纵向滚动状态独立于周次：切换周次时保持当前位置不重置，
-            // 离开详情页或 Activity 重建时也能恢复到原位置。
-            val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
-            Box(
-                modifier = Modifier.fillMaxWidth().weight(1f)
-                    .pointerInput(currentWeek, totalWeeks, swipeThresholdPx) {
-                        var dragDistance = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { dragDistance = 0f },
-                            onDragCancel = { dragDistance = 0f },
-                            onDragEnd = {
-                                when {
-                                    dragDistance <= -swipeThresholdPx && currentWeek < totalWeeks -> onWeekChange(currentWeek + 1)
-                                    dragDistance >= swipeThresholdPx && currentWeek > 1 -> onWeekChange(currentWeek - 1)
-                                }
-                                dragDistance = 0f
-                            }
-                        ) { change, amount ->
-                            dragDistance += amount
-                            change.consume()
-                        }
-                    }
-                    .testTag("week-swipe-area")
-            ) {
-                AnimatedContent(
-                    targetState = currentWeek,
-                    modifier = Modifier.fillMaxSize(),
-                    transitionSpec = {
-                        val enterMs = if (reduceMotion) 0 else 210
-                        val fadeMs = if (reduceMotion) 0 else 180
-                        if (targetState > initialState) {
-                            (slideInHorizontally(tween(enterMs)) { it / 3 } + fadeIn(tween(fadeMs))) togetherWith
-                                (slideOutHorizontally(tween(fadeMs)) { -it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
-                        } else {
-                            (slideInHorizontally(tween(enterMs)) { -it / 3 } + fadeIn(tween(fadeMs))) togetherWith
-                                (slideOutHorizontally(tween(fadeMs)) { it / 4 } + fadeOut(tween(if (reduceMotion) 0 else 140)))
-                        }
-                    },
-                    label = "weekContent"
-                ) { displayedWeek ->
-                    val displayedStatus = remember(
-                        displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
-                    ) {
-                        AcademicCalendarStatusResolver.week(
-                            displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
-                        )
-                    }
-                    val resolvedCourses = remember(
-                        displayedCourses, displayedWeek, semesterStart, totalWeeks,
-                        excludedWeekSet, dateExceptions, searchQuery
-                    ) {
-                            val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
-                            if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
-                                val date = start.plusDays((displayedWeek - 1L) * 7L + dayOffset)
-                                ScheduleDateResolver.coursesOn(
-                                    displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
-                                ).filter { CourseSearch.filter(listOf(it.course), searchQuery).isNotEmpty() }
-                                    .map { resolved -> resolved.course.copy(dayOfWeek = dayOffset.toInt() + 1) }
-                            }
-                    }
-                    when {
-                        displayedStatus.suspended && displayedStatus.makeupCount == 0 -> {
-                            Column(
-                                modifier = Modifier.fillMaxSize().padding(24.dp).testTag("suspended-week-content"),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    Icons.Outlined.EventBusy,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(38.dp)
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                Text(
-                                    displayedStatus.label ?: stringResource(
-                                        R.string.course_week_suspended, displayedWeek
-                                    ),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    stringResource(R.string.course_week_suspended_hint),
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        displayedCourses.isEmpty() -> {
-                            Column(
-                                modifier = Modifier.fillMaxSize().padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    stringResource(R.string.course_search_no_match, searchQuery),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                TextButton(onClick = { searchQuery = "" }) {
-                                    Text(stringResource(R.string.course_search_clear))
-                                }
-                            }
-                        }
-                        else -> {
-                            Column(
-                                modifier = Modifier.fillMaxSize().verticalScroll(scrollState)
-                                    .testTag("schedule-scroll")
-                            ) {
-                                TableGrid(
-                                    courses = resolvedCourses,
-                                    colorMap = colorMap,
-                                    visibleDays = visibleDays,
-                                    timeWidth = timeWidth,
-                                    cellHeight = cellHeight,
-                                    currentWeek = displayedWeek,
-                                    onCourseClick = onCourseClick,
-                                    onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
-                                    periodTimes = periodTimes,
-                                    dark = dark,
-                                    cTextColor = cTextColor,
-                                    cSubColor = cSubColor,
-                                    todayWeek = todayWeek,
-                                    todayDow = todayDow,
-                                    viewMode = viewMode,
-                                    hasCustomBackground = customBackground != null
-                                )
-                                // Lets the final period scroll clear of rounded display corners and
-                                // gesture navigation areas on compact phones.
-                                Spacer(Modifier.height(48.dp))
-                            }
-                        }
-                    }
-                }
-            }
+            WeekPagerSection(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                displayedCourses = displayedCourses,
+                colorMap = colorMap,
+                visibleDays = visibleDays,
+                timeWidth = timeWidth,
+                cellHeight = cellHeight,
+                currentWeek = currentWeek,
+                totalWeeks = totalWeeks,
+                onWeekChange = onWeekChange,
+                onCourseClick = onCourseClick,
+                onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
+                periodTimes = periodTimes,
+                dark = dark,
+                todayWeek = todayWeek,
+                todayDow = todayDow,
+                viewMode = viewMode,
+                hasCustomBackground = customBackground != null,
+                searchQuery = searchQuery,
+                onClearSearch = { searchQuery = "" },
+                semesterStart = semesterStart,
+                excludedWeekSet = excludedWeekSet,
+                dateExceptions = dateExceptions,
+                weekLabels = weekLabels,
+                reduceMotion = reduceMotion
+            )
         }
         }
     }
+    }
+}
+
+/**
+ * 周次翻页：HorizontalPager 提供跟手滑动、边缘回弹与翻页联动；
+ * 纵向滚动状态独立于周次，翻页时保持阅读位置。
+ */
+@Composable
+private fun WeekPagerSection(
+    modifier: Modifier,
+    displayedCourses: List<Course>,
+    colorMap: Map<String, Color>,
+    visibleDays: List<Int>,
+    timeWidth: Dp,
+    cellHeight: Dp,
+    currentWeek: Int,
+    totalWeeks: Int,
+    onWeekChange: (Int) -> Unit,
+    onCourseClick: (Course) -> Unit,
+    onEmptyCellClick: (Int, Int) -> Unit,
+    periodTimes: List<PeriodTime>,
+    dark: Boolean,
+    todayWeek: Int,
+    todayDow: Int,
+    viewMode: ScheduleViewMode,
+    hasCustomBackground: Boolean,
+    searchQuery: String,
+    onClearSearch: () -> Unit,
+    semesterStart: String,
+    excludedWeekSet: Set<Int>,
+    dateExceptions: List<ScheduleDateException>,
+    weekLabels: Map<Int, String>,
+    reduceMotion: Boolean
+) {
+    val onWeekChangeState by rememberUpdatedState(onWeekChange)
+    val currentWeekState by rememberUpdatedState(currentWeek)
+    val pagerState = rememberPagerState(
+        initialPage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
+    ) { totalWeeks.coerceAtLeast(1) }
+
+    // 用户滑动结束后回写周次；外部（箭头/定位今天）改变周次时滚动到对应页。
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            if (page + 1 != currentWeekState) onWeekChangeState(page + 1)
+        }
+    }
+    LaunchedEffect(currentWeek, totalWeeks) {
+        val target = (currentWeek - 1).coerceIn(0, totalWeeks - 1)
+        if (pagerState.settledPage != target && !pagerState.isScrollInProgress) {
+            if (reduceMotion) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
+        }
+    }
+
+    // 纵向滚动状态独立于周次：翻页时保持当前位置不重置，
+    // 离开详情页或 Activity 重建时也能恢复到原位置。
+    val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier.testTag("week-swipe-area"),
+        key = { it + 1 },
+        beyondViewportPageCount = 0
+    ) { pageIndex ->
+        val displayedWeek = pageIndex + 1
+        val displayedStatus = remember(
+            displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+        ) {
+            AcademicCalendarStatusResolver.week(
+                displayedWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+            )
+        }
+        val resolvedCourses = remember(
+            displayedCourses, displayedWeek, semesterStart, totalWeeks,
+            excludedWeekSet, dateExceptions, searchQuery
+        ) {
+            val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+            if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
+                val date = start.plusDays((displayedWeek - 1L) * 7L + dayOffset)
+                ScheduleDateResolver.coursesOn(
+                    displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+                ).filter { CourseSearch.filter(listOf(it.course), searchQuery).isNotEmpty() }
+                    .map { resolved -> resolved.course.copy(dayOfWeek = dayOffset.toInt() + 1) }
+            }
+        }
+        when {
+            displayedStatus.suspended && displayedStatus.makeupCount == 0 -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp).testTag("suspended-week-content"),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.EventBusy,
+                        null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(38.dp)
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        displayedStatus.label ?: stringResource(
+                            R.string.course_week_suspended, displayedWeek
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        stringResource(R.string.course_week_suspended_hint),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            displayedCourses.isEmpty() -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        stringResource(R.string.course_search_no_match, searchQuery),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = onClearSearch) {
+                        Text(stringResource(R.string.course_search_clear))
+                    }
+                }
+            }
+            else -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(scrollState)
+                        .testTag("schedule-scroll")
+                ) {
+                    TableGrid(
+                        courses = resolvedCourses,
+                        colorMap = colorMap,
+                        visibleDays = visibleDays,
+                        timeWidth = timeWidth,
+                        cellHeight = cellHeight,
+                        currentWeek = displayedWeek,
+                        onCourseClick = onCourseClick,
+                        onEmptyCellClick = onEmptyCellClick,
+                        periodTimes = periodTimes,
+                        dark = dark,
+                        todayWeek = todayWeek,
+                        todayDow = todayDow,
+                        viewMode = viewMode,
+                        hasCustomBackground = hasCustomBackground
+                    )
+                    // Lets the final period scroll clear of rounded display corners and
+                    // gesture navigation areas on compact phones.
+                    Spacer(Modifier.height(48.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayChipRow(focusedDay: Int, onFocusedDayChange: (Int) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp, vertical = 2.dp)) {
+        for (day in 1..7) {
+            val selected = day == focusedDay
+            val chipColor by animateColorAsState(
+                if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                animationSpec = Motion.eased<Color>(LocalReduceMotion.current),
+                label = "dayChip"
+            )
+            val dayChipDescription = stringResource(R.string.course_view_day_desc, TimeUtils.getDayName(day))
+            Box(
+                modifier = Modifier.weight(1f).fillMaxHeight().clip(AppShapes.small)
+                    .background(chipColor).clickable { onFocusedDayChange(day) }
+                    .semantics { contentDescription = dayChipDescription },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    TimeUtils.getDayName(day).replace("周", ""),
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -669,7 +707,7 @@ private fun CalendarContextStrip(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
             .testTag("calendar-context-strip")
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShapes.small,
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
         border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
     ) {
@@ -803,7 +841,7 @@ private fun ColumnScope.EmptySchedule(
 
 @Composable
 private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(12.dp), modifier = modifier.height(48.dp)) {
+    Button(onClick = onClick, enabled = enabled, shape = AppShapes.small, modifier = modifier.height(48.dp)) {
         Icon(Icons.Default.FileOpen, null)
         Spacer(Modifier.width(8.dp))
         Text(stringResource(R.string.course_empty_import_button), maxLines = 1)
@@ -814,8 +852,8 @@ private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier
 private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val contentAlpha = if (enabled) 1f else 0.38f
     Surface(
-        modifier = modifier.height(48.dp).clip(RoundedCornerShape(12.dp)).clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.height(48.dp).clip(AppShapes.small).clickable(enabled = enabled, onClick = onClick),
+        shape = AppShapes.small,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = contentAlpha)
     ) {
         Row(

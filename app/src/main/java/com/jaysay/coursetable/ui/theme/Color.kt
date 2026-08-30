@@ -2,48 +2,69 @@
 package com.jaysay.coursetable.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import com.jaysay.coursetable.data.model.Course
 
-// === 主色调 ===
-val Primary = Color(0xFF0D9488)
-val PrimaryLight = Color(0xFFCCFBF1)
-val PrimaryDark = Color(0xFF0F766E)
+// === 主色调（青绿品牌色，浅色端提亮、深色端压暗以贴近系统观感） ===
+val Primary = Color(0xFF0F8F82)
+val PrimaryLight = Color(0xFFCFF2EC)
+val PrimaryDark = Color(0xFF0B6E64)
 val Secondary = Color(0xFF2F7D5C)
-val SecondaryLight = Color(0xFFDDF5E7)
+val SecondaryLight = Color(0xFFDDF0E5)
 val SecondaryDark = Color(0xFF155238)
 val Tertiary = Color(0xFF5E7C3B)
-val TertiaryLight = Color(0xFFE7F2D5)
+val TertiaryLight = Color(0xFFE7F0D5)
 val TertiaryDark = Color(0xFF314A18)
 
-// Surface
-val Surface = Color(0xFFFAFAFA)
-val OnSurface = Color(0xFF1C1B1F)
-val OnSurfaceVariant = Color(0xFF6B6B6B)
+// Surface（浅色端采用微灰白背景 + 纯白卡片，拉开层次）
+val Surface = Color(0xFFFFFFFF)
+val OnSurface = Color(0xFF191C1B)
+val OnSurfaceVariant = Color(0xFF636967)
 
-val Background = Color.White
+val Background = Color(0xFFF6F7F7)
 val Error = Color(0xFFDC2626)
 
-// 课程卡片颜色 — 柔和高亮
+// 课程卡片调色板 — 低饱和莫兰迪系，同一课程在浅/深两套下保持同色相
 val CourseColors = listOf(
-    Color(0xFFE0F2FE), Color(0xFFDCFCE7), Color(0xFFFEF3C7),
-    Color(0xFFFEE2E2), Color(0xFFE6F4EA), Color(0xFFCCFBF1),
-    Color(0xFFFFF7ED), Color(0xFFF1F5F9), Color(0xFFE8E0D9),
-    Color(0xFFEAF5E1), Color(0xFFCFFAFE), Color(0xFFFFE4E6),
-    Color(0xFFE5F0EA), Color(0xFFECFCCB), Color(0xFFDBEAFE),
+    Color(0xFFE3F0FB), Color(0xFFE2F6E9), Color(0xFFFDF2D2),
+    Color(0xFFFCE7EA), Color(0xFFE8F2E4), Color(0xFFDCF3F0),
+    Color(0xFFFBEEDF), Color(0xFFECEEF2), Color(0xFFF0E9E2),
+    Color(0xFFEAF2DC), Color(0xFFDFF1F6), Color(0xFFF6E6EF),
+    Color(0xFFE4F1EC), Color(0xFFF0EAD9), Color(0xFFE7E9F7),
 )
 val CourseTextColor = Color(0xFF1C1B1F)
 val CourseSubTextColor = Color(0xFF5A5A5A)
 
-// 深色模式
+// 深色模式课程卡片 — 保留色相的暗调版本
 val DarkCourseColors = listOf(
-    Color(0xFF1E3A5F), Color(0xFF1B3D2F), Color(0xFF4A3A0A),
-    Color(0xFF4A1A2A), Color(0xFF263D30), Color(0xFF0B3D3A),
-    Color(0xFF4A3520), Color(0xFF2A2F3A), Color(0xFF3A2A20),
-    Color(0xFF29402A), Color(0xFF0A3D4A), Color(0xFF3D1A1A),
-    Color(0xFF1C3931), Color(0xFF1A3D1A), Color(0xFF0A2A4A),
+    Color(0xFF1E3448), Color(0xFF1D3A2C), Color(0xFF43371A),
+    Color(0xFF46242B), Color(0xFF263A28), Color(0xFF173B38),
+    Color(0xFF443122), Color(0xFF2C313A), Color(0xFF3A2F26),
+    Color(0xFF2E3D20), Color(0xFF173A44), Color(0xFF412838),
+    Color(0xFF1E3830), Color(0xFF3A3620), Color(0xFF2C2F4A),
 )
 val DarkCourseTextColor = Color(0xFFE8E8E8)
 val DarkCourseSubTextColor = Color(0xFFB0B0B0)
+
+/**
+ * 由卡片底色派生同卡内的标题/次级文字颜色：
+ * 浅色卡片上取加深墨色，深色卡片上取提亮淡色，
+ * 保证自定义颜色与调色板颜色都有一致的对比度表现。
+ */
+fun courseCardTextColors(cardColor: Color, dark: Boolean): Pair<Color, Color> {
+    val anchor = if (dark) Color.White else Color(0xFF171A19)
+    val subAnchor = if (dark) Color.White else Color(0xFF3E4442)
+    val isDarkCard = cardColor.luminance() < 0.35f
+    val titleMix = if (isDarkCard) 0.72f else 0.68f
+    val subMix = if (isDarkCard) 0.46f else 0.46f
+    return lerp(cardColor, anchor, titleMix) to lerp(cardColor, subAnchor, subMix)
+}
+
+/** 课程卡片描边色：底色同相描边，深浅两端都维持极低噪音。 */
+fun courseCardBorderColor(cardColor: Color, dark: Boolean): Color =
+    courseCardTextColors(cardColor, dark).first.copy(alpha = if (dark) 0.20f else 0.22f)
 
 /**
  * 按“课程名首次出现顺序”构建课表配色映射，避免哈希碰撞导致相邻课程颜色过近。
@@ -72,19 +93,22 @@ fun resolveCourseColor(courses: List<Course>, course: Course, dark: Boolean): Co
     }
 }
 
-// Dark mode Material
-val DarkPrimary = Color(0xFF2DD4BF)
-val DarkPrimaryLight = Color(0xFF134E4A)
-val DarkPrimaryDark = Color(0xFF5EEAD4)
+/** 在半透明遮罩之上合成一层保证可读性的底色（供模糊吸顶等场景使用）。 */
+fun scrimColor(base: Color, alpha: Float): Color = base.copy(alpha = alpha).compositeOver(base)
+
+// Dark mode Material（中性深灰体系，接近系统暗色观感）
+val DarkPrimary = Color(0xFF3ADBC4)
+val DarkPrimaryLight = Color(0xFF12433D)
+val DarkPrimaryDark = Color(0xFF6FEADD)
 val DarkSecondary = Color(0xFF8BD5B2)
 val DarkSecondaryLight = Color(0xFF173E2D)
 val DarkSecondaryDark = Color(0xFFB6F2D3)
 val DarkTertiary = Color(0xFFB7D58A)
 val DarkTertiaryLight = Color(0xFF31451E)
 val DarkTertiaryDark = Color(0xFFD8F4AE)
-val DarkSurface = Color(0xFF1C1C1E)
-val DarkBackground = Color(0xFF0D0D0D)
-val DarkOnSurface = Color(0xFFE5E5E5)
-val DarkOnSurfaceVariant = Color(0xFF9A9A9A)
-val DarkSurfaceVariant = Color(0xFF2C2C2E)
-val DarkOutlineVariant = Color(0xFF3A3A3C)
+val DarkSurface = Color(0xFF16181A)
+val DarkBackground = Color(0xFF0B0C0D)
+val DarkOnSurface = Color(0xFFE4E6E5)
+val DarkOnSurfaceVariant = Color(0xFF9CA1A0)
+val DarkSurfaceVariant = Color(0xFF232628)
+val DarkOutlineVariant = Color(0xFF3A3D40)

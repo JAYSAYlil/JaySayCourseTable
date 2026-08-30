@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -149,7 +148,7 @@ fun TableManageScreen(
             Button(
                 onClick = onAdd,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(48.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = AppShapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))

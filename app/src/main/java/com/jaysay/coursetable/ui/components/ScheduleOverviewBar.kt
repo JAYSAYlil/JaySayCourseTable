@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.jaysay.coursetable.ui.components
 
 import androidx.compose.foundation.BorderStroke
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,10 +33,12 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +59,7 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.AgendaCourseSlot
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
+import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.util.TimeUtils
 
 @Composable
@@ -110,9 +116,9 @@ fun ScheduleOverviewBar(
                     Text(
                         tableName,
                         modifier = Modifier.weight(1f, fill = false),
-                        fontSize = 21.sp,
+                        fontSize = 23.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -183,12 +189,26 @@ fun ScheduleOverviewBar(
     }
 
     if (agendaVisible) {
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { agendaVisible = false },
-            title = { Text(stringResource(R.string.overview_dialog_today_title)) },
-            text = { Text(agenda.accessibilityText()) },
-            confirmButton = { TextButton(onClick = { agendaVisible = false }) { Text(stringResource(R.string.overview_dialog_got_it)) } }
-        )
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = AppShapes.sheet,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
+                Text(
+                    stringResource(R.string.overview_dialog_today_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(agenda.accessibilityText(), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(22.dp))
+                TextButton(onClick = { agendaVisible = false }, modifier = Modifier.align(Alignment.End)) {
+                    Text(stringResource(R.string.overview_dialog_got_it))
+                }
+            }
+        }
     }
 }
 

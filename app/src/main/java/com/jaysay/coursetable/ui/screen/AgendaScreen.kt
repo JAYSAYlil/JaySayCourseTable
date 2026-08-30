@@ -1,6 +1,8 @@
 package com.jaysay.coursetable.ui.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,6 +40,9 @@ import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleDateException
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PeriodTime
+import com.jaysay.coursetable.ui.theme.AppShapes
+import com.jaysay.coursetable.ui.theme.LocalReduceMotion
+import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
 
@@ -166,7 +171,7 @@ private fun AgendaList(
 private fun AgendaDateCard(group: AgendaDateGroup, onCourseClick: (Course) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Surface(
-            shape = MaterialTheme.shapes.small,
+            shape = AppShapes.small,
             color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Text(
@@ -203,15 +208,27 @@ private fun AgendaCourseCard(instance: AgendaCourseInstance, onClick: () -> Unit
         if (course.classroom.isNotBlank()) add(classroomDescription)
         add(doubleTapHint)
     }.joinToString("，")
+    val interactionSource = remember { MutableInteractionSource() }
+    val reduceMotion = LocalReduceMotion.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("agenda-course-${course.courseId}-${instance.date}")
             .semantics(mergeDescendants = true) { contentDescription = details }
-            .clickable(role = Role.Button, onClick = onClick),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 1.dp
+            .pressScale(interactionSource, reduceMotion)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick
+            ),
+        shape = AppShapes.card,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            0.75.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        ),
+        tonalElevation = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -221,7 +238,7 @@ private fun AgendaCourseCard(instance: AgendaCourseInstance, onClick: () -> Unit
                 text = course.courseName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = "${instance.timeLabel} · ${instance.periodLabel}",
