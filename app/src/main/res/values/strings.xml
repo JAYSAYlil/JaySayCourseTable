@@ -59,6 +59,8 @@
     <string name="course_empty_title">"还没有课程"</string>
     <string name="course_next_week">"下一周"</string>
     <string name="course_period_label">"节次"</string>
+    <string name="course_period_suffix">"节"</string>
+    <string name="course_time_label">"时间"</string>
     <string name="course_prev_week">"上一周"</string>
     <string name="course_search_clear">"清空搜索"</string>
     <string name="course_search_no_match">"没有匹配“%1$s”的课程"</string>

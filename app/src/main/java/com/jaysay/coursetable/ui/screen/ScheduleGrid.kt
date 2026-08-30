@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -176,49 +175,72 @@ internal fun TableGrid(
                             .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            modifier = Modifier.fillMaxHeight().padding(vertical = 7.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceBetween
+                        // 使用整块单元格空间呈现“节次 + 时间段”，比原先上下堆叠更易扫读。
+                        Surface(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(
+                                alpha = if (dark) 0.38f else 0.62f
+                            )
                         ) {
-                            Surface(
-                                modifier = Modifier.size(22.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (dark) 0.72f else 0.55f)
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 7.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceEvenly
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        period.toString(),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    Row(
+                                        verticalAlignment = Alignment.Bottom,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            period.toString().padStart(2, '0'),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            lineHeight = 16.sp
+                                        )
+                                        Text(
+                                            stringResource(R.string.course_period_suffix),
+                                            modifier = Modifier.padding(start = 1.dp, bottom = 1.dp),
+                                            fontSize = 8.sp,
+                                            lineHeight = 9.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+                                        )
+                                    }
+                                    Box(
+                                        Modifier.width(26.dp).height(1.dp)
+                                            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.20f))
                                     )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            periodTime.start,
+                                            fontSize = 8.sp,
+                                            lineHeight = 10.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            "–",
+                                            modifier = Modifier.padding(horizontal = 2.dp),
+                                            fontSize = 8.sp,
+                                            lineHeight = 10.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f)
+                                        )
+                                        Text(
+                                            periodTime.end,
+                                            fontSize = 8.sp,
+                                            lineHeight = 10.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
                                 }
                             }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    periodTime.start,
-                                    fontSize = 8.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 10.sp
-                                )
-                                Box(
-                                    Modifier.width(12.dp).height(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
-                                )
-                                Text(
-                                    periodTime.end,
-                                    fontSize = 8.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 10.sp
-                                )
-                            }
                         }
-                    }
                 }
             }
         }
-
         visibleDays.forEach { day ->
             key(day) {
                 val dayCourses = byDay[day].orEmpty()

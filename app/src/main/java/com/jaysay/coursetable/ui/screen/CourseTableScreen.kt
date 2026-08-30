@@ -228,10 +228,10 @@ fun CourseTableScreen(
         }
     }
     val timeWidth = when (viewMode) {
-        ScheduleViewMode.WEEK -> 38.dp
-        ScheduleViewMode.WORK_WEEK -> 44.dp
-        ScheduleViewMode.DAY -> 58.dp
-        ScheduleViewMode.MONTH -> 38.dp
+        ScheduleViewMode.WEEK -> 46.dp
+        ScheduleViewMode.WORK_WEEK -> 50.dp
+        ScheduleViewMode.DAY -> 64.dp
+        ScheduleViewMode.MONTH -> 46.dp
     }
     // The seven-day columns are narrow, so they need more vertical room to show
     // course, teacher and classroom text without truncation.
@@ -798,7 +798,19 @@ private fun DayHeader(
 ) {
     Row(modifier = Modifier.fillMaxWidth().height(48.dp)) {
         Box(modifier = Modifier.width(timeWidth).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.course_period_label), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    stringResource(R.string.course_period_label),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    stringResource(R.string.course_time_label),
+                    fontSize = 8.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         visibleDays.forEach { day ->
             key(day) {
