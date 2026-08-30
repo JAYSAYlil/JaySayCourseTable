@@ -22,12 +22,13 @@ import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.data.storage.DataCorruptionException
 import com.jaysay.coursetable.data.storage.WriteProtectionGate
 import com.jaysay.coursetable.data.transfer.ImportDraftStore
+import com.jaysay.coursetable.data.transfer.ImportDraftWriteGate
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.time.Instant
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.time.Instant
 
 @Immutable
 data class MainUiState(
@@ -53,6 +54,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val writeMutex = Mutex()
     private val writeProtection = WriteProtectionGate()
     private val importDraftStore = ImportDraftStore(application)
+    private val importDraftWriteGate = ImportDraftWriteGate()
 
     var state by mutableStateOf(MainUiState())
         private set
@@ -98,19 +100,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stageCourseImport(result: ExcelParser.ParseResult) {
+        val revision = importDraftWriteGate.nextRevision()
         stagedCourseImport = result
         // 草稿写盘失败意味着进程被杀后导入内容无法恢复，至少要留下可排查的日志。
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { importDraftStore.save(result) }
-                .onFailure { android.util.Log.w(TAG, "导入草稿暂存失败", it) }
+            importDraftWriteGate.runIfCurrent(revision) {
+                runCatching { importDraftStore.save(result) }
+                    .onFailure { android.util.Log.w(TAG, "导入草稿暂存失败", it) }
+            }
         }
     }
 
     fun clearStagedCourseImport() {
+        val revision = importDraftWriteGate.nextRevision()
         stagedCourseImport = null
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { importDraftStore.clear() }
-                .onFailure { android.util.Log.w(TAG, "导入草稿清理失败；已取消的导入可能在下次启动时重新弹出", it) }
+            importDraftWriteGate.runIfCurrent(revision) {
+                runCatching { importDraftStore.clear() }
+                    .onFailure { android.util.Log.w(TAG, "导入草稿清理失败；已取消的导入可能在下次启动时重新弹出", it) }
+            }
         }
     }
 

@@ -415,5 +415,4 @@
     <string name="settings_auto_backup_done_toast">"已自动备份"</string>
     <string name="month_no_courses">"本月该时间段无课程"</string>
     <string name="month_more_courses">"+%1$d 节"</string>
-    <string name="widget_week_description">"整周课表网格，按周一到周日展示每天每节的课程安排"</string>
 </resources>

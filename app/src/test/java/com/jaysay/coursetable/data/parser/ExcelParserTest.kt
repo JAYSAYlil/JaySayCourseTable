@@ -10,6 +10,9 @@ import org.apache.poi.ss.usermodel.Workbook
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 class ExcelParserTest {
     @Test
@@ -100,6 +103,68 @@ class ExcelParserTest {
         assertEquals(4, course.endPeriod)
     }
 
+    @Test
+    fun reportsCorruptZipWithActionableMessage() {
+        val bytes = byteArrayOf(
+            'P'.code.toByte(), 'K'.code.toByte(), 3, 4, 0, 0, 0, 0
+        )
+
+        val result = ByteArrayInputStream(bytes).use(ExcelParser::parse)
+
+        assertEquals(listOf("文件解析失败：不是有效的 xlsx 文件"), result.errors)
+        assertTrue(result.courses.isEmpty())
+    }
+
+    @Test
+    fun expandsMergedCellValuesForHeaderLayouts() {
+        val bytes = XSSFWorkbook().use { workbook ->
+            val sheet = workbook.createSheet("合并表头")
+            sheet.createRow(0).createCell(0).setCellValue("合并标题")
+            sheet.addMergedRegion(org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 1))
+            workbook.toBytes()
+        }
+
+        val grid = MinimalXlsxReader.read(bytes.inputStream())
+
+        assertEquals("合并标题", grid.row(0)?.get(0))
+        assertEquals("合并标题", grid.row(0)?.get(1))
+    }
+
+    @Test
+    fun skipsHiddenFirstSheetAndReadsFirstVisibleSheet() {
+        val bytes = XSSFWorkbook().use { workbook ->
+            workbook.createSheet("隐藏说明").createRow(0).createCell(0).setCellValue("说明")
+            val visible = workbook.createSheet("正式课表")
+            visible.createRow(0).createCell(0).setCellValue("正式数据")
+            workbook.setSheetHidden(0, true)
+            workbook.toBytes()
+        }
+
+        val grid = MinimalXlsxReader.read(bytes.inputStream())
+
+        assertEquals("正式数据", grid.row(0)?.get(0))
+    }
+
+    @Test
+    fun formats1904DateSystemCorrectly() {
+        val original = XSSFWorkbook().use { workbook ->
+            val sheet = workbook.createSheet("1904日期")
+            val style = workbook.createCellStyle().apply { dataFormat = 14 }
+            sheet.createRow(0).createCell(0).apply {
+                setCellValue(1.0)
+                cellStyle = style
+            }
+            workbook.toBytes()
+        }
+        val bytes = replaceZipEntry(original, "xl/workbook.xml") { xml ->
+            xml.replace(Regex("date1904=\"[^\"]*\""), "date1904=\"1\"")
+        }
+
+        val grid = MinimalXlsxReader.read(bytes.inputStream())
+
+        assertEquals("1904/1/2", grid.row(0)?.get(0))
+    }
+
     private fun writeHeaders(headerRow: Row) {
         val headers = listOf(
             "课程代码",
@@ -140,6 +205,29 @@ class ExcelParserTest {
 
     private fun Workbook.toBytes(): ByteArray = ByteArrayOutputStream().use { output ->
         write(output)
+        output.toByteArray()
+    }
+
+    private fun replaceZipEntry(
+        source: ByteArray,
+        name: String,
+        transform: (String) -> String
+    ): ByteArray = ByteArrayOutputStream().use { output ->
+        ZipInputStream(source.inputStream()).use { input ->
+            ZipOutputStream(output).use { zip ->
+                while (true) {
+                    val entry = input.nextEntry ?: break
+                    val data = input.readBytes()
+                    zip.putNextEntry(ZipEntry(entry.name))
+                    if (entry.name == name) {
+                        zip.write(transform(data.toString(Charsets.UTF_8)).toByteArray(Charsets.UTF_8))
+                    } else {
+                        zip.write(data)
+                    }
+                    zip.closeEntry()
+                }
+            }
+        }
         output.toByteArray()
     }
 }

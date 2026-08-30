@@ -5,9 +5,12 @@ import android.net.Uri
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.util.TimeUtils
 import java.io.FilterInputStream
+import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.io.PushbackInputStream
+import java.util.zip.ZipException
+import org.xml.sax.SAXException
 
 object ExcelParser {
     private val requiredColumns = listOf("课程号", "课程名", "上课星期", "开始节次", "结束节次", "上课周次")
@@ -28,10 +31,16 @@ object ExcelParser {
     )
 
     fun parse(context: Context, uri: Uri): ParseResult {
-        val stream = context.contentResolver.openInputStream(uri)
-            ?: return ParseResult(emptyList(), listOf("无法打开文件"))
-        // 与备份导入对齐设置大小护栏，避免超大文件导致 OOM。
-        return BoundedInputStream(stream, MAX_FILE_BYTES).use(::parseInternal)
+        return try {
+            val stream = context.contentResolver.openInputStream(uri)
+                ?: return ParseResult(emptyList(), listOf("无法打开文件，请重新选择或检查文件权限"))
+            // 与备份导入对齐设置大小护栏，避免超大文件导致 OOM。
+            BoundedInputStream(stream, MAX_FILE_BYTES).use(::parseInternal)
+        } catch (error: SecurityException) {
+            ParseResult(emptyList(), listOf("无法读取文件，请重新授予文件访问权限"))
+        } catch (error: Exception) {
+            ParseResult(emptyList(), listOf(userFacingError(error)))
+        }
     }
 
     /** 独立于 Android Uri 的入口，便于自动化测试真实 Excel。 */
@@ -69,9 +78,26 @@ object ExcelParser {
             ParseResult(emptyList(), listOf("文件超过 $MAX_FILE_MB MB，未读取"))
         } catch (error: MinimalXlsxReader.InvalidXlsxException) {
             ParseResult(emptyList(), listOf(error.message ?: "文件解析失败"))
+        } catch (error: ZipException) {
+            ParseResult(emptyList(), listOf("文件解析失败：Excel 压缩包损坏或不完整"))
+        } catch (error: SAXException) {
+            ParseResult(emptyList(), listOf("文件解析失败：Excel XML 结构损坏"))
+        } catch (error: EOFException) {
+            ParseResult(emptyList(), listOf("文件解析失败：文件内容不完整"))
+        } catch (error: SecurityException) {
+            ParseResult(emptyList(), listOf("无法读取文件，请重新授予文件访问权限"))
         } catch (error: Exception) {
-            ParseResult(emptyList(), listOf("文件解析失败：${error.message ?: error.javaClass.simpleName}"))
+            ParseResult(emptyList(), listOf(userFacingError(error)))
         }
+    }
+
+    /** 将底层 XML/ZIP/文件异常收敛为可操作且不泄露本地路径的提示。 */
+    private fun userFacingError(error: Exception): String = when (error) {
+        is ZipException -> "文件解析失败：Excel 压缩包损坏或不完整"
+        is SAXException -> "文件解析失败：Excel XML 结构损坏"
+        is EOFException -> "文件解析失败：文件内容不完整"
+        is SecurityException -> "无法读取文件，请重新授予文件访问权限"
+        else -> "文件解析失败：${error.message ?: error.javaClass.simpleName}"
     }
 
     private fun parseGrid(grid: MinimalXlsxReader.SheetGrid): ParseResult {

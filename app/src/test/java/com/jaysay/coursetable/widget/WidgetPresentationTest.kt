@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.util.TimeZone
 
 class WidgetPresentationTest {
     @Test
@@ -162,6 +163,31 @@ class WidgetPresentationTest {
         )
 
         assertEquals(emptyList<WidgetCourseRow>(), result.courses)
+    }
+
+    @Test
+    fun requestedDateRemainsCorrectAcrossMidnight() {
+        val newYear = LocalDate.parse("2027-01-01")
+        val table = table(courses = listOf(course("new-year", "元旦课程")).map {
+            it.copy(dayOfWeek = newYear.dayOfWeek.value, weeks = listOf(1))
+        }).copy(semesterStart = newYear.toString())
+
+        assertEquals(listOf("元旦课程"), WidgetScheduleBuilder.build(table, 0, newYear).courses.map { it.courseName })
+        assertEquals(emptyList<WidgetCourseRow>(), WidgetScheduleBuilder.build(table, 0, newYear.plusDays(1)).courses)
+    }
+
+    @Test
+    fun scheduleCalculationIsIndependentOfJvmDefaultTimeZone() {
+        val original = TimeZone.getDefault()
+        try {
+            val table = table(courses = listOf(course("tz", "时区课程")))
+            val date = LocalDate.parse("2026-08-20")
+            val baseline = WidgetScheduleBuilder.build(table, 0, date).courses
+            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Honolulu"))
+            assertEquals(baseline, WidgetScheduleBuilder.build(table, 0, date).courses)
+        } finally {
+            TimeZone.setDefault(original)
+        }
     }
 
     private fun table(

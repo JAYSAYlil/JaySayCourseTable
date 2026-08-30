@@ -145,8 +145,15 @@ class CourseRepository private constructor(
             null
         }
         val currentContent = currentTables?.let(::encodeTables)
-        if (currentTables != null && currentContent != null && currentContent != content) {
-            historyStore.createSnapshot(currentContent, currentTables)
+        // 典型的设置/页面回调可能重复提交同一状态；不落盘也不创建快照，
+        // 减少 JSON 编码、文件同步和闪存写入。
+        if (currentContent == content) return
+        if (currentTables != null && currentContent != null) {
+            historyStore.createSnapshot(
+                content = currentContent,
+                tables = currentTables,
+                force = replaceWithValidated
+            )
         }
         if (replaceWithValidated) store.replaceWithValidated(content) else store.write(content)
     }

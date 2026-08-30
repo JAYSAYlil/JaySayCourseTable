@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.util
 
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -25,8 +26,11 @@ object UpdateChecker {
             connection.readTimeout = 8_000
             connection.setRequestProperty("Accept", "application/vnd.github+json")
             connection.setRequestProperty("User-Agent", "JaySayCourseTable")
+            if (connection.responseCode !in 200..299) {
+                return Result(null, null, "更新服务暂时不可用（HTTP ${connection.responseCode}）")
+            }
             connection.inputStream.use { stream ->
-                val payload = JSONObject(stream.readBytes().toString(Charsets.UTF_8))
+                val payload = JSONObject(readBounded(stream).toString(Charsets.UTF_8))
                 Result(
                     latestVersion = payload.optString("tag_name").removePrefix("v"),
                     releaseUrl = payload.optString("html_url").takeIf(String::isNotBlank),
@@ -36,6 +40,20 @@ object UpdateChecker {
         } catch (e: Exception) {
             Result(null, null, e.message ?: e.javaClass.simpleName)
         }
+    }
+
+    private fun readBounded(input: java.io.InputStream): ByteArray {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(8 * 1024)
+        var total = 0
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            total += count
+            if (total > MAX_RESPONSE_BYTES) throw IllegalStateException("更新响应过大")
+            output.write(buffer, 0, count)
+        }
+        return output.toByteArray()
     }
 
     /** 按数字段比较版本号；无法解析的段按 0 处理。 */
@@ -50,4 +68,6 @@ object UpdateChecker {
         }
         return false
     }
+
+    private const val MAX_RESPONSE_BYTES = 256 * 1024
 }

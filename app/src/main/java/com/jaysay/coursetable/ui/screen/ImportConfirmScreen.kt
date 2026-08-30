@@ -72,7 +72,9 @@ fun ImportConfirmScreen(
     val visibleItems = remember(preview, filter) {
         preview.items.filter { filter.status == null || it.status == filter.status }
     }
-    val selectedCourses = preview.items.filter { it.index in selectedIndices }.map { it.course }
+    val selectedCourses = remember(preview, selectedIndices) {
+        preview.items.filter { it.index in selectedIndices }.map { it.course }
+    }
 
     Scaffold(
         modifier = Modifier.testTag("import-confirm-screen"),

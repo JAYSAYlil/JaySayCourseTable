@@ -38,25 +38,41 @@ class CourseHistoryStore(
     private val clock: () -> Long = System::currentTimeMillis,
     private val suffixFactory: () -> String = {
         UUID.randomUUID().toString().replace("-", "").take(ID_SUFFIX_LENGTH)
-    }
+    },
+    private val minSnapshotIntervalMillis: Long = DEFAULT_MIN_SNAPSHOT_INTERVAL_MILLIS
 ) {
     private val lock = Any()
 
     init {
         require(maxSnapshots > 0) { "快照保留数量必须大于 0" }
+        require(minSnapshotIntervalMillis >= 0) { "快照间隔不能为负数" }
     }
 
-    fun createSnapshot(content: String, tables: List<TableData>): CourseSnapshotSummary =
+    fun createSnapshot(
+        content: String,
+        tables: List<TableData>,
+        force: Boolean = false
+    ): CourseSnapshotSummary =
         synchronized(lock) {
             require(content.isNotBlank()) { "快照内容不能为空" }
             require(tables.isNotEmpty()) { "快照至少应包含一张课表" }
             ensureDirectory()
+            val now = clock()
 
             // 上一次主文件写入若失败，重试时不重复保存相同旧状态。
             newestFile()?.takeIf { runCatching { it.readText(Charsets.UTF_8) == content }.getOrDefault(false) }
                 ?.let { return@synchronized summary(it, tables) }
 
-            val createdAt = clock()
+            // 连续输入/拖动等操作可能在很短时间内触发多次保存；普通编辑只保留
+            // 一个时间窗口内的旧状态，恢复操作传 force=true 仍会留下完整回滚点。
+            newestFile()?.let { newest ->
+                val elapsed = now - createdAtFrom(newest)
+                if (!force && elapsed in 0 until minSnapshotIntervalMillis) {
+                    return@synchronized summary(newest, tables)
+                }
+            }
+
+            val createdAt = now
             val file = uniqueSnapshotFile(createdAt)
             AtomicFileStore(file).write(content)
             try {
@@ -147,6 +163,7 @@ class CourseHistoryStore(
 
     companion object {
         const val DEFAULT_MAX_SNAPSHOTS = 10
+        const val DEFAULT_MIN_SNAPSHOT_INTERVAL_MILLIS = 1_000L
         private const val FILE_PREFIX = "snapshot-"
         private const val FILE_SUFFIX = ".json"
         private const val ID_SUFFIX_LENGTH = 8

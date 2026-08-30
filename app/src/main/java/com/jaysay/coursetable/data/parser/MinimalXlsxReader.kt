@@ -1,6 +1,10 @@
 package com.jaysay.coursetable.data.parser
 
 import org.w3c.dom.Element
+import org.xml.sax.InputSource
+import org.xml.sax.SAXException
+import org.xml.sax.Attributes
+import org.xml.sax.helpers.DefaultHandler
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -11,6 +15,7 @@ import java.time.format.DateTimeFormatter
 import java.util.TreeMap
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.parsers.SAXParserFactory
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -18,12 +23,12 @@ import kotlin.math.roundToInt
  * 手写的最小 xlsx（OOXML）读取器，用于替代 Apache POI 以缩小 APK 体积。
  *
  * 仅覆盖课表导入所需的能力：
- * - 定位 xl/workbook.xml 中第一个工作表（经 workbook.xml.rels 解析 r:id → target）。
+ * - 定位 xl/workbook.xml 中第一个可见工作表（经 workbook.xml.rels 解析 r:id → target）。
  * - 单元格取值：sharedStrings / inlineStr / 公式缓存(str) / 布尔 / 数值。
  * - 数值按 General 格式输出（整数不带小数点，科学计数展开为普通数字）。
  * - 日期单元格按 Excel 1900 序列数（含闰日 bug 修正）转 "yyyy/M/d [HH:mm]"。
  *
- * 全程只用 JDK 内置的 ZipInputStream 与 DOM 解析器，Android 与 JVM 单测均可运行。
+ * ZIP 元数据使用 DOM，目标工作表使用 SAX 流式解析，Android 与 JVM 单测均可运行。
  */
 object MinimalXlsxReader {
 
@@ -72,6 +77,7 @@ object MinimalXlsxReader {
         var stylesBytes: ByteArray? = null
         val worksheetBytes = HashMap<String, ByteArray>()
         var targetPath: String? = null
+        var date1904 = false
         val decompressed = DecompressedCounter()
 
         ZipInputStream(input.buffered()).use { zip ->
@@ -103,7 +109,9 @@ object MinimalXlsxReader {
 
                 // 拿到 workbook + rels 后立刻解析目标表路径，丢弃此前误缓冲的其他工作表。
                 if (targetPath == null && workbookBytes != null && relsBytes != null) {
-                    targetPath = resolveFirstSheetPath(workbookBytes!!, relsBytes!!)
+                    val workbookInfo = resolveWorkbookInfo(workbookBytes!!, relsBytes!!)
+                    targetPath = workbookInfo.sheetPath
+                    date1904 = workbookInfo.date1904
                     worksheetBytes.keys.retainAll { it == targetPath }
                 }
                 entry = zip.nextEntry
@@ -111,26 +119,37 @@ object MinimalXlsxReader {
         }
 
         val notValidXlsx = InvalidXlsxException("文件解析失败：不是有效的 xlsx 文件")
-        val sheetPath = targetPath ?: run {
+        val workbookInfo = if (targetPath == null) {
             val workbook = workbookBytes ?: throw notValidXlsx
             val rels = relsBytes ?: throw notValidXlsx
-            resolveFirstSheetPath(workbook, rels)
+            resolveWorkbookInfo(workbook, rels)
+        } else {
+            WorkbookInfo(requireNotNull(targetPath), date1904)
         }
+        val sheetPath = workbookInfo.sheetPath
         val sheetBytes = worksheetBytes[sheetPath] ?: throw notValidXlsx
 
         val sharedStrings = sharedBytes?.let { parseSharedStrings(parseXml(it)) } ?: emptyList()
         val styles = stylesBytes?.let { Styles.parse(parseXml(it)) } ?: Styles.EMPTY
-        return parseSheet(parseXml(sheetBytes), sharedStrings, styles)
+        // 工作表通常是整个 xlsx 中最大的 XML 部件，使用 SAX 不构建完整 DOM，
+        // 将低端设备上的峰值内存控制在“共享字符串/样式 + 当前单元格”范围内。
+        return parseSheetStreaming(sheetBytes, sharedStrings, styles, workbookInfo.date1904)
     }
 
     // ---------- 部件定位 ----------
 
-    /** 解析 workbook.xml 第一个 sheet 的 r:id，并经 rels 换算成 zip 内的部件路径。 */
-    private fun resolveFirstSheetPath(workbookBytes: ByteArray, relsBytes: ByteArray): String {
+    private data class WorkbookInfo(val sheetPath: String, val date1904: Boolean)
+
+    /** 解析 workbook.xml 第一个可见 sheet 的 r:id，并经 rels 换算成 zip 内的部件路径。 */
+    private fun resolveWorkbookInfo(workbookBytes: ByteArray, relsBytes: ByteArray): WorkbookInfo {
         val workbook = parseXml(workbookBytes)
         val sheets = workbook.getElementsByTagName("sheet")
         if (sheets.length == 0) throw InvalidXlsxException("文件中没有工作表")
-        val sheet = sheets.item(0) as Element
+        val sheet = (0 until sheets.length)
+            .asSequence()
+            .map { sheets.item(it) as Element }
+            .firstOrNull { it.getAttribute("state").lowercase() !in setOf("hidden", "veryhidden") }
+            ?: sheets.item(0) as Element
         val relId = sheet.getAttribute("r:id").ifEmpty {
             sheet.getAttributeNS(REL_NAMESPACE, "id")
         }.ifEmpty { throw InvalidXlsxException("文件解析失败：不是有效的 xlsx 文件") }
@@ -147,11 +166,16 @@ object MinimalXlsxReader {
         }
         target ?: throw InvalidXlsxException("文件解析失败：不是有效的 xlsx 文件")
 
-        return when {
+        val sheetPath = when {
             target.startsWith("/") -> target.trimStart('/')
             target.startsWith("../") -> "xl/" + target.removePrefix("../")
             else -> "xl/$target"
         }
+        val workbookPr = workbook.getElementsByTagName("workbookPr").item(0) as? Element
+        val date1904 = workbookPr?.getAttribute("date1904")
+            ?.let { it == "1" || it.equals("true", ignoreCase = true) }
+            ?: false
+        return WorkbookInfo(sheetPath, date1904)
     }
 
     // ---------- 工作表网格 ----------
@@ -159,7 +183,8 @@ object MinimalXlsxReader {
     private fun parseSheet(
         root: Element,
         sharedStrings: List<String>,
-        styles: Styles
+        styles: Styles,
+        date1904: Boolean
     ): SheetGrid {
         val rows = TreeMap<Int, TreeMap<Int, String>>()
         val sheetData = root.getElementsByTagName("sheetData")
@@ -200,7 +225,7 @@ object MinimalXlsxReader {
                     else -> firstChildText(cell, "v") ?: ""
                 }
                 val value = if (type.isEmpty() || type == "n") {
-                    formatNumeric(raw, cell.getAttribute("s").toIntOrNull(), styles)
+                    formatNumeric(raw, cell.getAttribute("s").toIntOrNull(), styles, date1904)
                 } else {
                     raw
                 }
@@ -208,7 +233,133 @@ object MinimalXlsxReader {
             }
             if (cells.isNotEmpty()) rows[rowIndex] = cells
         }
+        applyMergedCells(root, rows)
         return SheetGrid(rows)
+    }
+
+    /** SAX 流式读取工作表，避免为数万行课程表构造庞大的 DOM 树。 */
+    private fun parseSheetStreaming(
+        bytes: ByteArray,
+        sharedStrings: List<String>,
+        styles: Styles,
+        date1904: Boolean
+    ): SheetGrid {
+        val rows = TreeMap<Int, TreeMap<Int, String>>()
+        val merges = ArrayList<String>()
+        val parser = SAXParserFactory.newInstance().apply {
+            isNamespaceAware = true
+            try { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) } catch (_: Exception) {}
+            try { setFeature("http://xml.org/sax/features/external-general-entities", false) } catch (_: Exception) {}
+            try { setFeature("http://xml.org/sax/features/external-parameter-entities", false) } catch (_: Exception) {}
+            try { setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) } catch (_: Exception) {}
+        }.newSAXParser()
+        parser.xmlReader.contentHandler = object : DefaultHandler() {
+            private var rowIndex = -1
+            private var nextRowNumber = 1
+            private var cellColumn = -1
+            private var nextColumnIndex = 0
+            private var cellType = ""
+            private var cellStyle: Int? = null
+            private var cellRaw = StringBuilder()
+            private var inlineText = StringBuilder()
+            private var capture: String? = null
+            private var rowCells = TreeMap<Int, String>()
+
+            override fun startElement(uri: String?, localName: String?, qName: String, attributes: Attributes) {
+                when (qName.substringAfterLast(':')) {
+                    "row" -> {
+                        val number = attributes.getValue("r")?.toIntOrNull() ?: nextRowNumber
+                        rowIndex = number - 1
+                        nextRowNumber = number + 1
+                        rowCells = TreeMap()
+                        nextColumnIndex = 0
+                    }
+                    "c" -> {
+                        val ref = attributes.getValue("r").orEmpty()
+                        cellColumn = if (ref.isEmpty()) nextColumnIndex else columnIndex(ref) ?: nextColumnIndex
+                        nextColumnIndex = cellColumn + 1
+                        cellType = attributes.getValue("t").orEmpty()
+                        cellStyle = attributes.getValue("s")?.toIntOrNull()
+                        cellRaw = StringBuilder()
+                        inlineText = StringBuilder()
+                    }
+                    "v", "t" -> if (cellColumn >= 0) capture = qName.substringAfterLast(':')
+                    "mergeCell" -> attributes.getValue("ref")?.let { if (merges.size < MAX_MERGE_RANGES) merges += it }
+                }
+            }
+
+            override fun characters(ch: CharArray, start: Int, length: Int) {
+                when (capture) {
+                    "v" -> cellRaw.append(ch, start, length)
+                    "t" -> inlineText.append(ch, start, length)
+                }
+            }
+
+            override fun endElement(uri: String?, localName: String?, qName: String) {
+                when (qName.substringAfterLast(':')) {
+                    "v", "t" -> capture = null
+                    "c" -> {
+                        val raw = when (cellType) {
+                            "s" -> cellRaw.toString().trim().toIntOrNull()?.let { sharedStrings.getOrElse(it) { "" } }.orEmpty()
+                            "inlineStr" -> inlineText.toString()
+                            "b" -> if (cellRaw.toString().trim() in setOf("1", "true", "TRUE")) "TRUE" else "FALSE"
+                            else -> cellRaw.toString()
+                        }
+                        val value = if (cellType.isEmpty() || cellType == "n") {
+                            formatNumeric(raw, cellStyle, styles, date1904)
+                        } else raw
+                        if (value.isNotEmpty()) {
+                            if (rowCells.size >= MAX_CELLS_PER_ROW) throw InvalidXlsxException("文件解析失败：单行单元格过多")
+                            rowCells[cellColumn] = value
+                        }
+                        cellColumn = -1
+                        capture = null
+                    }
+                    "row" -> if (rowCells.isNotEmpty()) {
+                        if (rows.size >= MAX_ROWS) throw InvalidXlsxException("文件解析失败：工作表行数过多")
+                        rows[rowIndex] = rowCells
+                    }
+                }
+            }
+        }
+        parser.xmlReader.parse(InputSource(ByteArrayInputStream(bytes)))
+        // SAX 不保留文档树，合并区域先缓存引用，再复用同一套有界展开逻辑。
+        applyMergedCells(merges, rows)
+        return SheetGrid(rows)
+    }
+
+    /** 将合并区域左上角的值复制到其余格，兼容合并表头和分组表头。 */
+    private fun applyMergedCells(root: Element, rows: TreeMap<Int, TreeMap<Int, String>>) {
+        val mergeNodes = root.getElementsByTagName("mergeCell")
+        val refs = (0 until mergeNodes.length.coerceAtMost(MAX_MERGE_RANGES))
+            .mapNotNull { (mergeNodes.item(it) as? Element)?.getAttribute("ref") }
+        applyMergedCells(refs, rows)
+    }
+
+    private fun applyMergedCells(refs: List<String>, rows: TreeMap<Int, TreeMap<Int, String>>) {
+        for (ref in refs) {
+            val parts = ref.split(":", limit = 2)
+            if (parts.size != 2) continue
+            val start = parseCellRef(parts[0]) ?: continue
+            val end = parseCellRef(parts[1]) ?: continue
+            val rowStart = minOf(start.first, end.first)
+            val rowEnd = maxOf(start.first, end.first)
+            val columnStart = minOf(start.second, end.second)
+            val columnEnd = maxOf(start.second, end.second)
+            if (rowEnd - rowStart > MAX_MERGE_SPAN || columnEnd - columnStart > MAX_MERGE_SPAN) continue
+            val value = rows[rowStart]?.get(columnStart)?.takeIf(String::isNotEmpty) ?: continue
+            for (rowIndex in rowStart..rowEnd) {
+                val row = rows.getOrPut(rowIndex) { TreeMap() }
+                for (columnIndex in columnStart..columnEnd) row.putIfAbsent(columnIndex, value)
+            }
+        }
+    }
+
+    private fun parseCellRef(ref: String): Pair<Int, Int>? {
+        val match = CELL_REF.matchEntire(ref.trim()) ?: return null
+        val column = columnIndex(match.groupValues[1]) ?: return null
+        val row = match.groupValues[2].toIntOrNull()?.minus(1) ?: return null
+        return row to column
     }
 
     /** "B3" → 列号 1（0 基）。 */
@@ -228,13 +379,13 @@ object MinimalXlsxReader {
 
     // ---------- 数字与日期格式化 ----------
 
-    private fun formatNumeric(raw: String, styleIndex: Int?, styles: Styles): String {
+    private fun formatNumeric(raw: String, styleIndex: Int?, styles: Styles, date1904: Boolean): String {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return ""
         val numFmtId = styles.numFmtId(styleIndex)
         if (numFmtId == 49) return trimmed // "@" 文本格式，原样输出
         if (numFmtId in BUILTIN_DATE_FORMAT_IDS || styles.isCustomDateFormat(numFmtId)) {
-            return formatDateValue(trimmed) ?: trimmed
+            return formatDateValue(trimmed, date1904) ?: trimmed
         }
         return formatGeneral(trimmed)
     }
@@ -250,12 +401,14 @@ object MinimalXlsxReader {
      * Excel 1900 日期系统序列数 → "yyyy/M/d"，序列数带时间部分时追加 " HH:mm"。
      * 兼容 Excel 的 1900-02-29 闰日 bug：序列数 > 59 时减 1。
      */
-    private fun formatDateValue(raw: String): String? {
+    private fun formatDateValue(raw: String, date1904: Boolean): String? {
         val serial = raw.toDoubleOrNull() ?: return null
         if (serial < 0.0 || serial >= 2958466.0) return null // 超出 9999-12-31
         val whole = floor(serial).toLong()
-        val days = whole - if (whole > 59) 1L else 0L
-        var date = LocalDate.of(1899, 12, 31).plusDays(days)
+        val days = whole - if (!date1904 && whole > 59) 1L else 0L
+        // 1899-12-31 到 1904-01-01 相差 1461 天；1904 系统的序列 0 即 1904-01-01。
+        val dateSystemOffset = if (date1904) 1461L else 0L
+        var date = LocalDate.of(1899, 12, 31).plusDays(days + dateSystemOffset)
         var minutes = ((serial - whole) * 1440.0).roundToInt()
         if (minutes >= 1440) {
             date = date.plusDays((minutes / 1440).toLong())
@@ -348,7 +501,9 @@ object MinimalXlsxReader {
     private fun parseXml(bytes: ByteArray): Element {
         val factory = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
-            isXIncludeAware = false
+            // Android 的 DocumentBuilderFactory 不实现 XInclude，直接设置会抛出
+            // UnsupportedOperationException，导致所有 xlsx 在真机上解析失败。
+            // XInclude 默认关闭，因此不要调用这个 Android 不支持的可选 API。
             isExpandEntityReferences = false
             try { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) } catch (_: Exception) {}
             try { setFeature("http://xml.org/sax/features/external-general-entities", false) } catch (_: Exception) {}
@@ -405,4 +560,10 @@ object MinimalXlsxReader {
             if (n > 0) counter.add(n)
         }
     }
+
+    private const val MAX_MERGE_RANGES = 1_000
+    private const val MAX_MERGE_SPAN = 100
+    private const val MAX_ROWS = 50_000
+    private const val MAX_CELLS_PER_ROW = 2_000
+    private val CELL_REF = Regex("^([A-Za-z]+)(\\d+)$")
 }

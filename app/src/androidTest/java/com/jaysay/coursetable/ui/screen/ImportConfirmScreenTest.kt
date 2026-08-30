@@ -6,6 +6,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseImportAnalyzer
@@ -45,6 +48,25 @@ class ImportConfirmScreenTest {
         composeRule.onNodeWithText("冲突课程").assertExists()
         composeRule.onNodeWithTag("import-item-1").performClick()
         composeRule.onNodeWithText("导入 2 条").assertExists()
+    }
+
+    @Test
+    fun confirmationActionsRemainAccessibleAtLargeFontScale() {
+        val preview = CourseImportAnalyzer.analyze(
+            existing = emptyList(),
+            imported = listOf(course("LARGE", "一门很长的课程名称用于大字体回归", day = 1))
+        )
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density = 1f, fontScale = 1.5f)) {
+                JaySayTheme {
+                    ImportConfirmScreen(preview, emptyList(), onConfirm = {}, onCancel = {})
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("import-confirm-screen").assertExists()
+        composeRule.onNodeWithTag("import-confirm-action").assertExists()
+        composeRule.onNodeWithText("导入 1 条").assertExists()
     }
 
     private fun course(id: String, name: String, day: Int) = Course(

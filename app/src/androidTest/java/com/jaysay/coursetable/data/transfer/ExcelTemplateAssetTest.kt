@@ -3,6 +3,7 @@ package com.jaysay.coursetable.data.transfer
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.jaysay.coursetable.data.parser.ExcelParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,5 +39,15 @@ class ExcelTemplateAssetTest {
         }
         assertTrue("模板应包含 [Content_Types].xml", "[Content_Types].xml" in entryNames)
         assertTrue("模板应包含工作簿文件", entryNames.any { it.endsWith("workbook.xml") })
+    }
+
+    @Test
+    fun bundledXlsxIsParsedByAndroidXmlImplementation() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val result = context.assets.open("import_template.xlsx").use(ExcelParser::parse)
+
+        // 空模板没有课程是预期的，但必须成功解析到表头；旧故障会在这里返回
+        // “This parser does not support specification ...”。
+        assertTrue("Android xlsx parser errors=${result.errors}", result.errors.isEmpty())
     }
 }

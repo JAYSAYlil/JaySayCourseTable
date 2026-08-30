@@ -28,7 +28,7 @@
 - 顶部提供不占用网格空间的今日/下一节课摘要，并可按课程名、教师或教室本地搜索。
 - 支持方向明确的周切换与详情动画，删除课程前确认，并可在提示条中撤销。
 - 导入前按新增、合并、重复和冲突分类，可逐条选择；手工新增或编辑发生时间冲突时会二次确认。
-- 不声明网络权限，所有课程数据均在设备本地处理。
+- 课程数据、备份、提醒和日历均在设备本地处理；仅在用户手动点击“检查更新”时访问 GitHub Releases，不执行常驻联网。
 
 ## 环境要求
 
@@ -63,7 +63,7 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 - Android 系统云备份和设备迁移均排除应用数据；换机请使用应用内“导出完整备份”。
 - 请勿在 Issue、日志或提交中上传真实课表、完整备份、签名密钥或本机路径。
 
-当前开发候选版本：`2.20.1`（versionCode 107）；正式发布版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
+当前开发候选版本：`3.2.0`（versionCode 112）；正式发布版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
 
 ## 自动化测试策略
 

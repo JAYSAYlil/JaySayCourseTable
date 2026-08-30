@@ -3,14 +3,7 @@ package com.jaysay.coursetable.ui.screen
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.outlined.SystemUpdateAlt
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.runtime.rememberCoroutineScope
-import android.net.Uri
-import android.content.Intent
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -49,14 +42,13 @@ import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
-import com.jaysay.coursetable.util.UpdateChecker
 import java.util.*
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /** 卡片内的一个可搜索单元：keywords 参与不区分大小写匹配，content 为条目内容。 */
-private class SettingsItem(
+internal class SettingsItem(
     val keywords: List<String>,
     val content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 )
@@ -1049,79 +1041,7 @@ fun SettingsScreen(
                     onClick = onChooseAutoBackupLocation
                 )
             },
-            SettingsItem(
-                keywords = listOf(
-                    stringResource(R.string.settings_check_update),
-                    stringResource(R.string.settings_check_update_subtitle)
-                )
-            ) {
-                val scope = rememberCoroutineScope()
-                var checkingUpdate by remember { mutableStateOf(false) }
-                var updateResult by remember { mutableStateOf<UpdateChecker.Result?>(null) }
-                SettingsActionRow(
-                    icon = Icons.Outlined.SystemUpdateAlt,
-                    title = stringResource(R.string.settings_check_update),
-                    subtitle = stringResource(R.string.settings_check_update_subtitle),
-                    enabled = !checkingUpdate,
-                    onClick = {
-                        checkingUpdate = true
-                        scope.launch {
-                            val result = withContext(Dispatchers.IO) { UpdateChecker.check() }
-                            updateResult = result
-                            checkingUpdate = false
-                        }
-                    }
-                )
-                updateResult?.let { result ->
-                    val currentVersion = remember {
-                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-                    }
-                    val hasNewer = result.error == null &&
-                        UpdateChecker.isNewer(result.latestVersion.orEmpty(), currentVersion)
-                    AlertDialog(
-                        onDismissRequest = { updateResult = null },
-                        title = {
-                            Text(
-                                when {
-                                    result.error != null -> stringResource(R.string.settings_update_failed, result.error)
-                                    hasNewer -> stringResource(R.string.settings_update_available, result.latestVersion.orEmpty(), currentVersion)
-                                    else -> stringResource(R.string.settings_update_latest, currentVersion)
-                                },
-                                fontWeight = FontWeight.Bold
-                            )
-                        },
-                        text = {
-                            Text(
-                                when {
-                                    result.error != null -> result.error
-                                    else -> stringResource(R.string.settings_check_update_subtitle)
-                                }
-                            )
-                        },
-                        confirmButton = {
-                            if (hasNewer && result.releaseUrl != null) {
-                                TextButton(onClick = {
-                                    updateResult = null
-                                    runCatching {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.releaseUrl)))
-                                    }
-                                }) { Text(stringResource(R.string.settings_update_open)) }
-                            } else {
-                                TextButton(onClick = { updateResult = null }) {
-                                    Text(stringResource(R.string.overview_dialog_got_it))
-                                }
-                            }
-                        },
-                        dismissButton = {
-                            if (hasNewer && result.releaseUrl != null) {
-                                TextButton(onClick = { updateResult = null }) {
-                                    Text(stringResource(R.string.edit_button_cancel))
-                                }
-                            }
-                        }
-                    )
-                }
-            },
+            createUpdateCheckSettingsItem(context),
             )
 
             val sections = listOf(
@@ -1188,7 +1108,7 @@ private fun PreferenceSwitchRow(
 }
 
 @Composable
-private fun SettingsActionRow(
+internal fun SettingsActionRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,

@@ -16,7 +16,8 @@ class CourseHistoryStoreTest {
         val store = CourseHistoryStore(
             directory = root,
             clock = { time++ },
-            suffixFactory = { "%08x".format(suffix++) }
+            suffixFactory = { "%08x".format(suffix++) },
+            minSnapshotIntervalMillis = 0L
         )
 
         repeat(12) { index ->
@@ -28,6 +29,30 @@ class CourseHistoryStoreTest {
         assertEquals(10, snapshots.size)
         assertEquals(1011L, snapshots.first().createdAtMillis)
         assertEquals(1002L, snapshots.last().createdAtMillis)
+    }
+
+    @Test
+    fun coalescesSnapshotsWithinEditingWindowUnlessForced() {
+        val root = Files.createTempDirectory("course-history-coalesce").toFile()
+        var time = 10_000L
+        var suffix = 0
+        val store = CourseHistoryStore(
+            directory = root,
+            clock = { time },
+            suffixFactory = { "%08x".format(suffix++) },
+            minSnapshotIntervalMillis = 1_000L
+        )
+        val first = listOf(TableData.placeholder("第一版"))
+        val second = listOf(TableData.placeholder("第二版"))
+        val third = listOf(TableData.placeholder("第三版"))
+
+        store.createSnapshot(encodeForTest(first), first)
+        time += 100
+        store.createSnapshot(encodeForTest(second), second)
+        assertEquals(1, store.listSnapshots(::decodeForTest).size)
+        time += 1_000
+        store.createSnapshot(encodeForTest(third), third, force = true)
+        assertEquals(2, store.listSnapshots(::decodeForTest).size)
     }
 
     @Test
