@@ -300,15 +300,22 @@ fun CourseTableScreen(
     val monthAnchorIndex = monthIndexOf(monthAnchorDate)
     val monthCount = if (firstMonthStart == null || lastMonthStart == null) 1 else (monthIndexOf(lastMonthStart) + 1).coerceAtLeast(1)
     fun monthOf(index: Int): LocalDate = firstMonthStart?.plusMonths(index.toLong()) ?: monthAnchorDate
-    val monthCourseCount = if (viewMode == ScheduleViewMode.MONTH && firstMonthStart != null) {
-        // 统计本月实际上课节次（每天的课程条目总和，含同课程多班次）。
-        (0 until monthAnchorDate.lengthOfMonth()).sumOf { dayOffset ->
-            ScheduleDateResolver.coursesOn(
-                displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions,
-                monthAnchorDate.plusDays(dayOffset.toLong())
-            ).size
+    val monthCourseCount = remember(
+        viewMode, displayedCourses, monthAnchorDate, semesterStart, totalWeeks,
+        excludedWeekSet, dateExceptions
+    ) {
+        if (viewMode != ScheduleViewMode.MONTH || firstMonthStart == null) 0
+        else {
+            // 统计本月实际上课节次（每天的课程条目总和，含同课程多班次）。
+            // 月视图重组（例如打开菜单）时复用结果，避免重复解析整月日期异常。
+            (0 until monthAnchorDate.lengthOfMonth()).sumOf { dayOffset ->
+                ScheduleDateResolver.coursesOn(
+                    displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions,
+                    monthAnchorDate.plusDays(dayOffset.toLong())
+                ).size
+            }
         }
-    } else 0
+    }
 
     val isTodayWeek = currentWeek == todayWeek
     val weekControlTint = MaterialTheme.colorScheme.primary
