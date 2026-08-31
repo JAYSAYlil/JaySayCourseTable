@@ -596,8 +596,15 @@ fun SettingsScreen(
                         cal.timeInMillis
                     }
                     var showDatePicker by remember { mutableStateOf(false) }
+                    val dateRowInteraction = remember { MutableInteractionSource() }
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable(enabled = readOnlyMessage == null) { showDatePicker = true }
+                        modifier = Modifier.fillMaxWidth()
+                            .pressScale(dateRowInteraction)
+                            .clickable(
+                                interactionSource = dateRowInteraction,
+                                indication = null,
+                                enabled = readOnlyMessage == null
+                            ) { showDatePicker = true }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -715,6 +722,8 @@ fun SettingsScreen(
                         val endParts = period.end.split(":")
                         val endH = endParts.getOrNull(0)?.toIntOrNull() ?: 8
                         val endM = endParts.getOrNull(1)?.toIntOrNull() ?: 45
+                        val startInteraction = remember { MutableInteractionSource() }
+                        val endInteraction = remember { MutableInteractionSource() }
 
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
@@ -731,7 +740,12 @@ fun SettingsScreen(
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                    .clickable(enabled = readOnlyMessage == null) { showStartPicker = true }
+                                    .pressScale(startInteraction, 0.97f)
+                                    .clickable(
+                                        interactionSource = startInteraction,
+                                        indication = null,
+                                        enabled = readOnlyMessage == null
+                                    ) { showStartPicker = true }
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                             ) {
                                 Text(period.start, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -745,7 +759,12 @@ fun SettingsScreen(
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                    .clickable(enabled = readOnlyMessage == null) { showEndPicker = true }
+                                    .pressScale(endInteraction, 0.97f)
+                                    .clickable(
+                                        interactionSource = endInteraction,
+                                        indication = null,
+                                        enabled = readOnlyMessage == null
+                                    ) { showEndPicker = true }
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                             ) {
                                 Text(period.end, fontSize = 14.sp, fontWeight = FontWeight.Medium)

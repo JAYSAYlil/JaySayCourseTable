@@ -104,7 +104,8 @@ internal fun courseCardBackgroundAlpha(background: Color, hasCustomBackground: B
 }
 
 /**
- * 以 State 形式提供当前分钟数（每 30 秒刷新一次）。
+ * 以 State 形式提供当前分钟数。刷新会对齐到下一分钟边界，避免长期漂移，
+ * 让进度线在课间/整点切换时也能稳定重绘。
  * 返回 State 而不是直接返回值，让读取 .value 的调用点各自建立订阅，
  * 避免在屏幕顶层读取导致整个课表每 30 秒重组一次。
  */
@@ -116,8 +117,10 @@ internal fun rememberCurrentMinute(): State<Int> {
     val minuteState = remember { mutableIntStateOf(nowMinute()) }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(30_000)
             minuteState.intValue = nowMinute()
+            val now = System.currentTimeMillis()
+            val untilNextMinute = (60_000L - (now % 60_000L)).coerceIn(1_000L, 60_000L)
+            delay(untilNextMinute)
         }
     }
     return minuteState
@@ -351,7 +354,7 @@ internal fun TableGrid(
 
 /**
  * 当前时间线覆盖层：在此组件作用域读取分钟状态，
- * 每 30 秒只重组并重绘这一条线，不带动网格与卡片。
+ * 每分钟只重组并重绘这一条线，不带动网格与卡片。
  */
 @Composable
 private fun CurrentTimeLineOverlay(
@@ -364,17 +367,27 @@ private fun CurrentTimeLineOverlay(
     val currentMinute = currentMinuteState.value
     val lineColor = MaterialTheme.colorScheme.error
     Canvas(modifier = Modifier.fillMaxSize().zIndex(3f)) {
-        val activeIndex = periodTimes.indexOfFirst { period ->
+        val validPeriods = periodTimes.mapIndexedNotNull { index, period ->
             val start = TimeUtils.parseMinuteOfDay(period.start)
             val end = TimeUtils.parseMinuteOfDay(period.end)
-            start != null && end != null && currentMinute >= start && currentMinute < end
+            if (start != null && end != null && end > start) Triple(index, start, end) else null
         }
-        if (activeIndex >= 0) {
-            val start = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].start) ?: currentMinute
-            val end = TimeUtils.parseMinuteOfDay(periodTimes[activeIndex].end) ?: currentMinute + 1
-            val fraction = ((currentMinute - start).toFloat() /
-                (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
-            val lineY = (periodOffset(activeIndex + 1, sections, cellHeight) +
+        // Keep a stable indicator even during breaks and before/after classes. The line
+        // snaps to the nearest period boundary instead of disappearing intermittently.
+        val position = when {
+            validPeriods.isEmpty() -> null
+            currentMinute < validPeriods.first().second -> validPeriods.first().let { it.first to 0f }
+            currentMinute >= validPeriods.last().third -> validPeriods.last().let { it.first to 1f }
+            else -> validPeriods.firstNotNullOfOrNull { (index, start, end) ->
+                when {
+                    currentMinute in start until end -> index to ((currentMinute - start).toFloat() / (end - start))
+                    currentMinute < start -> index to 0f
+                    else -> null
+                }
+            }
+        }
+        position?.let { (periodIndex, fraction) ->
+            val lineY = (periodOffset(periodIndex + 1, sections, cellHeight) +
                 cellHeight * fraction).toPx()
             val halo = if (dark) Color.Black.copy(alpha = 0.78f)
                 else Color.White.copy(alpha = 0.9f)

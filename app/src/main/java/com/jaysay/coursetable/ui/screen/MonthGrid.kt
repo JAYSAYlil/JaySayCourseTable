@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.R
@@ -53,6 +55,10 @@ private data class MonthDayData(
     val dayOfWeek: Int,
     val isToday: Boolean,
     val suspended: Boolean,
+    val weekLabel: String?,
+    val dayOffTitle: String?,
+    val cancelledCount: Int,
+    val makeupCount: Int,
     val courses: List<Course>
 )
 
@@ -74,6 +80,7 @@ fun MonthGrid(
     semesterStart: String,
     excludedWeekSet: Set<Int>,
     dateExceptions: List<ScheduleDateException>,
+    weekLabels: Map<Int, String>,
     dark: Boolean,
     onDayClick: (semesterWeek: Int, dayOfWeek: Int) -> Unit
 ) {
@@ -85,7 +92,7 @@ fun MonthGrid(
         }
     }
     val cells = remember(
-        courses, monthStart, totalWeeks, semesterStart, excludedWeekSet, dateExceptions, today
+        courses, monthStart, totalWeeks, semesterStart, excludedWeekSet, dateExceptions, weekLabels, today
     ) {
         buildMonthCells(
             courses = courses,
@@ -94,6 +101,7 @@ fun MonthGrid(
             semesterStart = semesterStart,
             excludedWeekSet = excludedWeekSet,
             dateExceptions = dateExceptions,
+            weekLabels = weekLabels,
             today = today
         )
     }
@@ -112,11 +120,23 @@ fun MonthGrid(
             }
         }
         Spacer(Modifier.height(3.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("课程", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("停课/放假", fontSize = 9.sp, color = MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
+            Text("补课", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f))
+            Spacer(Modifier.weight(1f))
+            Text("点击日期查看详情", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f))
+        }
+        Spacer(Modifier.height(2.dp))
         cells.forEach { weekCells ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 74.dp)
+                    .heightIn(min = 78.dp)
                     .padding(horizontal = 3.dp)
             ) {
                 weekCells.forEach { cell ->
@@ -140,18 +160,21 @@ private fun buildMonthCells(
     semesterStart: String,
     excludedWeekSet: Set<Int>,
     dateExceptions: List<ScheduleDateException>,
+    weekLabels: Map<Int, String>,
     today: LocalDate
 ): List<List<MonthDayData>> {
-    // 锚点即调用方给定的自然月；网格从该月 1 日所在周的周一起，铺满 6 行。
+    // 锚点即调用方给定的自然月；网格从该月 1 日所在周的周一起，按需铺满 5～6 行。
     val anchor = monthStart
     val gridStart = TimeUtils.weekStart(anchor.withDayOfMonth(1))
-    return (0 until 6).map { row ->
+    val lastDay = anchor.withDayOfMonth(anchor.lengthOfMonth())
+    val dayOffset = java.time.temporal.ChronoUnit.DAYS.between(gridStart, lastDay).toInt()
+    val rowCount = ((dayOffset + 1 + 6) / 7).coerceIn(5, 6)
+    return (0 until rowCount).map { row ->
         (0 until 7).map { col ->
             val date = gridStart.plusDays((row * 7 + col).toLong())
             val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
-            // weekLabels 只影响周标签字段，月视图只关心停课/放假状态，传空表即可。
             val status = AcademicCalendarStatusResolver.day(
-                date, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, emptyMap()
+                date, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
             )
             MonthDayData(
                 date = date,
@@ -160,6 +183,10 @@ private fun buildMonthCells(
                 dayOfWeek = date.dayOfWeek.value,
                 isToday = date == today && week != null && week !in excludedWeekSet,
                 suspended = status.suspendedWeek || status.dayOff,
+                weekLabel = status.weekLabel,
+                dayOffTitle = status.dayOffTitle,
+                cancelledCount = status.cancelledCount,
+                makeupCount = status.makeupCount,
                 courses = ScheduleDateResolver.coursesOn(
                     courses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
                 ).map { it.course }
@@ -179,6 +206,21 @@ private fun MonthDayCell(
     val primary = MaterialTheme.colorScheme.primary
     val outline = MaterialTheme.colorScheme.outlineVariant
     val isToday = cell.isToday
+    val statusText = when {
+        cell.dayOffTitle?.isNotBlank() == true -> cell.dayOffTitle
+        cell.suspended -> "停课"
+        cell.makeupCount > 0 -> "补课 ${cell.makeupCount}"
+        cell.cancelledCount > 0 -> "停 ${cell.cancelledCount}"
+        cell.weekLabel?.isNotBlank() == true -> cell.weekLabel
+        else -> null
+    }
+    val cellDescription = buildString {
+        append(cell.date)
+        cell.weekLabel?.let { append("，$it") }
+        statusText?.let { append("，$it") }
+        if (cell.courses.isNotEmpty()) append("，课程 ${cell.courses.joinToString("、") { it.courseName }}")
+        else append("，无课程")
+    }
     val clickableModifier = cell.semesterWeek?.let { week ->
         val cellInteraction = androidx.compose.runtime.remember {
             androidx.compose.foundation.interaction.MutableInteractionSource()
@@ -201,8 +243,9 @@ private fun MonthDayCell(
                 shape = AppShapes.small
             )
             .then(clickableModifier)
+            .semantics { contentDescription = cellDescription }
             .padding(horizontal = 4.dp, vertical = 3.dp),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
             text = cell.date.dayOfMonth.toString(),
@@ -218,7 +261,22 @@ private fun MonthDayCell(
             textDecoration = if (cell.suspended) TextDecoration.LineThrough else null,
             maxLines = 1
         )
-        cell.courses.take(3).forEach { course ->
+        statusText?.let { text ->
+            Text(
+                text = text,
+                fontSize = 8.sp,
+                lineHeight = 9.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = when {
+                    cell.suspended || cell.cancelledCount > 0 -> MaterialTheme.colorScheme.error
+                    cell.makeupCount > 0 -> primary
+                    else -> MaterialTheme.colorScheme.secondary
+                }
+            )
+        }
+        cell.courses.take(2).forEach { course ->
             val color = courseColors[course.courseName] ?: primary
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -238,9 +296,9 @@ private fun MonthDayCell(
                 )
             }
         }
-        if (cell.courses.size > 3) {
+        if (cell.courses.size > 2) {
             Text(
-                text = stringResource(R.string.month_more_courses, cell.courses.size - 3),
+                text = stringResource(R.string.month_more_courses, cell.courses.size - 2),
                 fontSize = 8.sp,
                 lineHeight = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

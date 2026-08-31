@@ -213,6 +213,7 @@ fun CourseTableScreen(
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.4f
     val bgColor = MaterialTheme.colorScheme.background
+    val navigationHapticView = LocalView.current
 
     val today = LocalDate.now()
     val todayWeek = remember(semesterStart, totalWeeks, today) {
@@ -255,8 +256,18 @@ fun CourseTableScreen(
         ScheduleViewMode.DAY -> 100.dp
         ScheduleViewMode.MONTH -> 106.dp
     }
-    val weekCourses = remember(displayedCourses, currentWeek, excludedWeekSet) {
-        displayedCourses.filter { currentWeek in it.weeks && currentWeek !in excludedWeekSet }
+    // Header counts must use the same date resolver as the rendered grid so that
+    // cancellations, suspended weeks and makeup classes stay in sync in every view.
+    val weekCourses = remember(
+        displayedCourses, currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions
+    ) {
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+        if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
+            val date = start.plusDays((currentWeek - 1L) * 7L + dayOffset)
+            ScheduleDateResolver.coursesOn(
+                displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+            ).map { it.course }
+        }
     }
     val weekStatus = remember(currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels) {
         AcademicCalendarStatusResolver.week(
@@ -519,12 +530,16 @@ fun CourseTableScreen(
                                     )
                                 },
                                 onClick = {
+                                    val modeChanged = mode != viewMode
                                     dayOpenedFromMonth = false
                                     onViewModeChange(mode)
                                     if (mode == ScheduleViewMode.DAY && isTodayWeek && todayDow in 1..7) {
                                         onFocusedDayChange(todayDow)
                                     }
                                     viewMenuExpanded = false
+                                    if (modeChanged) {
+                                        navigationHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                                    }
                                 }
                             )
                         }
@@ -601,6 +616,7 @@ fun CourseTableScreen(
             val monthPagerState = rememberPagerState(
                 initialPage = monthAnchorIndex.coerceIn(0, monthCount - 1)
             ) { monthCount }
+            var lastSettledMonthPage by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(monthPagerState.currentPage) }
             LaunchedEffect(monthAnchorEpoch) {
                 if (monthAnchorEpoch != 0L) {
                     val target = monthIndexOf(LocalDate.ofEpochDay(monthAnchorEpoch)).coerceIn(0, monthCount - 1)
@@ -613,10 +629,12 @@ fun CourseTableScreen(
             LaunchedEffect(monthPagerState) {
                 snapshotFlow { monthPagerState.settledPage }.collect { page ->
                     val epoch = monthOf(page).toEpochDay()
+                    val pageChanged = page != lastSettledMonthPage
+                    lastSettledMonthPage = page
                     if (epoch != monthAnchorEpoch) {
                         monthAnchorEpoch = epoch
-                        monthHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                     }
+                    if (pageChanged) monthHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                 }
             }
             HorizontalPager(
@@ -637,6 +655,7 @@ fun CourseTableScreen(
                         semesterStart = semesterStart,
                         excludedWeekSet = excludedWeekSet,
                         dateExceptions = dateExceptions,
+                        weekLabels = weekLabels,
                         dark = dark,
                         onDayClick = { semesterWeek, dayOfWeek ->
                             // 点击某天：跳到该天所在周并切到单日视图；记住来源月供返回使用。
@@ -781,6 +800,7 @@ private fun DayPagerSection(
     val pagerState = rememberPagerState(
         initialPage = indexOf(LocalDate.ofEpochDay(reportedEpoch)).coerceIn(0, totalDays - 1)
     ) { totalDays }
+    var lastSettledDayPage by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(pagerState.currentPage) }
 
     // 外部状态变化（定位今天/表头点击/月视图跳天/返回自月视图）时滚动到对应页。
     LaunchedEffect(currentWeek, focusedDay, semesterStart) {
@@ -799,16 +819,17 @@ private fun DayPagerSection(
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val date = dateOf(page)
+            val pageChanged = page != lastSettledDayPage
+            lastSettledDayPage = page
             if (date.toEpochDay() != reportedEpoch) {
                 reportedEpoch = date.toEpochDay()
                 val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
                 if (week != null) {
                     onWeekChange(week)
                     onFocusedDayChange(date.dayOfWeek.value)
-                    // 导航提交瞬间的轻触觉反馈（Apple: 反馈只在有意义的节点）。
-                    hapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                 }
             }
+            if (pageChanged) hapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
         }
     }
 
@@ -885,15 +906,18 @@ private fun WeekPagerSection(
     val pagerState = rememberPagerState(
         initialPage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
     ) { totalWeeks.coerceAtLeast(1) }
+    var lastSettledWeekPage by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(pagerState.currentPage) }
 
     // 用户滑动结束后回写周次；外部（箭头/定位今天）改变周次时滚动到对应页。
     val weekHapticView = LocalView.current
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
+            val pageChanged = page != lastSettledWeekPage
+            lastSettledWeekPage = page
             if (page + 1 != currentWeekState) {
                 onWeekChangeState(page + 1)
-                weekHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             }
+            if (pageChanged) weekHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
         }
     }
     LaunchedEffect(currentWeek, totalWeeks) {
@@ -1078,10 +1102,12 @@ private fun CalendarContextStrip(
         status.label != null -> Icons.AutoMirrored.Outlined.Label
         else -> Icons.Outlined.EditCalendar
     }
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
             .testTag("calendar-context-strip")
-            .clickable(onClick = onClick),
+            .pressScale(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
         shape = AppShapes.small,
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
         border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
@@ -1148,10 +1174,12 @@ private fun DayHeader(
                 val dayHeaderDescription = if (dayStatus?.hasDateAdjustment == true) {
                     stringResource(R.string.course_day_header_adjustment_desc, baseDescription)
                 } else baseDescription
+                val headerInteraction = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier.weight(1f).fillMaxHeight()
                         .background(if (isToday) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent)
-                        .clickable { onDayClick(day) }
+                        .pressScale(headerInteraction, 0.98f)
+                        .clickable(interactionSource = headerInteraction, indication = null) { onDayClick(day) }
                         .semantics { contentDescription = dayHeaderDescription },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1238,8 +1266,11 @@ private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier
 @Composable
 private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val contentAlpha = if (enabled) 1f else 0.38f
+    val interaction = remember { MutableInteractionSource() }
     Surface(
-        modifier = modifier.height(48.dp).clip(AppShapes.small).clickable(enabled = enabled, onClick = onClick),
+        modifier = modifier.height(48.dp).clip(AppShapes.small)
+            .pressScale(interaction)
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick),
         shape = AppShapes.small,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = contentAlpha)
     ) {

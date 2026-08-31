@@ -79,7 +79,8 @@ fun Modifier.pressScale(
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
+        // Press feedback should feel immediate and settle without a distracting bounce.
+        animationSpec = spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow),
         label = "pressScale"
     )
     this.scale(scale)
