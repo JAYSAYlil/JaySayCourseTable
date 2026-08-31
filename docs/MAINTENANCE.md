@@ -5,7 +5,7 @@
 - Android 应用模块：`app/`
 - 包名与 applicationId：`com.jaysay.coursetable`
 - 最低/目标系统：Android 8.0（API 26）/ Android 15（API 35）
-- 当前版本：3.2.3，versionCode 115
+- 当前版本：3.2.6，versionCode 118
 - 构建栈：Gradle 9.1.0 / AGP 8.13.0 / Kotlin 2.2.0（内置 Compose 编译器）/ Compose BOM 2025.06.01
 - 应用仅在用户手动检查更新时访问 GitHub Releases；不包含常驻联网客户端，课程、备份、提醒和日历均在本机处理。
 - 全部 UI 用户可见文案位于 `res/values/strings.xml`；数据层错误消息保持纯 Kotlin 数据（不依赖 Context）。
@@ -69,3 +69,14 @@ pwsh -File .\scripts\pre-release-audit.ps1 -AllowDirty
 Release 默认启用 R8、资源收缩和中文语言资源裁剪。签名材料由发布者在仓库外保管，源码仓库和 CI 均不应读取。
 
 GitHub Actions 在普通推送中运行 JVM 测试、Lint 与 Debug/Release 构建；API 34 UI 测试在拉取请求、手动触发和每周计划中运行，API 26/29 UI 测试在每周计划或手动完整矩阵中运行。
+
+## 发布检查清单（每次发版必须逐项执行，防止文档与包脱节）
+
+1. `app/build.gradle.kts`：versionCode 加一，versionName 更新。
+2. `CHANGELOG.md`：文件顶部新增本版条目，保持版本倒序排列。
+3. `README.md`：更新“当前版本”行；“主要能力”如受本版影响（视图、权限、导入格式、小组件等）同步改写。
+4. `docs/DEVELOPMENT_STATUS.md`：新增“本轮”段落，更新“当前版本”与“历史发布”两行。
+5. `docs/MAINTENANCE.md`：更新“当前版本”。
+6. 全量验证：JVM 单元测试、API 34 UI 测试（本地模拟器）、Release Lint 全部通过；`assembleRelease` 后再运行签名交付脚本（脚本只签名不构建，切勿交付旧包）。
+7. 经用户确认后：`git push origin main --tags`，通过 GitHub API 创建 Release 并上传 APK。
+8. 发布后核对：Release 页 APK 字节数与本地交付成品一致（SHA-256 可交叉验证）。
