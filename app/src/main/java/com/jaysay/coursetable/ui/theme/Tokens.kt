@@ -10,11 +10,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 
 /** 统一形状体系：控件 12、卡片 18、面板 20、抽屉/弹窗 28。 */
@@ -72,10 +72,11 @@ object Motion {
 }
 
 /** 按压反馈：按下瞬间缩小（不等抬手），抬起弹回；符合"反馈发生在按下时"准则。 */
+@Composable
 fun Modifier.pressScale(
     interactionSource: InteractionSource,
     pressedScale: Float = 0.97f
-): Modifier = composed {
+): Modifier {
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
@@ -83,5 +84,9 @@ fun Modifier.pressScale(
         animationSpec = spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow),
         label = "pressScale"
     )
-    this.scale(scale)
+    // 缩放经 graphicsLayer 读取：缩放变化只触发重绘（层属性更新），不触发重组。
+    return this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
 }

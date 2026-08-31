@@ -172,6 +172,7 @@ internal fun TableGrid(
     cellHeight: Dp,
     currentWeek: Int,
     onCourseClick: (Course) -> Unit,
+    sharedOriginKey: String? = null,
     onEmptyCellClick: (Int, Int) -> Unit,
     periodTimes: List<PeriodTime>,
     dark: Boolean,
@@ -358,6 +359,7 @@ internal fun TableGrid(
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
                         CourseCard(
                             course = course,
+                            sharedOriginKey = sharedOriginKey,
                             modifier = Modifier.fillMaxWidth().height(bottom - y).offset(y = y).padding(1.dp),
                             background = cardColor,
                             isCurrentProvider = {
@@ -433,6 +435,7 @@ private fun CurrentTimeLineOverlay(
 @Composable
 private fun CourseCard(
     course: Course,
+    sharedOriginKey: String?,
     modifier: Modifier,
     background: Color,
     isCurrentProvider: () -> Boolean,
@@ -520,7 +523,9 @@ private fun CourseCard(
     // 共享元素：与课程详情页头部用同一 key，跳转时做 container transform。
     val sharedScope = com.jaysay.coursetable.ui.components.LocalSharedTransitionScope.current
     val navScope = com.jaysay.coursetable.ui.components.LocalNavAnimatedVisibilityScope.current
-    val sharedModifier = if (sharedScope != null && navScope != null) {
+    // 仅被点击的 origin 卡注册共享元素：同 series 卡片存在于多周页面，
+    // 全量注册会产生重复 key（相邻页同时组合时互相冲突，表现为布局溢出）。
+    val sharedModifier = if (sharedScope != null && navScope != null && sharedOriginKey == course.seriesKey) {
         with(sharedScope) {
             Modifier.sharedBounds(
                 rememberSharedContentState(key = "course-" + course.seriesKey),
