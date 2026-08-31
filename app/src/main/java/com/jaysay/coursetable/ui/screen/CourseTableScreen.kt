@@ -105,6 +105,7 @@ import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 
 
@@ -622,30 +623,39 @@ fun CourseTableScreen(
             val monthPagerState = rememberPagerState(
                 initialPage = monthAnchorIndex.coerceIn(0, monthCount - 1)
             ) { monthCount }
-            var lastSettledMonthPage by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(monthPagerState.currentPage) }
-            LaunchedEffect(monthAnchorEpoch) {
-                if (monthAnchorEpoch != 0L) {
-                    val target = monthIndexOf(LocalDate.ofEpochDay(monthAnchorEpoch)).coerceIn(0, monthCount - 1)
-                    if (monthPagerState.settledPage != target && !monthPagerState.isScrollInProgress) {
-                        monthPagerState.animateScrollToPage(target)
-                    }
+            // Pager 是月份显示的唯一真源；锚点只用于外部按钮/定位今天的跳转请求。
+            // 用 currentPage 做目标判断，避免 settledPage 更新与重组之间重复启动动画。
+            LaunchedEffect(monthAnchorEpoch, monthCount) {
+                if (monthAnchorEpoch == 0L) return@LaunchedEffect
+                val target = monthIndexOf(LocalDate.ofEpochDay(monthAnchorEpoch))
+                    .coerceIn(0, monthCount - 1)
+                if (monthPagerState.currentPage != target && !monthPagerState.isScrollInProgress) {
+                    monthPagerState.animateScrollToPage(target)
                 }
             }
             val monthHapticView = LocalView.current
+            var skipInitialMonthHaptic by remember { mutableStateOf(true) }
             LaunchedEffect(monthPagerState) {
-                snapshotFlow { monthPagerState.settledPage }.collect { page ->
-                    val epoch = monthOf(page).toEpochDay()
-                    val pageChanged = page != lastSettledMonthPage
-                    lastSettledMonthPage = page
-                    if (epoch != monthAnchorEpoch) {
-                        monthAnchorEpoch = epoch
+                snapshotFlow { monthPagerState.settledPage }
+                    .distinctUntilChanged()
+                    .collect { page ->
+                        val epoch = monthOf(page).toEpochDay()
+                        if (epoch != monthAnchorEpoch) {
+                            monthAnchorEpoch = epoch
+                        }
+                        if (skipInitialMonthHaptic) {
+                            skipInitialMonthHaptic = false
+                        } else {
+                            monthHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                        }
                     }
-                    if (pageChanged) monthHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-                }
             }
             HorizontalPager(
                 state = monthPagerState,
-                modifier = Modifier.fillMaxWidth().weight(1f).testTag("month-swipe-area")
+                modifier = Modifier.fillMaxWidth().weight(1f).testTag("month-swipe-area"),
+                // 月份页面内容是纯快照，关闭额外预加载可避免页面重组时复用旧月份状态。
+                beyondViewportPageCount = 0,
+                key = { page -> monthOf(page).toEpochDay() }
             ) { page ->
                 val pageMonthStart = monthOf(page)
                 MonthGrid(
