@@ -15,7 +15,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import com.jaysay.coursetable.ui.components.HeroOverlay
 import com.jaysay.coursetable.ui.components.HeroRegistry
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -609,9 +613,15 @@ class MainActivity : ComponentActivity() {
                         ),
                         transitionSpec = {
                             if (initialState == Screen.COURSE_DETAIL || targetState == Screen.COURSE_DETAIL) {
-                                // 仅课程详情返回一级课表/日程时使用短淡化，避免详情页返回时产生明显位移。
-                                fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard)) togetherWith
-                                    fadeOut(tween(90, easing = Motion.exit))
+                                // 容器 transform 的另一半：详情淡入并从头部原点轻微放大，
+                                // 原页面同步微缩后移——与 Hero 飞行矩形（临界阻尼同族弹簧）
+                                // 同步进行，形成"卡片飞入展开"的整体感；双向对称（空间一致性）。
+                                val heroSpring = spring<Float>(dampingRatio = 1f, stiffness = 380f)
+                                val origin = TransformOrigin(0.5f, 0.12f)
+                                (fadeIn(heroSpring) +
+                                    scaleIn(initialScale = 0.92f, animationSpec = heroSpring, transformOrigin = origin)) togetherWith
+                                    (fadeOut(tween(160, easing = Motion.exit)) +
+                                        scaleOut(targetScale = 0.94f, animationSpec = heroSpring, transformOrigin = origin))
                             } else if (targetState.ordinal > initialState.ordinal) {
                                 // 进出同路径、同弹簧（可中断）：符合空间一致性准则。
                                 (slideInHorizontally(Motion.page()) { it / 4 } +

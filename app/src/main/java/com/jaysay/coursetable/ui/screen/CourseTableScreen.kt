@@ -780,7 +780,7 @@ private fun DayPagerSection(
             }
         }
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(remember { ScrollState(0) }).testTag("day-scroll")
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).testTag("day-scroll")
         ) {
             TableGrid(
                 courses = fallbackCourses,
@@ -863,7 +863,7 @@ private fun DayPagerSection(
             ).map { it.course.copy(dayOfWeek = date.dayOfWeek.value) }
         }
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(remember { ScrollState(0) }).testTag("day-scroll")
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).testTag("day-scroll")
         ) {
             TableGrid(
                 courses = dayCourses,
