@@ -232,14 +232,6 @@ fun CourseTableScreen(
     // 日视图来源：从月视图点日期进入时，系统返回手势应切回月视图（回到原月份）；
     // 从视图菜单或表头点击进入日视图时，返回行为保持原样。
     var dayOpenedFromMonth by rememberSaveable { mutableStateOf(false) }
-    // 共享元素 origin 令牌：只有被点击的课程卡注册 sharedBounds（避免相邻周页
-    // 同时持有同 series 的卡片造成重复 key 与布局异常）。rememberSaveable 保证
-    // 从详情返回时令牌仍在，反向 container transform 能配对。
-    var sharedOriginKey by rememberSaveable { mutableStateOf<String?>(null) }
-    val onCourseClickShared: (Course) -> Unit = { course ->
-        sharedOriginKey = course.seriesKey
-        onCourseClick(course)
-    }
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
     var viewMenuExpanded by remember { mutableStateOf(false) }
@@ -706,9 +698,8 @@ fun CourseTableScreen(
                 totalWeeks = totalWeeks,
                 onWeekChange = onWeekChange,
                 onFocusedDayChange = onFocusedDayChange,
-                onCourseClick = onCourseClickShared,
-                sharedOriginKey = sharedOriginKey,
-                onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
+                onCourseClick = onCourseClick,
+                                onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
                 periodTimes = periodTimes,
                 dark = dark,
                 hasCustomBackground = customBackground != null,
@@ -727,9 +718,8 @@ fun CourseTableScreen(
                 currentWeek = currentWeek,
                 totalWeeks = totalWeeks,
                 onWeekChange = onWeekChange,
-                onCourseClick = onCourseClickShared,
-                sharedOriginKey = sharedOriginKey,
-                onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
+                onCourseClick = onCourseClick,
+                                onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
                 periodTimes = periodTimes,
                 dark = dark,
                 todayWeek = todayWeek,
@@ -757,7 +747,6 @@ fun CourseTableScreen(
 @Composable
 private fun DayPagerSection(
     modifier: Modifier,
-    sharedOriginKey: String?,
     displayedCourses: List<Course>,
     colorMap: Map<String, Color>,
     timeWidth: Dp,
@@ -801,8 +790,7 @@ private fun DayPagerSection(
                 cellHeight = cellHeight,
                 currentWeek = currentWeek,
                 onCourseClick = onCourseClick,
-                sharedOriginKey = sharedOriginKey,
-                onEmptyCellClick = onEmptyCellClick,
+                                onEmptyCellClick = onEmptyCellClick,
                 periodTimes = periodTimes,
                 dark = dark,
                 todayWeek = todayWeekOf(today, semesterStart, totalWeeks),
@@ -885,8 +873,7 @@ private fun DayPagerSection(
                 cellHeight = cellHeight,
                 currentWeek = week,
                 onCourseClick = onCourseClick,
-                sharedOriginKey = sharedOriginKey,
-                onEmptyCellClick = onEmptyCellClick,
+                                onEmptyCellClick = onEmptyCellClick,
                 periodTimes = periodTimes,
                 dark = dark,
                 todayWeek = todayWeek,
@@ -908,7 +895,6 @@ private fun todayWeekOf(today: LocalDate, semesterStart: String, totalWeeks: Int
 @Composable
 private fun WeekPagerSection(
     modifier: Modifier,
-    sharedOriginKey: String?,
     displayedCourses: List<Course>,
     colorMap: Map<String, Color>,
     visibleDays: List<Int>,
@@ -1045,8 +1031,7 @@ private fun WeekPagerSection(
                         cellHeight = cellHeight,
                         currentWeek = displayedWeek,
                         onCourseClick = onCourseClick,
-                        sharedOriginKey = sharedOriginKey,
-                        onEmptyCellClick = onEmptyCellClick,
+                                                onEmptyCellClick = onEmptyCellClick,
                         periodTimes = periodTimes,
                         dark = dark,
                         todayWeek = todayWeek,

@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
-
 package com.jaysay.coursetable
 
 import android.Manifest
@@ -15,9 +13,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.SharedTransitionLayout
-import com.jaysay.coursetable.ui.components.LocalNavAnimatedVisibilityScope
-import com.jaysay.coursetable.ui.components.LocalSharedTransitionScope
+import com.jaysay.coursetable.ui.components.HeroOverlay
+import com.jaysay.coursetable.ui.components.HeroRegistry
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -596,9 +593,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                // 离开课程详情页时发起 Hero 反向飞行（无配对快照则无动作），并重置头部测量。
+                LaunchedEffect(currentScreenOrdinal) {
+                    if (currentScreen() != Screen.COURSE_DETAIL) {
+                        HeroRegistry.onLeaveDetail()
+                    }
+                }
+
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                    SharedTransitionLayout {
-                        CompositionLocalProvider(LocalSharedTransitionScope provides this) {
                     AnimatedContent(
                         targetState = currentScreen(),
                         modifier = Modifier.fillMaxSize().background(
@@ -606,7 +608,7 @@ class MainActivity : ComponentActivity() {
                             else MaterialTheme.colorScheme.background
                         ),
                         transitionSpec = {
-                            if (initialState == Screen.COURSE_DETAIL) {
+                            if (initialState == Screen.COURSE_DETAIL || targetState == Screen.COURSE_DETAIL) {
                                 // 仅课程详情返回一级课表/日程时使用短淡化，避免详情页返回时产生明显位移。
                                 fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard)) togetherWith
                                     fadeOut(tween(90, easing = Motion.exit))
@@ -625,7 +627,6 @@ class MainActivity : ComponentActivity() {
                         },
                         label = "screen"
                     ) { screen ->
-                            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
                         screenStateHolder.SaveableStateProvider(screen.name) {
                         when (screen) {
                             Screen.SETTINGS -> SettingsScreen(
@@ -878,9 +879,7 @@ class MainActivity : ComponentActivity() {
                         }
                         }
                         }
-                        }
-                    }
-                    }
+                    HeroOverlay()
                     SnackbarHost(
                         hostState = snackbarHostState,
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp),

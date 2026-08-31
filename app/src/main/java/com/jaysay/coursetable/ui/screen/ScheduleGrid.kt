@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
-
 package com.jaysay.coursetable.ui.screen
 
 import androidx.annotation.StringRes
@@ -64,6 +62,10 @@ import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.courseCardBorderColor
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
 import com.jaysay.coursetable.ui.theme.pressScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalView
+import com.jaysay.coursetable.ui.components.HeroRegistry
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -172,7 +174,6 @@ internal fun TableGrid(
     cellHeight: Dp,
     currentWeek: Int,
     onCourseClick: (Course) -> Unit,
-    sharedOriginKey: String? = null,
     onEmptyCellClick: (Int, Int) -> Unit,
     periodTimes: List<PeriodTime>,
     dark: Boolean,
@@ -359,7 +360,6 @@ internal fun TableGrid(
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
                         CourseCard(
                             course = course,
-                            sharedOriginKey = sharedOriginKey,
                             modifier = Modifier.fillMaxWidth().height(bottom - y).offset(y = y).padding(1.dp),
                             background = cardColor,
                             isCurrentProvider = {
@@ -435,7 +435,6 @@ private fun CurrentTimeLineOverlay(
 @Composable
 private fun CourseCard(
     course: Course,
-    sharedOriginKey: String?,
     modifier: Modifier,
     background: Color,
     isCurrentProvider: () -> Boolean,
@@ -520,24 +519,22 @@ private fun CourseCard(
         else -> PaddingValues(7.dp, 5.dp, 6.dp, 4.dp)
     }
     val cardInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    // 共享元素：与课程详情页头部用同一 key，跳转时做 container transform。
-    val sharedScope = com.jaysay.coursetable.ui.components.LocalSharedTransitionScope.current
-    val navScope = com.jaysay.coursetable.ui.components.LocalNavAnimatedVisibilityScope.current
-    // 仅被点击的 origin 卡注册共享元素：同 series 卡片存在于多周页面，
-    // 全量注册会产生重复 key（相邻页同时组合时互相冲突，表现为布局溢出）。
-    val sharedModifier = if (sharedScope != null && navScope != null && sharedOriginKey == course.seriesKey) {
-        with(sharedScope) {
-            Modifier.sharedBounds(
-                rememberSharedContentState(key = "course-" + course.seriesKey),
-                animatedVisibilityScope = navScope,
-                enter = androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.fadeOut()
-            )
-        }
-    } else Modifier
+    // Hero 转场卡片端：布局回调把「可见卡片」的 root bounds 与底色快照进注册表；
+    // 点击瞬间由注册表发起 overlay 飞行。bounds 只在点击时被消费，
+    // 滚动/翻页与进行中的动画完全解耦（替代 sharedBounds 的实时跟踪）。
+    val rootView = LocalView.current
     Box(
         modifier = modifier
-            .then(sharedModifier)
+            .onGloballyPositioned { coords ->
+                val rect = coords.boundsInRoot()
+                // 只记录视口内的卡片：Pager 相邻周页的同 series 卡片位于屏外，不能覆盖可见位置。
+                val visible = rect.left < rootView.width && rect.right > 0f &&
+                    rect.top < rootView.height && rect.bottom > 0f
+                if (visible) {
+                    HeroRegistry.cardBounds[course.seriesKey] = rect
+                    HeroRegistry.cardColors[course.seriesKey] = background
+                }
+            }
             .pressScale(cardInteraction, 0.96f)
             .shadow(if (isCurrent) 6.dp else if (dark) 4.dp else 2.dp, shape, clip = false)
             .clip(shape)
@@ -550,7 +547,10 @@ private fun CourseCard(
                 borderColor,
                 shape
             )
-            .clickable(interactionSource = cardInteraction, indication = null, onClick = onClick)
+            .clickable(interactionSource = cardInteraction, indication = null) {
+                HeroRegistry.beginForward(course.seriesKey)
+                onClick()
+            }
             .semantics { contentDescription = description }
             .padding(contentPadding),
         contentAlignment = Alignment.TopStart

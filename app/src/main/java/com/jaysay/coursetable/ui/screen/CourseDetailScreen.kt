@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
-
 package com.jaysay.coursetable.ui.screen
 
 import androidx.activity.compose.BackHandler
@@ -37,6 +35,9 @@ import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.theme.*
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.jaysay.coursetable.ui.components.HeroRegistry
 import com.jaysay.coursetable.util.TimeUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,20 +80,6 @@ fun CourseDetailScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(paddingValues.calculateTopPadding()))
-            // Course header card（与课表卡片共享元素配对，跳转时 container transform）
-            val sharedScope = com.jaysay.coursetable.ui.components.LocalSharedTransitionScope.current
-            val navScope = com.jaysay.coursetable.ui.components.LocalNavAnimatedVisibilityScope.current
-            val sharedModifier = if (sharedScope != null && navScope != null) {
-                with(sharedScope) {
-                    Modifier.sharedBounds(
-                        rememberSharedContentState(key = "course-" + course.seriesKey),
-                        animatedVisibilityScope = navScope,
-                        enter = androidx.compose.animation.fadeIn(),
-                        exit = androidx.compose.animation.fadeOut()
-                    )
-                }
-            } else Modifier
-
             // 下拉关闭（Apple 1:1 跟随 + 阻尼 + 速度判定）：从头部卡片按住下滑；
             // 松手时速度超阈值或位移过半即关闭，否则以临界阻尼弹簧弹回。
             var dismissRaw by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
@@ -112,8 +99,12 @@ fun CourseDetailScreen(
                 ),
                 label = "dismissOffset"
             )
+            // Hero 转场详情端：头部完成测量后回写 bounds，正向飞行的终点由此获得。
             Surface(
-                modifier = sharedModifier
+                modifier = Modifier
+                    .onGloballyPositioned { coords ->
+                        HeroRegistry.headerBounds = coords.boundsInRoot()
+                    }
                     .offset { androidx.compose.ui.unit.IntOffset(0, dismissOffset.roundToInt()) }
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(
