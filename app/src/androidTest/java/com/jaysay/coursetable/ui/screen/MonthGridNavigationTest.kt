@@ -1,5 +1,7 @@
 package com.jaysay.coursetable.ui.screen
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -62,6 +64,44 @@ class MonthGridNavigationTest {
         composeRule.waitForIdle()
         assertEquals(-1, changedWeek)
         assertEquals(-1, changedDay)
+    }
+
+    @Test
+    fun backFromDayOpenedViaMonthReturnsToMonth() {
+        val modes = mutableListOf<ScheduleViewMode>()
+        composeRule.setContent {
+            // 有状态包装：viewMode 真实切换，BackHandler 才会随 DAY 模式启用。
+            var mode by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(ScheduleViewMode.MONTH)
+            }
+            JaySayTheme(themeMode = ThemeMode.LIGHT) {
+                CourseTableScreen(
+                    courses = listOf(sampleCourse("高等数学", dayOfWeek = 2, startPeriod = 1, endPeriod = 2)),
+                    currentWeek = 1,
+                    onImportClick = {},
+                    onCourseClick = {},
+                    onWeekChange = {},
+                    semesterStart = "2030-02-04",
+                    totalWeeks = 20,
+                    viewMode = mode,
+                    onViewModeChange = { mode = it; modes.add(it) },
+                    focusedDay = 1,
+                    onFocusedDayChange = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        // 月视图点某天进入日视图。
+        composeRule.onAllNodesWithText("5")[0].performClick()
+        composeRule.waitForIdle()
+        assertEquals(ScheduleViewMode.DAY, modes.last())
+
+        // 返回手势：应切回月视图（而不是退出或无操作）。
+                // 注入返回键事件（与系统返回手势等价），由启用中的 BackHandler 消费。
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        composeRule.waitForIdle()
+        assertEquals(ScheduleViewMode.MONTH, modes.last())
     }
 
     private fun sampleCourse(

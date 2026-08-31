@@ -56,7 +56,7 @@ private data class MonthDayData(
 )
 
 /**
- * 月视图网格：以 [currentWeek] 所在周的周一为锚点，展示该自然月的整月日历。
+ * 月视图网格：展示 [monthStart] 所在自然月的整月日历（翻页由外层 HorizontalPager 驱动）。
  *
  * - 课程解析复用 [ScheduleDateResolver.coursesOn]，与周视图完全同口径
  *   （日期异常/停课周/单双周规则一致），颜色复用 buildCourseColorMap + resolveCourseColor。
@@ -68,7 +68,7 @@ private data class MonthDayData(
 fun MonthGrid(
     modifier: Modifier = Modifier,
     courses: List<Course>,
-    currentWeek: Int,
+    monthStart: LocalDate,
     totalWeeks: Int,
     semesterStart: String,
     excludedWeekSet: Set<Int>,
@@ -84,11 +84,11 @@ fun MonthGrid(
         }
     }
     val cells = remember(
-        courses, currentWeek, totalWeeks, semesterStart, excludedWeekSet, dateExceptions, today
+        courses, monthStart, totalWeeks, semesterStart, excludedWeekSet, dateExceptions, today
     ) {
         buildMonthCells(
             courses = courses,
-            currentWeek = currentWeek,
+            monthStart = monthStart,
             totalWeeks = totalWeeks,
             semesterStart = semesterStart,
             excludedWeekSet = excludedWeekSet,
@@ -134,17 +134,15 @@ fun MonthGrid(
 
 private fun buildMonthCells(
     courses: List<Course>,
-    currentWeek: Int,
+    monthStart: LocalDate,
     totalWeeks: Int,
     semesterStart: String,
     excludedWeekSet: Set<Int>,
     dateExceptions: List<ScheduleDateException>,
     today: LocalDate
 ): List<List<MonthDayData>> {
-    // 锚点 = 学期第 currentWeek 周的周一；开学日期非法时回退到今天所在周。
-    val anchor = TimeUtils.semesterWeekStartOrNull(semesterStart)
-        ?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L)
-        ?: TimeUtils.weekStart(today)
+    // 锚点即调用方给定的自然月；网格从该月 1 日所在周的周一起，铺满 6 行。
+    val anchor = monthStart
     val gridStart = TimeUtils.weekStart(anchor.withDayOfMonth(1))
     return (0 until 6).map { row ->
         (0 until 7).map { col ->

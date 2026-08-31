@@ -1,5 +1,6 @@
 package com.jaysay.coursetable.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
@@ -216,6 +217,15 @@ fun CourseTableScreen(
     val todayDow = today.dayOfWeek.value
     val excludedWeekSet = remember(excludedWeeks) { excludedWeeks.toSet() }
     var searchQuery by remember { mutableStateOf("") }
+
+    // 月视图锚点：epoch 天数，0 表示未初始化（进入月视图时按当前周所在月份重建）。
+    var monthAnchorEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
+    LaunchedEffect(viewMode) {
+        if (viewMode == ScheduleViewMode.MONTH) monthAnchorEpoch = 0L
+    }
+    // 日视图来源：从月视图点日期进入时，系统返回手势应切回月视图（回到原月份）；
+    // 从视图菜单或表头点击进入日视图时，返回行为保持原样。
+    var dayOpenedFromMonth by rememberSaveable { mutableStateOf(false) }
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
     var viewMenuExpanded by remember { mutableStateOf(false) }
@@ -259,9 +269,44 @@ fun CourseTableScreen(
         }
     }
     val colorMap = remember(courses, dark) { buildCourseColorMap(courses, dark) }
+    // 月视图跨度：从开学月份到学期最后一个月。
+    val semesterStartDate = TimeUtils.semesterWeekStartOrNull(semesterStart)
+    val firstMonthStart = semesterStartDate?.withDayOfMonth(1)
+    val lastMonthStart = semesterStartDate?.plusDays(totalWeeks * 7L - 1L)?.withDayOfMonth(1)
+    fun monthIndexOf(date: LocalDate): Int =
+        if (firstMonthStart == null) 0
+        else ((date.year - firstMonthStart.year) * 12 + (date.monthValue - firstMonthStart.monthValue)).coerceAtLeast(0)
+    val monthAnchorDate = if (monthAnchorEpoch != 0L) {
+        LocalDate.ofEpochDay(monthAnchorEpoch).withDayOfMonth(1)
+    } else {
+        (semesterStartDate?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7) ?: LocalDate.now()).withDayOfMonth(1)
+    }
+    val monthAnchorIndex = monthIndexOf(monthAnchorDate)
+    val monthCount = if (firstMonthStart == null || lastMonthStart == null) 1 else (monthIndexOf(lastMonthStart) + 1).coerceAtLeast(1)
+    fun monthOf(index: Int): LocalDate = firstMonthStart?.plusMonths(index.toLong()) ?: monthAnchorDate
+    val monthCourseCount = if (viewMode == ScheduleViewMode.MONTH && firstMonthStart != null) {
+        // 统计本月实际上课节次（每天的课程条目总和，含同课程多班次）。
+        (0 until monthAnchorDate.lengthOfMonth()).sumOf { dayOffset ->
+            ScheduleDateResolver.coursesOn(
+                displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions,
+                monthAnchorDate.plusDays(dayOffset.toLong())
+            ).size
+        }
+    } else 0
+
     val isTodayWeek = currentWeek == todayWeek
     val weekControlTint = MaterialTheme.colorScheme.primary
     val weekDisabledTint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (dark) 0.38f else 0.3f)
+
+    if (viewMode == ScheduleViewMode.DAY && dayOpenedFromMonth) {
+        BackHandler {
+            // 返回到当前显示日期所在月份的月视图。
+            val shown = TimeUtils.semesterWeekStartOrNull(semesterStart)
+                ?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
+            if (shown != null) monthAnchorEpoch = shown.withDayOfMonth(1).toEpochDay()
+            onViewModeChange(ScheduleViewMode.MONTH)
+        }
+    }
 
     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
         Box(modifier = Modifier.fillMaxSize().background(bgColor)) {
@@ -324,14 +369,22 @@ fun CourseTableScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
-                            onClick = { onWeekChange(currentWeek - 1) },
-                            enabled = currentWeek > 1,
+                            onClick = {
+                                if (viewMode == ScheduleViewMode.MONTH) {
+                                    monthAnchorEpoch = monthAnchorDate.minusMonths(1).toEpochDay()
+                                } else {
+                                    onWeekChange(currentWeek - 1)
+                                }
+                            },
+                            enabled = if (viewMode == ScheduleViewMode.MONTH) monthAnchorIndex > 0 else currentWeek > 1,
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
                                 Icons.Outlined.ChevronLeft,
-                                stringResource(R.string.course_prev_week),
-                                tint = if (currentWeek > 1) weekControlTint else weekDisabledTint,
+                                stringResource(if (viewMode == ScheduleViewMode.MONTH) R.string.month_prev_month else R.string.course_prev_week),
+                                tint = if (viewMode == ScheduleViewMode.MONTH) {
+                                    if (monthAnchorIndex > 0) weekControlTint else weekDisabledTint
+                                } else if (currentWeek > 1) weekControlTint else weekDisabledTint,
                                 modifier = Modifier.size(27.dp)
                             )
                         }
@@ -340,14 +393,35 @@ fun CourseTableScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text(
-                                text = stringResource(R.string.course_week_number, currentWeek),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
-                            Text(
+                            if (viewMode == ScheduleViewMode.MONTH) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.month_header_title,
+                                        monthAnchorDate.year,
+                                        monthAnchorDate.monthValue
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = stringResource(R.string.month_course_count, monthCourseCount),
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.course_week_number, currentWeek),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
+                            }
+                            if (viewMode != ScheduleViewMode.MONTH) Text(
                                 text = when {
                                     weekStatus.suspended && weekStatus.label != null -> stringResource(
                                         R.string.course_week_label_suspended, weekStatus.label
@@ -372,14 +446,22 @@ fun CourseTableScreen(
                             )
                         }
                         IconButton(
-                            onClick = { onWeekChange(currentWeek + 1) },
-                            enabled = currentWeek < totalWeeks,
+                            onClick = {
+                                if (viewMode == ScheduleViewMode.MONTH) {
+                                    monthAnchorEpoch = monthAnchorDate.plusMonths(1).toEpochDay()
+                                } else {
+                                    onWeekChange(currentWeek + 1)
+                                }
+                            },
+                            enabled = if (viewMode == ScheduleViewMode.MONTH) monthAnchorIndex < monthCount - 1 else currentWeek < totalWeeks,
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
                                 Icons.Outlined.ChevronRight,
-                                stringResource(R.string.course_next_week),
-                                tint = if (currentWeek < totalWeeks) weekControlTint else weekDisabledTint,
+                                stringResource(if (viewMode == ScheduleViewMode.MONTH) R.string.month_next_month else R.string.course_next_week),
+                                tint = if (viewMode == ScheduleViewMode.MONTH) {
+                                    if (monthAnchorIndex < monthCount - 1) weekControlTint else weekDisabledTint
+                                } else if (currentWeek < totalWeeks) weekControlTint else weekDisabledTint,
                                 modifier = Modifier.size(27.dp)
                             )
                         }
@@ -433,6 +515,7 @@ fun CourseTableScreen(
                                     )
                                 },
                                 onClick = {
+                                    dayOpenedFromMonth = false
                                     onViewModeChange(mode)
                                     if (mode == ScheduleViewMode.DAY && isTodayWeek && todayDow in 1..7) {
                                         onFocusedDayChange(todayDow)
@@ -445,7 +528,7 @@ fun CourseTableScreen(
                 }
             }
 
-            LinearProgressIndicator(
+            if (viewMode != ScheduleViewMode.MONTH) LinearProgressIndicator(
                 progress = { currentWeek.toFloat() / totalWeeks.coerceAtLeast(1) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(2.dp).clip(CircleShape),
                 color = MaterialTheme.colorScheme.primary,
@@ -481,6 +564,7 @@ fun CourseTableScreen(
                     todayDow = todayDow,
                     dayStatuses = dayStatuses,
                     onDayClick = { day ->
+                        dayOpenedFromMonth = false
                         onFocusedDayChange(day)
                         onViewModeChange(ScheduleViewMode.DAY)
                     }
@@ -496,30 +580,77 @@ fun CourseTableScreen(
                 readOnly = readOnlyMessage != null
             )
         } else if (viewMode == ScheduleViewMode.MONTH) {
-            // 月视图：整月网格放纵向滚动容器里（格子约 74dp，一般整月一屏放得下）。
-            // 不做横向翻月——周导航箭头切换周次时，月份跟随锚点周自动变化。
-            val monthScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f)
-                    .verticalScroll(monthScrollState)
-                    .testTag("month-grid")
-            ) {
-                MonthGrid(
-                    courses = displayedCourses,
-                    currentWeek = currentWeek,
-                    totalWeeks = totalWeeks,
-                    semesterStart = semesterStart,
-                    excludedWeekSet = excludedWeekSet,
-                    dateExceptions = dateExceptions,
-                    dark = dark,
-                    onDayClick = { semesterWeek, dayOfWeek ->
-                        // 点击某天：跳到该天所在周并切到单日视图。
-                        onWeekChange(semesterWeek)
-                        onFocusedDayChange(dayOfWeek)
-                        onViewModeChange(ScheduleViewMode.DAY)
+            // 月视图：左右滑动按月翻页，跨度为开学月份到学期最后一个月；
+            // 头部胶囊显示“某年某月”，月内课程格沿用周视图同口径。
+            val monthPagerState = rememberPagerState(
+                initialPage = monthAnchorIndex.coerceIn(0, monthCount - 1)
+            ) { monthCount }
+            LaunchedEffect(monthAnchorEpoch) {
+                if (monthAnchorEpoch != 0L) {
+                    val target = monthIndexOf(LocalDate.ofEpochDay(monthAnchorEpoch)).coerceIn(0, monthCount - 1)
+                    if (monthPagerState.settledPage != target && !monthPagerState.isScrollInProgress) {
+                        monthPagerState.animateScrollToPage(target)
                     }
-                )
+                }
             }
+            LaunchedEffect(monthPagerState) {
+                snapshotFlow { monthPagerState.settledPage }.collect { page ->
+                    val epoch = monthOf(page).toEpochDay()
+                    if (epoch != monthAnchorEpoch) monthAnchorEpoch = epoch
+                }
+            }
+            HorizontalPager(
+                state = monthPagerState,
+                modifier = Modifier.fillMaxWidth().weight(1f).testTag("month-swipe-area")
+            ) { page ->
+                val pageMonthStart = monthOf(page)
+                val monthScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                        .verticalScroll(monthScrollState)
+                        .testTag("month-grid")
+                ) {
+                    MonthGrid(
+                        courses = displayedCourses,
+                        monthStart = pageMonthStart,
+                        totalWeeks = totalWeeks,
+                        semesterStart = semesterStart,
+                        excludedWeekSet = excludedWeekSet,
+                        dateExceptions = dateExceptions,
+                        dark = dark,
+                        onDayClick = { semesterWeek, dayOfWeek ->
+                            // 点击某天：跳到该天所在周并切到单日视图；记住来源月供返回使用。
+                            dayOpenedFromMonth = true
+                            monthAnchorEpoch = pageMonthStart.toEpochDay()
+                            onWeekChange(semesterWeek)
+                            onFocusedDayChange(dayOfWeek)
+                            onViewModeChange(ScheduleViewMode.DAY)
+                        }
+                    )
+                }
+            }
+        } else if (viewMode == ScheduleViewMode.DAY) {
+            // 日视图：左右滑动按天翻页，一周滑完自动切到下一周。
+            DayPagerSection(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                displayedCourses = displayedCourses,
+                colorMap = colorMap,
+                timeWidth = timeWidth,
+                cellHeight = cellHeight,
+                currentWeek = currentWeek,
+                focusedDay = focusedDay,
+                totalWeeks = totalWeeks,
+                onWeekChange = onWeekChange,
+                onFocusedDayChange = onFocusedDayChange,
+                onCourseClick = onCourseClick,
+                onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
+                periodTimes = periodTimes,
+                dark = dark,
+                hasCustomBackground = customBackground != null,
+                semesterStart = semesterStart,
+                excludedWeekSet = excludedWeekSet,
+                dateExceptions = dateExceptions
+            )
         } else {
             WeekPagerSection(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -549,6 +680,107 @@ fun CourseTableScreen(
         }
         }
     }
+    }
+}
+
+/**
+ * 日视图按天翻页：左右滑动切到前一天/后一天；一周滑完自动翻到下一周（或上一周）。
+ * 每页只渲染 focusedDay 对应的单列网格；颜色与周视图共用同一映射。
+ */
+@Composable
+private fun DayPagerSection(
+    modifier: Modifier,
+    displayedCourses: List<Course>,
+    colorMap: Map<String, Color>,
+    timeWidth: Dp,
+    cellHeight: Dp,
+    currentWeek: Int,
+    focusedDay: Int,
+    totalWeeks: Int,
+    onWeekChange: (Int) -> Unit,
+    onFocusedDayChange: (Int) -> Unit,
+    onCourseClick: (Course) -> Unit,
+    onEmptyCellClick: (Int, Int) -> Unit,
+    periodTimes: List<PeriodTime>,
+    dark: Boolean,
+    hasCustomBackground: Boolean,
+    semesterStart: String,
+    excludedWeekSet: Set<Int>,
+    dateExceptions: List<ScheduleDateException>
+) {
+    // 绝对日期页码：以“当前显示的那天”为中心，向前后各留缓冲页，可无限翻页。
+    val today = LocalDate.now()
+    val initialDate = remember(semesterStart, currentWeek, focusedDay) {
+        TimeUtils.semesterWeekStartOrNull(semesterStart)
+            ?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
+            ?: today
+    }
+    val PAGE_BUFFER = 60
+    var centerDateEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(initialDate.toEpochDay()) }
+    val centerDate = LocalDate.ofEpochDay(centerDateEpoch)
+    val pageCount = PAGE_BUFFER * 2 + 1
+    val pagerState = rememberPagerState(initialPage = PAGE_BUFFER + 30) { pageCount }
+
+    // 滑动结束：把落点日期写回中心；跨周时同步回写周次与聚焦日。
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            val offset = page - (PAGE_BUFFER + 30)
+            if (offset != 0) {
+                centerDateEpoch += offset
+                pagerState.scrollToPage(PAGE_BUFFER + 30)
+            }
+        }
+    }
+    val displayDate = LocalDate.ofEpochDay(centerDateEpoch)
+    val displayWeek = remember(centerDateEpoch, semesterStart, totalWeeks) {
+        TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, displayDate) ?: 1
+    }
+    // 显示日期与视图状态（周/聚焦日）不一致时以视图状态回正（定位今天/点表头跳天时触发）。
+    LaunchedEffect(currentWeek, focusedDay, semesterStart) {
+        val target = TimeUtils.semesterWeekStartOrNull(semesterStart)
+            ?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
+        if (target != null && target != displayDate) centerDateEpoch = target.toEpochDay()
+    }
+    LaunchedEffect(displayDate) {
+        val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, displayDate)
+        val dow = displayDate.dayOfWeek.value
+        if (week != null && (week != currentWeek || dow != focusedDay)) {
+            onWeekChange(week)
+            onFocusedDayChange(dow)
+        }
+    }
+
+    val pageCourses = remember(displayedCourses, centerDateEpoch, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
+        ScheduleDateResolver.coursesOn(
+            displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, displayDate
+        ).map { it.course }
+    }
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier.testTag("day-swipe-area")
+    ) { _ ->
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(
+                remember { ScrollState(0) }
+            ).testTag("day-scroll")
+        ) {
+            TableGrid(
+                courses = pageCourses,
+                colorMap = colorMap,
+                visibleDays = listOf(displayDate.dayOfWeek.value),
+                timeWidth = timeWidth,
+                cellHeight = cellHeight,
+                currentWeek = displayWeek,
+                onCourseClick = onCourseClick,
+                onEmptyCellClick = onEmptyCellClick,
+                periodTimes = periodTimes,
+                dark = dark,
+                todayWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, LocalDate.now()) ?: -1,
+                todayDow = LocalDate.now().dayOfWeek.value,
+                viewMode = ScheduleViewMode.DAY,
+                hasCustomBackground = hasCustomBackground
+            )
+        }
     }
 }
 
