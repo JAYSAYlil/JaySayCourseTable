@@ -59,18 +59,18 @@ class CourseColorTest {
     }
 
     @Test
-    fun customColorIndexTakesPriority() {
+    fun presetColorIndexTakesPriority() {
         val courses = listOf(course("甲", customColor = 7))
         val color = resolveCourseColor(courses, courses.first(), dark = false)
         assertEquals(CourseColors[7], color)
     }
 
     @Test
-    fun customArgbTakesPriority() {
+    fun legacyArgbFallsBackToAutomaticPalette() {
         val argb = 0xFF336699.toInt()
         val courses = listOf(course("甲", customColor = argb))
         val color = resolveCourseColor(courses, courses.first(), dark = false)
-        assertEquals(resolveCustomCourseColor(argb, dark = false), color)
+        assertEquals(CourseColors[0], color)
     }
 
     @Test
@@ -85,15 +85,7 @@ class CourseColorTest {
         assertEquals(CourseColors.size, DarkCourseColors.size)
         assertEquals(CourseColors.size, CourseColors.distinct().size)
         assertEquals(DarkCourseColors.size, DarkCourseColors.distinct().size)
-        assertTrue("课程色数量不足", CourseColors.size >= 20)
-    }
-
-    @Test
-    fun customColorIsAdaptedForBothAppearances() {
-        val veryLight = 0xFFFFF4D6.toInt()
-        val veryDark = 0xFF091412.toInt()
-        assertTrue(resolveCustomCourseColor(veryLight, dark = true).luminance() < Color(veryLight).luminance())
-        assertTrue(resolveCustomCourseColor(veryDark, dark = false).luminance() > Color(veryDark).luminance())
+        assertEquals("预设色数量应稳定为 24", 24, CourseColors.size)
     }
 
     @Test

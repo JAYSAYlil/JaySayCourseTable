@@ -64,8 +64,7 @@ private data class CourseEditorForm(
     val isOnline: Boolean,
     val assessmentMethod: String,
     val notes: String,
-    val customColorIndex: Int,
-    val customColorHex: String,
+    val colorIndex: Int,
     val reminderModeName: String,
     val reminderMinutesOverrideValue: Int,
     val endReminderEnabled: Boolean,
@@ -110,9 +109,7 @@ private data class CourseEditorForm(
                 isOnline = course?.isOnline ?: false,
                 assessmentMethod = course?.assessmentMethod ?: "",
                 notes = course?.notes ?: "",
-                customColorIndex = course?.customColor?.takeIf { it in CourseColors.indices } ?: -1,
-                customColorHex = course?.customColor?.takeUnless { it in CourseColors.indices }
-                    ?.let { "#%08X".format(java.util.Locale.US, it) }.orEmpty(),
+                colorIndex = course?.customColor?.takeIf { it in CourseColors.indices } ?: -1,
                 reminderModeName = (course?.reminderMode ?: CourseReminderMode.INHERIT).name,
                 reminderMinutesOverrideValue = course?.reminderMinutesOverride ?: NO_OVERRIDE,
                 endReminderEnabled = course?.endReminderEnabled ?: false,
@@ -140,7 +137,6 @@ private data class CourseEditorForm(
         private const val KEY_ASSESSMENT = "assessment"
         private const val KEY_NOTES = "notes"
         private const val KEY_COLOR_INDEX = "colorIndex"
-        private const val KEY_COLOR_HEX = "colorHex"
         private const val KEY_REMINDER_MODE = "reminderMode"
         private const val KEY_REMINDER_MINUTES = "reminderMinutes"
         private const val KEY_END_REMINDER = "endReminder"
@@ -176,8 +172,7 @@ private data class CourseEditorForm(
                     KEY_IS_ONLINE to form.isOnline,
                     KEY_ASSESSMENT to form.assessmentMethod,
                     KEY_NOTES to form.notes,
-                    KEY_COLOR_INDEX to form.customColorIndex,
-                    KEY_COLOR_HEX to form.customColorHex,
+                    KEY_COLOR_INDEX to form.colorIndex,
                     KEY_REMINDER_MODE to form.reminderModeName,
                     KEY_REMINDER_MINUTES to form.reminderMinutesOverrideValue,
                     KEY_END_REMINDER to form.endReminderEnabled,
@@ -207,9 +202,8 @@ private data class CourseEditorForm(
                     isOnline = saved[KEY_IS_ONLINE] as? Boolean ?: false,
                     assessmentMethod = saved[KEY_ASSESSMENT] as? String ?: "",
                     notes = saved[KEY_NOTES] as? String ?: "",
-                    customColorIndex = (saved[KEY_COLOR_INDEX] as? Number)?.toInt()
+                    colorIndex = (saved[KEY_COLOR_INDEX] as? Number)?.toInt()
                         ?.takeIf { it in CourseColors.indices } ?: -1,
-                    customColorHex = saved[KEY_COLOR_HEX] as? String ?: "",
                     reminderModeName = saved[KEY_REMINDER_MODE] as? String
                         ?: CourseReminderMode.INHERIT.name,
                     reminderMinutesOverrideValue = (saved[KEY_REMINDER_MINUTES] as? Number)?.toInt()
@@ -244,7 +238,6 @@ fun CourseEditDialog(
     val errEndBeforeStart = stringResource(R.string.edit_error_end_before_start)
     val errWeeksInvalid = stringResource(R.string.edit_error_weeks_invalid)
     val errWeeksRange = stringResource(R.string.edit_error_weeks_range, totalWeeks)
-    val errColorInvalid = stringResource(R.string.edit_error_color_invalid)
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.4f
 
     key(editorSlotKey) {
@@ -414,7 +407,7 @@ fun CourseEditDialog(
                             shape = AppShapes.input,
                             modifier = Modifier.fillMaxWidth())
 
-                        // 自定义颜色
+                        // 预设课程颜色：统一维护深浅模式对应关系，避免用户自行适配。
                         Text(stringResource(R.string.edit_label_color), style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
@@ -425,49 +418,21 @@ fun CourseEditDialog(
                                 val colorDesc = stringResource(R.string.edit_color_option_desc, idx + 1)
                                 Box(modifier = Modifier.size(48.dp).padding(7.dp)
                                     .background(clr, RoundedCornerShape(15.dp))
-                                    .border(if (idx == form.customColorIndex) 2.dp else 0.dp,
-                                        if (idx == form.customColorIndex) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                    .border(if (idx == form.colorIndex) 2.dp else 0.dp,
+                                        if (idx == form.colorIndex) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                                         RoundedCornerShape(15.dp))
                                     .clickable {
                                         form = form.copy(
-                                            customColorIndex = if (idx == form.customColorIndex) -1 else idx,
-                                            customColorHex = ""
+                                            colorIndex = if (idx == form.colorIndex) -1 else idx
                                         )
                                     }
                                     .semantics {
-                                        selected = idx == form.customColorIndex
+                                        selected = idx == form.colorIndex
                                         role = Role.RadioButton
                                         contentDescription = colorDesc
                                     })
                             }
                         }
-                        val customColorValue = remember(form.customColorHex) {
-                            form.customColorHex.trim().takeIf { it.matches(Regex("#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")) }
-                                ?.let { runCatching { android.graphics.Color.parseColor(it) }.getOrNull() }
-                        }
-                        OutlinedTextField(
-                            value = form.customColorHex,
-                            onValueChange = {
-                                form = form.copy(customColorHex = it.take(9), customColorIndex = -1)
-                                errorMsg = null
-                            },
-                            label = { Text(stringResource(R.string.edit_label_custom_color)) },
-                            placeholder = { Text("#0F8F82") },
-                            singleLine = true,
-                            isError = form.customColorHex.isNotBlank() && customColorValue == null,
-                            leadingIcon = {
-                                Box(
-                                    Modifier.size(22.dp).clip(RoundedCornerShape(6.dp))
-                                        .background(
-                                            customColorValue?.let { resolveCustomCourseColor(it, dark) }
-                                                ?: MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                )
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                            shape = AppShapes.input,
-                            modifier = Modifier.fillMaxWidth().testTag("custom-color-input")
-                        )
 
                         // 备注
                         OutlinedTextField(value = form.notes, onValueChange = { form = form.copy(notes = it) },
@@ -575,11 +540,6 @@ fun CourseEditDialog(
                             // 校验
                             if (form.name.isBlank()) { errorMsg = errNameRequired; return@Button }
                             if (form.endPeriod < form.startPeriod) { errorMsg = errEndBeforeStart; return@Button }
-                            if (form.customColorHex.isNotBlank() && !form.customColorHex.trim()
-                                    .matches(Regex("#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"))) {
-                                errorMsg = errColorInvalid
-                                return@Button
-                            }
                             // 解析周次；空白表示整学期，错误或越界输入必须明确提示。
                             val parsedWeeks = TimeUtils.parseWeeks(form.weekStr)
                             if (form.weekStr.isNotBlank() && parsedWeeks.isEmpty()) {
@@ -591,11 +551,8 @@ fun CourseEditDialog(
                                 return@Button
                             }
                             val weeks = parsedWeeks.ifEmpty { (1..totalWeeks).toList() }
-                            // 预设颜色存索引，自定义颜色存 ARGB；两者都可在深浅模式下稳定显示。
-                            val customArgb = form.customColorHex.trim()
-                                .takeIf { it.matches(Regex("#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")) }
-                                ?.let { runCatching { android.graphics.Color.parseColor(it) }.getOrNull() }
-                            val selColor = customArgb ?: form.customColorIndex.takeIf { it in CourseColors.indices }
+                            // 只存预设颜色索引，深浅模式可使用同一索引稳定切换。
+                            val selColor = form.colorIndex.takeIf { it in CourseColors.indices }
                             onSave(Course(
                                 // 手工新增时用随机 ID，避免同一毫秒添加两门课程时时间戳碰撞
                                 courseId = form.courseId.ifBlank { UUID.randomUUID().toString() },

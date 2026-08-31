@@ -26,36 +26,36 @@ val OnSurfaceVariant = Color(0xFF636967)
 val Background = Color(0xFFF6F7F7)
 val Error = Color(0xFFDC2626)
 
-// 课程卡片调色板 — 低饱和但色相明确；每个索引在浅/深模式都有一一对应的变体。
+// 课程卡片调色板 — 每个色相只保留一个位置，避免相邻课程颜色过近。
+// 索引在浅/深模式一一对应，因此手动选择和导入颜色都会随外观可靠切换。
 val CourseColors = listOf(
-    Color(0xFFDCEEFF), Color(0xFFDDF5E7), Color(0xFFFFEFC2), Color(0xFFFFDFE5),
-    Color(0xFFE7E0FF), Color(0xFFD8F5F2), Color(0xFFFFE2C7), Color(0xFFE3E8F0),
-    Color(0xFFF1E2D5), Color(0xFFE5F0C9), Color(0xFFD9ECFF), Color(0xFFF6DDEB),
-    Color(0xFFDCEBDD), Color(0xFFF1E6C9), Color(0xFFE1E3FA), Color(0xFFDDE5E8),
-    Color(0xFFFFE0C9), Color(0xFFE0F0D8), Color(0xFFE3DDF7), Color(0xFFD5EEF5),
-    Color(0xFFF2E0C1), Color(0xFFF2DCE0), Color(0xFFDCE8D4), Color(0xFFE7E0D8)
+    Color(0xFFBDEFF1), Color(0xFFBCEAE1), Color(0xFFBCEBCC), Color(0xFFCEEABE),
+    Color(0xFFE2EFB5), Color(0xFFF1EEB3), Color(0xFFFFF1B8), Color(0xFFFFE0A8),
+    Color(0xFFFFCCA7), Color(0xFFFFC4B8), Color(0xFFFFC5CB), Color(0xFFF8C5DB),
+    Color(0xFFF2C8ED), Color(0xFFE0CCF7), Color(0xFFD0D3FA), Color(0xFFC7D8FF),
+    Color(0xFFBFDEF9), Color(0xFFBCE8F8), Color(0xFFB8E9EF), Color(0xFFBFDCE8),
+    Color(0xFFCBD8E7), Color(0xFFE8D5BB), Color(0xFFEACBBE), Color(0xFFE3DCF1)
 )
 val CourseTextColor = Color(0xFF1C1B1F)
 val CourseSubTextColor = Color(0xFF5A5A5A)
 
-// 深色模式课程卡片 — 保留色相的暗调版本
+// 深色模式课程卡片 — 同序号保留色相，但采用可叠加半透明高光的深色基底。
 val DarkCourseColors = listOf(
-    Color(0xFF1D3A53), Color(0xFF1D4430), Color(0xFF4A3A16), Color(0xFF4B2630),
-    Color(0xFF342A5A), Color(0xFF174441), Color(0xFF4D321B), Color(0xFF303843),
-    Color(0xFF493326), Color(0xFF30441D), Color(0xFF19415A), Color(0xFF4C2940),
-    Color(0xFF214638), Color(0xFF4A3D1C), Color(0xFF30335B), Color(0xFF294047),
-    Color(0xFF4E2F1B), Color(0xFF2B4723), Color(0xFF3A2E5C), Color(0xFF1E4554),
-    Color(0xFF493719), Color(0xFF4B2932), Color(0xFF2F4728), Color(0xFF45382B)
+    Color(0xFF0B666A), Color(0xFF0B6258), Color(0xFF0A603D), Color(0xFF1E6331),
+    Color(0xFF4D6F1A), Color(0xFF666217), Color(0xFF756519), Color(0xFF7B5214),
+    Color(0xFF83421B), Color(0xFF843629), Color(0xFF813645), Color(0xFF7A3159),
+    Color(0xFF6D3674), Color(0xFF543D82), Color(0xFF35488A), Color(0xFF1D5189),
+    Color(0xFF145E80), Color(0xFF0E637A), Color(0xFF0A6267), Color(0xFF1B566B),
+    Color(0xFF3D526A), Color(0xFF65503B), Color(0xFF6F4132), Color(0xFF554A68)
 )
 val DarkCourseTextColor = Color(0xFFE8E8E8)
-val DarkCourseSubTextColor = Color(0xFFB0B0B0)
+val DarkCourseSubTextColor = Color(0xFFC8CBCA)
 
 fun coursePalette(dark: Boolean): List<Color> = if (dark) DarkCourseColors else CourseColors
 
 /**
  * 由卡片底色派生同卡内的标题/次级文字颜色：
- * 浅色卡片上取加深墨色，深色卡片上取提亮淡色，
- * 保证自定义颜色与调色板颜色都有一致的对比度表现。
+ * 浅色卡片上取加深墨色，深色卡片上取提亮淡色。
  */
 fun courseCardTextColors(cardColor: Color, dark: Boolean): Pair<Color, Color> {
     val anchor = if (dark) Color.White else Color(0xFF171A19)
@@ -84,26 +84,16 @@ fun buildCourseColorMap(courses: List<Course>, dark: Boolean): Map<String, Color
 }
 
 /**
- * 解析单条课程卡片的最终颜色：自定义颜色（索引或 ARGB）优先，
+ * 解析单条课程卡片的最终颜色：用户选择的预设色优先，
  * 否则按课程名在整表首次出现顺序取调色板颜色。
+ * 旧版保存过的 ARGB 自定义值不再使用，安全回退为自动配色。
  */
 fun resolveCourseColor(courses: List<Course>, course: Course, dark: Boolean): Color {
     val palette = if (dark) DarkCourseColors else CourseColors
     val customColor = course.customColor
     return when {
         customColor != null && customColor in palette.indices -> palette[customColor]
-        customColor != null -> resolveCustomCourseColor(customColor, dark)
         else -> buildCourseColorMap(courses, dark)[course.courseName] ?: palette.first()
-    }
-}
-
-/** 自定义 ARGB 颜色在另一种外观下做轻量明度校正，保留用户选择的色相。 */
-fun resolveCustomCourseColor(argb: Int, dark: Boolean): Color {
-    val base = Color(argb)
-    return when {
-        dark && base.luminance() > 0.62f -> lerp(base, Color.Black, 0.42f)
-        !dark && base.luminance() < 0.18f -> lerp(base, Color.White, 0.44f)
-        else -> base
     }
 }
 

@@ -36,7 +36,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -60,7 +62,6 @@ import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.courseCardBorderColor
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
 import com.jaysay.coursetable.ui.theme.pressScale
-import com.jaysay.coursetable.ui.theme.resolveCustomCourseColor
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -97,9 +98,10 @@ private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): 
 internal fun courseCardBackgroundAlpha(background: Color, hasCustomBackground: Boolean): Float {
     val isDarkCourseCard = background.luminance() < 0.35f
     return when {
-        !hasCustomBackground && isDarkCourseCard -> 0.96f
+        // 深色材质需要保留颜色本体；渐变高光只作为表层，不稀释卡片层级。
+        !hasCustomBackground && isDarkCourseCard -> 0.94f
         !hasCustomBackground -> 0.82f
-        isDarkCourseCard -> 0.86f
+        isDarkCourseCard -> 0.90f
         else -> 0.74f
     }
 }
@@ -345,11 +347,11 @@ internal fun TableGrid(
                         val y = periodOffset(start, sections, cellHeight)
                         val bottom = periodOffset(end, sections, cellHeight) + cellHeight
                         val palette = if (dark) DarkCourseColors else CourseColors
-                        val cardColor = when {
-                            course.customColor != null && course.customColor in palette.indices -> palette[course.customColor]
-                            course.customColor != null -> resolveCustomCourseColor(course.customColor, dark)
-                            else -> colorMap[course.courseName] ?: palette.first()
-                        }
+                        val cardColor = course.customColor
+                            ?.takeIf { it in palette.indices }
+                            ?.let(palette::get)
+                            ?: colorMap[course.courseName]
+                            ?: palette.first()
                         val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
                         CourseCard(
@@ -495,6 +497,19 @@ private fun CourseCard(
         label = "courseCardBorder"
     )
     val backgroundAlpha = courseCardBackgroundAlpha(background, hasCustomBackground)
+    // 深色卡片使用更深的实色基底与顶部高光渐变，营造克制的毛玻璃质感；
+    // 浅色则保留原有的平整嵌套卡片，不让两种外观沦为同一种设计。
+    val cardFill = if (dark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                lerp(background, Color.White, 0.14f).copy(alpha = 0.98f),
+                background.copy(alpha = backgroundAlpha),
+                lerp(background, Color.Black, 0.10f).copy(alpha = backgroundAlpha)
+            )
+        )
+    } else {
+        null
+    }
     val contentPadding = when (viewMode) {
         ScheduleViewMode.WEEK -> PaddingValues(4.dp, 5.dp, 3.dp, 4.dp)
         else -> PaddingValues(7.dp, 5.dp, 6.dp, 4.dp)
@@ -503,9 +518,12 @@ private fun CourseCard(
     Box(
         modifier = modifier
             .pressScale(cardInteraction, 0.96f)
-            .shadow(if (isCurrent) 6.dp else 2.dp, shape, clip = false)
+            .shadow(if (isCurrent) 6.dp else if (dark) 4.dp else 2.dp, shape, clip = false)
             .clip(shape)
-            .background(background.copy(alpha = backgroundAlpha))
+            .then(
+                if (cardFill != null) Modifier.background(cardFill, shape)
+                else Modifier.background(background.copy(alpha = backgroundAlpha), shape)
+            )
             .border(
                 if (isCurrent) 1.6.dp else 0.75.dp,
                 borderColor,
