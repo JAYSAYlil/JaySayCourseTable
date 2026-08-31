@@ -755,29 +755,41 @@ private fun DayPagerSection(
     fun indexOf(date: LocalDate): Int =
         java.time.temporal.ChronoUnit.DAYS.between(semesterStartDate, date).toInt()
 
-    val initialIndex = indexOf(
-        semesterStartDate.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
-    ).coerceIn(0, totalDays - 1)
-    val pagerState = rememberPagerState(initialPage = initialIndex) { totalDays }
+    // 双向同步令牌：记录“最后一次双方确认的日期”（epoch day）。
+    // 滑动落定回写周次/聚焦日时先更新令牌，外部状态（可能先后到达）变化时发现
+    // 目标日期 == 令牌即不再回滚页面；外部跳转（定位今天/表头/月视图返回）同样
+    // 先更新令牌再滚页。两侧都不会把对方刚做的变更再改回去，消除回写/回正竞态。
+    val initialEpoch = semesterStartDate
+        .plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
+        .toEpochDay()
+    var reportedEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(initialEpoch) }
+    val pagerState = rememberPagerState(
+        initialPage = indexOf(LocalDate.ofEpochDay(reportedEpoch)).coerceIn(0, totalDays - 1)
+    ) { totalDays }
 
     // 外部状态变化（定位今天/表头点击/月视图跳天/返回自月视图）时滚动到对应页。
     LaunchedEffect(currentWeek, focusedDay, semesterStart) {
         val target = semesterStartDate
             .plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
-        val index = indexOf(target).coerceIn(0, totalDays - 1)
-        if (pagerState.settledPage != index && !pagerState.isScrollInProgress) {
-            pagerState.animateScrollToPage(index)
+        if (target.toEpochDay() != reportedEpoch) {
+            reportedEpoch = target.toEpochDay()
+            val index = indexOf(target).coerceIn(0, totalDays - 1)
+            if (pagerState.settledPage != index && !pagerState.isScrollInProgress) {
+                pagerState.animateScrollToPage(index)
+            }
         }
     }
-    // 滑动落定：把页码换算回周次与聚焦日，回写视图状态（头部胶囊/日选择条联动）。
+    // 滑动落定：把页码换算回周次与聚焦日，回写视图状态（头部胶囊/日选择条随之刷新）。
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val date = dateOf(page)
-            val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date) ?: return@collect
-            val dow = date.dayOfWeek.value
-            if (week != currentWeek || dow != focusedDay) {
-                onWeekChange(week)
-                onFocusedDayChange(dow)
+            if (date.toEpochDay() != reportedEpoch) {
+                reportedEpoch = date.toEpochDay()
+                val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
+                if (week != null) {
+                    onWeekChange(week)
+                    onFocusedDayChange(date.dayOfWeek.value)
+                }
             }
         }
     }
