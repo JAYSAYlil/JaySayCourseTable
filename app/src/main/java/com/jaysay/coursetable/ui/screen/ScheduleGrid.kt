@@ -58,6 +58,7 @@ import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.courseCardBorderColor
+import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
@@ -468,8 +469,10 @@ private fun CourseCard(
         ScheduleViewMode.WEEK -> PaddingValues(4.dp, 5.dp, 3.dp, 4.dp)
         else -> PaddingValues(7.dp, 5.dp, 6.dp, 4.dp)
     }
+    val cardInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Box(
         modifier = modifier
+            .pressScale(cardInteraction, 0.96f)
             .shadow(if (isCurrent) 6.dp else 2.dp, shape, clip = false)
             .clip(shape)
             .background(background.copy(alpha = backgroundAlpha))
@@ -478,7 +481,7 @@ private fun CourseCard(
                 borderColor,
                 shape
             )
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = cardInteraction, indication = null, onClick = onClick)
             .semantics { contentDescription = description }
             .padding(contentPadding),
         contentAlignment = Alignment.TopStart

@@ -601,14 +601,15 @@ class MainActivity : ComponentActivity() {
                                 fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard)) togetherWith
                                     fadeOut(tween(90, easing = Motion.exit))
                             } else if (targetState.ordinal > initialState.ordinal) {
+                                // 进出同路径、同弹簧（可中断）：符合空间一致性准则。
                                 (slideInHorizontally(Motion.page()) { it / 4 } +
                                     fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard))) togetherWith
-                                    (slideOutHorizontally(tween(Motion.DURATION_BASE, easing = Motion.exit)) { -it / 5 } +
+                                    (slideOutHorizontally(Motion.page()) { -it / 4 } +
                                         fadeOut(tween(110, easing = Motion.exit)))
                             } else {
                                 (slideInHorizontally(Motion.page()) { -it / 4 } +
                                     fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard))) togetherWith
-                                    (slideOutHorizontally(tween(Motion.DURATION_BASE, easing = Motion.exit)) { it / 5 } +
+                                    (slideOutHorizontally(Motion.page()) { it / 4 } +
                                         fadeOut(tween(110, easing = Motion.exit)))
                             }
                         },

@@ -36,6 +36,7 @@ import com.jaysay.coursetable.data.model.ScheduleDateException
 import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
+import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.resolveCourseColor
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
@@ -179,7 +180,14 @@ private fun MonthDayCell(
     val outline = MaterialTheme.colorScheme.outlineVariant
     val isToday = cell.isToday
     val clickableModifier = cell.semesterWeek?.let { week ->
-        Modifier.clickable { onDayClick(week, cell.dayOfWeek) }
+        val cellInteraction = androidx.compose.runtime.remember {
+            androidx.compose.foundation.interaction.MutableInteractionSource()
+        }
+        Modifier
+            .pressScale(cellInteraction, 0.94f)
+            .clickable(interactionSource = cellInteraction, indication = null) {
+                onDayClick(week, cell.dayOfWeek)
+            }
     } ?: Modifier
     Column(
         modifier = modifier

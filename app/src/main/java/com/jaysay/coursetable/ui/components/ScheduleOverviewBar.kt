@@ -118,6 +118,7 @@ fun ScheduleOverviewBar(
                         modifier = Modifier.weight(1f, fill = false),
                         fontSize = 23.sp,
                         fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.4).sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

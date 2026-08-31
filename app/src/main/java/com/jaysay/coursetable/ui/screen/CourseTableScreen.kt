@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -74,6 +75,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -99,6 +102,7 @@ import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.ui.theme.Motion
+import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
@@ -528,13 +532,20 @@ fun CourseTableScreen(
                 }
             }
 
-            if (viewMode != ScheduleViewMode.MONTH) LinearProgressIndicator(
-                progress = { currentWeek.toFloat() / totalWeeks.coerceAtLeast(1) },
+            if (viewMode != ScheduleViewMode.MONTH) {
+                val animatedWeekProgress by animateFloatAsState(
+                    targetValue = currentWeek.toFloat() / totalWeeks.coerceAtLeast(1),
+                    animationSpec = Motion.interactive(),
+                    label = "weekProgress"
+                )
+                LinearProgressIndicator(
+                progress = { animatedWeekProgress },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(2.dp).clip(CircleShape),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = if (dark) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-            )
+                )
+            }
 
             // 停课/特殊安排提示条：切到相关周次时快速展开淡入，离开时立即收起。
             // 快速左右滑周时提示条会连续进出，必须用短补间（收起 100ms/展开 180ms），
@@ -542,9 +553,9 @@ fun CourseTableScreen(
             AnimatedVisibility(
                 visible = weekStatus.hasCalendarContext,
                 enter = fadeIn(tween(Motion.DURATION_SHORT, easing = Motion.standard)) +
-                    expandVertically(tween(Motion.DURATION_SHORT + 30, easing = Motion.standard)),
+                    expandVertically(Motion.momentum()),
                 exit = fadeOut(tween(90, easing = Motion.exit)) +
-                    shrinkVertically(tween(100, easing = Motion.exit))
+                    shrinkVertically(Motion.interactive())
             ) {
                 CalendarContextStrip(weekStatus, onCalendarContextClick)
             }
@@ -598,10 +609,14 @@ fun CourseTableScreen(
                     }
                 }
             }
+            val monthHapticView = LocalView.current
             LaunchedEffect(monthPagerState) {
                 snapshotFlow { monthPagerState.settledPage }.collect { page ->
                     val epoch = monthOf(page).toEpochDay()
-                    if (epoch != monthAnchorEpoch) monthAnchorEpoch = epoch
+                    if (epoch != monthAnchorEpoch) {
+                        monthAnchorEpoch = epoch
+                        monthHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                    }
                 }
             }
             HorizontalPager(
@@ -780,6 +795,7 @@ private fun DayPagerSection(
         }
     }
     // 滑动落定：把页码换算回周次与聚焦日，回写视图状态（头部胶囊/日选择条随之刷新）。
+    val hapticView = LocalView.current
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val date = dateOf(page)
@@ -789,6 +805,8 @@ private fun DayPagerSection(
                 if (week != null) {
                     onWeekChange(week)
                     onFocusedDayChange(date.dayOfWeek.value)
+                    // 导航提交瞬间的轻触觉反馈（Apple: 反馈只在有意义的节点）。
+                    hapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                 }
             }
         }
@@ -869,9 +887,13 @@ private fun WeekPagerSection(
     ) { totalWeeks.coerceAtLeast(1) }
 
     // 用户滑动结束后回写周次；外部（箭头/定位今天）改变周次时滚动到对应页。
+    val weekHapticView = LocalView.current
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
-            if (page + 1 != currentWeekState) onWeekChangeState(page + 1)
+            if (page + 1 != currentWeekState) {
+                onWeekChangeState(page + 1)
+                weekHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            }
         }
     }
     LaunchedEffect(currentWeek, totalWeeks) {
@@ -999,9 +1021,12 @@ private fun DayChipRow(
                 label = "dayChip"
             )
             val dayChipDescription = stringResource(R.string.course_view_day_desc, TimeUtils.getDayName(day))
+            val chipInteraction = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier.weight(1f).fillMaxHeight().clip(AppShapes.small)
-                    .background(chipColor).clickable { onFocusedDayChange(day) }
+                    .pressScale(chipInteraction, 0.94f)
+                    .background(chipColor)
+                    .clickable(interactionSource = chipInteraction, indication = null) { onFocusedDayChange(day) }
                     .semantics { contentDescription = dayChipDescription },
                 contentAlignment = Alignment.Center
             ) {

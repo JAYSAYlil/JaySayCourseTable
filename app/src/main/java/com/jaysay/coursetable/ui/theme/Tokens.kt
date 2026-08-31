@@ -39,7 +39,12 @@ object AppSpacing {
     val cardInner = 16.dp
 }
 
-/** 动效令牌：弹簧用于交互跟随，缓动用于页面级转场。 */
+/**
+ * 动效令牌（Apple "Designing Fluid Interfaces" 准则的 Compose 落地）：
+ * - 交互与页面级弹簧一律**临界阻尼**（dampingRatio = 1，无过冲），快速跟随、可随时中断；
+ * - [momentum] 用于需要轻微惯性的落点强调（damping ≈ 0.85）；
+ * - 缓动补间只用于淡入淡出与颜色过渡；动画永远从当前值出发（Compose 弹簧天然支持中断续接）。
+ */
 object Motion {
     val emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val standard = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
@@ -49,20 +54,24 @@ object Motion {
     const val DURATION_BASE = 250
     const val DURATION_LONG = 380
 
-    /** 交互弹簧：快速跟随、轻微过冲。 */
+    /** 交互弹簧：临界阻尼、快速跟随（约 0.25s 收敛）。 */
     fun <T> interactive(): SpringSpec<T> =
-        spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+        spring(dampingRatio = 1f, stiffness = 500f)
 
-    /** 页面级弹簧：更稳重，几乎无过冲。 */
+    /** 页面级弹簧：临界阻尼、更从容（约 0.35s 收敛）。 */
     fun <T> page(): SpringSpec<T> =
-        spring(dampingRatio = 0.92f, stiffness = Spring.StiffnessMedium)
+        spring(dampingRatio = 1f, stiffness = 300f)
 
-    /** 缓动补间：用于不能弹簧化的场景（颜色、共享元素淡入等）。 */
+    /** 动量弹簧：轻微惯性落点，用于日历条展开等强调场景。 */
+    fun <T> momentum(): SpringSpec<T> =
+        spring(dampingRatio = 0.85f, stiffness = 400f)
+
+    /** 缓动补间：淡入淡出与颜色过渡专用。 */
     fun <T> eased(duration: Int = DURATION_BASE): androidx.compose.animation.core.FiniteAnimationSpec<T> =
         tween(duration, easing = emphasized)
 }
 
-/** 按压反馈：按住缩至 0.97，抬起弹回。 */
+/** 按压反馈：按下瞬间缩小（不等抬手），抬起弹回；符合"反馈发生在按下时"准则。 */
 fun Modifier.pressScale(
     interactionSource: InteractionSource,
     pressedScale: Float = 0.97f
