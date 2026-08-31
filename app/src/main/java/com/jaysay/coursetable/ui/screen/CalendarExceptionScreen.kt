@@ -21,14 +21,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Label
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.EditCalendar
-import androidx.compose.material.icons.outlined.EventBusy
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Label
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.EditCalendar
+import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DatePicker
@@ -68,6 +68,7 @@ import com.jaysay.coursetable.data.model.ScheduleExceptionType
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.Instant
@@ -141,14 +142,14 @@ fun CalendarExceptionScreen(
                 title = stringResource(R.string.calendar_title),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.calendar_back))
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.calendar_back))
                     }
                 }
             )
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).testTag("academic-calendar-screen"),
+            modifier = Modifier.fillMaxSize().padding(padding.exceptTop()).testTag("academic-calendar-screen"),
             contentPadding = PaddingValues(16.dp, 14.dp, 16.dp, 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -161,7 +162,7 @@ fun CalendarExceptionScreen(
                             modifier = Modifier.size(44.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Outlined.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Rounded.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                         Spacer(Modifier.width(12.dp))
@@ -236,7 +237,7 @@ private fun SuspendedWeeksPanel(table: TableData, onToggle: (Int) -> Unit) {
     AppPanel {
         Column(Modifier.padding(16.dp)) {
             SectionHeading(
-                icon = Icons.Outlined.EventBusy,
+                icon = Icons.Rounded.EventBusy,
                 title = stringResource(R.string.calendar_suspended_title),
                 subtitle = stringResource(R.string.calendar_suspended_hint)
             )
@@ -253,7 +254,7 @@ private fun SuspendedWeeksPanel(table: TableData, onToggle: (Int) -> Unit) {
                         onClick = { onToggle(week) },
                         label = { Text("$week") },
                         leadingIcon = if (week in table.excludedWeeks) ({
-                            Icon(Icons.Outlined.EventBusy, null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Rounded.EventBusy, null, modifier = Modifier.size(16.dp))
                         }) else null,
                         modifier = Modifier.testTag("excluded-week-$week")
                     )
@@ -283,13 +284,13 @@ private fun WeekLabelsPanel(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SectionHeading(
-                    icon = Icons.AutoMirrored.Outlined.Label,
+                    icon = Icons.AutoMirrored.Rounded.Label,
                     title = stringResource(R.string.calendar_week_label),
                     subtitle = stringResource(R.string.calendar_week_label_hint),
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = onAdd, modifier = Modifier.testTag("add-week-label")) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(3.dp))
                     Text(stringResource(R.string.calendar_add))
                 }
@@ -312,9 +313,9 @@ private fun WeekLabelsPanel(
                         AssistChip(onClick = { onEdit(week, label) }, label = { Text(stringResource(R.string.calendar_week_label_short, week)) })
                         Spacer(Modifier.width(10.dp))
                         Text(label, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         IconButton(onClick = { onDelete(week) }) {
-                            Icon(Icons.Outlined.Delete, stringResource(R.string.calendar_delete_week_label))
+                            Icon(Icons.Rounded.Delete, stringResource(R.string.calendar_delete_week_label))
                         }
                     }
                 }
@@ -336,13 +337,13 @@ private fun DateArrangementsPanel(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SectionHeading(
-                    icon = Icons.Outlined.EditCalendar,
+                    icon = Icons.Rounded.EditCalendar,
                     title = stringResource(R.string.calendar_dates_title),
                     subtitle = stringResource(R.string.calendar_dates_hint),
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = onAdd, modifier = Modifier.testTag("add-date-arrangement")) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(3.dp))
                     Text(stringResource(R.string.calendar_add))
                 }
@@ -419,12 +420,12 @@ private fun DateArrangementRow(
             Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
         Icon(
-            Icons.Default.ChevronRight,
+            Icons.Rounded.ChevronRight,
             stringResource(R.string.calendar_edit_date_exception_action),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         IconButton(onClick = { onDelete(item.id) }) {
-            Icon(Icons.Outlined.Delete, stringResource(R.string.calendar_delete_date_exception))
+            Icon(Icons.Rounded.Delete, stringResource(R.string.calendar_delete_date_exception))
         }
     }
 }
@@ -509,7 +510,7 @@ private fun DateArrangementDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.CalendarMonth, null)
+                    Icon(Icons.Rounded.CalendarMonth, null)
                     Spacer(Modifier.width(8.dp))
                     Text(date.format(DateTimeFormatter.ofPattern(fullDatePattern, Locale.CHINA)))
                 }
@@ -535,7 +536,7 @@ private fun DateArrangementDialog(
                     Box {
                         OutlinedButton(onClick = { courseMenu = true }, modifier = Modifier.fillMaxWidth()) {
                             Text(course?.courseName ?: stringResource(R.string.calendar_select_course), Modifier.weight(1f))
-                            Icon(Icons.Default.ChevronRight, null)
+                            Icon(Icons.Rounded.ChevronRight, null)
                         }
                         DropdownMenu(expanded = courseMenu, onDismissRequest = { courseMenu = false }) {
                             courses.distinctBy(Course::seriesKey).forEach { item ->
@@ -601,7 +602,7 @@ private fun WeekLabelDialog(
                 Box {
                     OutlinedButton(onClick = { weekMenu = true }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.settings_week_number, week), Modifier.weight(1f))
-                        Icon(Icons.Default.ChevronRight, null)
+                        Icon(Icons.Rounded.ChevronRight, null)
                     }
                     DropdownMenu(
                         expanded = weekMenu,

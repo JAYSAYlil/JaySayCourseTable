@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+
 package com.jaysay.coursetable.ui.screen
 
 import androidx.annotation.StringRes
@@ -515,8 +517,22 @@ private fun CourseCard(
         else -> PaddingValues(7.dp, 5.dp, 6.dp, 4.dp)
     }
     val cardInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    // 共享元素：与课程详情页头部用同一 key，跳转时做 container transform。
+    val sharedScope = com.jaysay.coursetable.ui.components.LocalSharedTransitionScope.current
+    val navScope = com.jaysay.coursetable.ui.components.LocalNavAnimatedVisibilityScope.current
+    val sharedModifier = if (sharedScope != null && navScope != null) {
+        with(sharedScope) {
+            Modifier.sharedBounds(
+                rememberSharedContentState(key = "course-" + course.seriesKey),
+                animatedVisibilityScope = navScope,
+                enter = androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.fadeOut()
+            )
+        }
+    } else Modifier
     Box(
         modifier = modifier
+            .then(sharedModifier)
             .pressScale(cardInteraction, 0.96f)
             .shadow(if (isCurrent) 6.dp else if (dark) 4.dp else 2.dp, shape, clip = false)
             .clip(shape)

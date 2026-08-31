@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+
 package com.jaysay.coursetable
 
 import android.Manifest
@@ -13,6 +15,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.SharedTransitionLayout
+import com.jaysay.coursetable.ui.components.LocalNavAnimatedVisibilityScope
+import com.jaysay.coursetable.ui.components.LocalSharedTransitionScope
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -70,6 +75,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import com.jaysay.coursetable.widget.CourseWidgetProvider
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.components.BackupRestoreConfirmDialog
 import com.jaysay.coursetable.ui.components.ConflictConfirmDialog
 import com.jaysay.coursetable.ui.components.DetailDeleteConfirmDialog
@@ -591,6 +597,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                    SharedTransitionLayout {
+                        CompositionLocalProvider(LocalSharedTransitionScope provides this) {
                     AnimatedContent(
                         targetState = currentScreen(),
                         modifier = Modifier.fillMaxSize().background(
@@ -617,6 +625,7 @@ class MainActivity : ComponentActivity() {
                         },
                         label = "screen"
                     ) { screen ->
+                            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
                         screenStateHolder.SaveableStateProvider(screen.name) {
                         when (screen) {
                             Screen.SETTINGS -> SettingsScreen(
@@ -786,7 +795,7 @@ class MainActivity : ComponentActivity() {
                                         val selected = state.courses.firstOrNull { it.seriesKey == course.seriesKey } ?: course
                                         openCourseDetail(selected, Screen.AGENDA)
                                     },
-                                    modifier = Modifier.padding(padding)
+                                    modifier = Modifier.padding(padding.exceptTop())
                                 )
                             }
 
@@ -868,6 +877,9 @@ class MainActivity : ComponentActivity() {
                                     )
                         }
                         }
+                        }
+                        }
+                    }
                     }
                     SnackbarHost(
                         hostState = snackbarHostState,

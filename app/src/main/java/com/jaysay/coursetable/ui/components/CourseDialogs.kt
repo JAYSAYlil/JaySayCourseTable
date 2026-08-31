@@ -9,11 +9,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -77,7 +77,7 @@ internal fun DetailDeleteConfirmDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                Icons.Default.DeleteOutline,
+                Icons.Rounded.DeleteOutline,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error
             )
@@ -124,7 +124,7 @@ internal fun EncryptedExportPasswordDialog(
     val passwordValid = password.length >= 6 && password == confirmation
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary) },
+        icon = { Icon(Icons.Rounded.Lock, null, tint = MaterialTheme.colorScheme.primary) },
         title = { Text(stringResource(R.string.dialog_title_set_backup_password)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -180,7 +180,7 @@ internal fun EncryptedImportPasswordDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                Icons.Default.LockOpen,
+                Icons.Rounded.LockOpen,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -283,7 +283,7 @@ internal fun ConflictConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.WarningAmber, null, tint = MaterialTheme.colorScheme.error) },
+        icon = { Icon(Icons.Rounded.WarningAmber, null, tint = MaterialTheme.colorScheme.error) },
         title = { Text(stringResource(R.string.dialog_title_course_conflict)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -349,7 +349,7 @@ internal fun PasteImportDialog(
     val checkFormatMessage = stringResource(R.string.dialog_toast_check_format)
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.primary) },
+        icon = { Icon(Icons.Rounded.ContentPaste, null, tint = MaterialTheme.colorScheme.primary) },
         title = { Text(stringResource(R.string.dialog_title_paste_import)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

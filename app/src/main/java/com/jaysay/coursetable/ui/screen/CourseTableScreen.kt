@@ -35,17 +35,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Label
-import androidx.compose.material.icons.filled.AddCircleOutline
-import androidx.compose.material.icons.filled.CalendarViewDay
-import androidx.compose.material.icons.filled.CalendarViewMonth
-import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.ViewWeek
-import androidx.compose.material.icons.outlined.ChevronLeft
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.EditCalendar
-import androidx.compose.material.icons.outlined.EventBusy
+import androidx.compose.material.icons.automirrored.rounded.Label
+import androidx.compose.material.icons.rounded.AddCircleOutline
+import androidx.compose.material.icons.rounded.CalendarViewDay
+import androidx.compose.material.icons.rounded.CalendarViewMonth
+import androidx.compose.material.icons.rounded.FileOpen
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.ViewWeek
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.EditCalendar
+import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -115,9 +115,9 @@ import java.time.LocalDate
  */
 /** 视图模式对应的切换按钮图标：月视图用整月日历图标，其余沿用原图标。 */
 private fun viewModeIcon(mode: ScheduleViewMode) = when (mode) {
-    ScheduleViewMode.DAY -> Icons.Default.CalendarViewDay
-    ScheduleViewMode.MONTH -> Icons.Default.CalendarViewMonth
-    else -> Icons.Default.ViewWeek
+    ScheduleViewMode.DAY -> Icons.Rounded.CalendarViewDay
+    ScheduleViewMode.MONTH -> Icons.Rounded.CalendarViewMonth
+    else -> Icons.Rounded.ViewWeek
 }
 
 @Composable
@@ -409,7 +409,7 @@ fun CourseTableScreen(
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
-                                Icons.Outlined.ChevronLeft,
+                                Icons.Rounded.ChevronLeft,
                                 stringResource(if (viewMode == ScheduleViewMode.MONTH) R.string.month_prev_month else R.string.course_prev_week),
                                 tint = if (viewMode == ScheduleViewMode.MONTH) {
                                     if (monthAnchorIndex > 0) weekControlTint else weekDisabledTint
@@ -486,7 +486,7 @@ fun CourseTableScreen(
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
-                                Icons.Outlined.ChevronRight,
+                                Icons.Rounded.ChevronRight,
                                 stringResource(if (viewMode == ScheduleViewMode.MONTH) R.string.month_next_month else R.string.course_next_week),
                                 tint = if (viewMode == ScheduleViewMode.MONTH) {
                                     if (monthAnchorIndex < monthCount - 1) weekControlTint else weekDisabledTint
@@ -982,7 +982,7 @@ private fun WeekPagerSection(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        Icons.Outlined.EventBusy,
+                        Icons.Rounded.EventBusy,
                         null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(38.dp)
@@ -1115,9 +1115,9 @@ private fun CalendarContextStrip(
         stringResource(R.string.course_calendar_context_default)
     }
     val icon = when {
-        status.suspended -> Icons.Outlined.EventBusy
-        status.label != null -> Icons.AutoMirrored.Outlined.Label
-        else -> Icons.Outlined.EditCalendar
+        status.suspended -> Icons.Rounded.EventBusy
+        status.label != null -> Icons.AutoMirrored.Rounded.Label
+        else -> Icons.Rounded.EditCalendar
     }
     val interaction = remember { MutableInteractionSource() }
     Surface(
@@ -1144,7 +1144,7 @@ private fun CalendarContextStrip(
                 }
             }
             Icon(
-                Icons.Outlined.ChevronRight,
+                Icons.Rounded.ChevronRight,
                 stringResource(R.string.course_calendar_context_open),
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -1240,7 +1240,7 @@ private fun ColumnScope.EmptySchedule(
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(92.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.School, null, modifier = Modifier.size(46.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Rounded.School, null, modifier = Modifier.size(46.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -1274,7 +1274,7 @@ private fun ColumnScope.EmptySchedule(
 @Composable
 private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Button(onClick = onClick, enabled = enabled, shape = AppShapes.small, modifier = modifier.height(48.dp)) {
-        Icon(Icons.Default.FileOpen, null)
+        Icon(Icons.Rounded.FileOpen, null)
         Spacer(Modifier.width(8.dp))
         Text(stringResource(R.string.course_empty_import_button), maxLines = 1)
     }
@@ -1296,7 +1296,7 @@ private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Default.AddCircleOutline, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha))
+            Icon(Icons.Rounded.AddCircleOutline, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha))
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.course_empty_manual_button), maxLines = 1, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha))
         }

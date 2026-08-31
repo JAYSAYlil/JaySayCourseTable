@@ -15,7 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -83,7 +83,7 @@ fun ImportConfirmScreen(
                 title = stringResource(R.string.import_confirm_title),
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Close, stringResource(R.string.import_cancel))
+                        Icon(Icons.Rounded.Close, stringResource(R.string.import_cancel))
                     }
                 },
                 actions = {

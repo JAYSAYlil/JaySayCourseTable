@@ -3,7 +3,7 @@ package com.jaysay.coursetable.ui.screen
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -15,9 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +39,7 @@ import com.jaysay.coursetable.data.reminder.ReminderCalculator
 import com.jaysay.coursetable.data.reminder.ReminderPolicy
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
@@ -115,7 +116,7 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_title),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.settings_back))
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.settings_back))
                     }
                 }
             )
@@ -124,12 +125,13 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(pad)
-                .verticalScroll(rememberScrollState())
                 .background(MaterialTheme.colorScheme.background)
+                .padding(pad.exceptTop())
+                .verticalScroll(rememberScrollState())
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Spacer(Modifier.height(pad.calculateTopPadding()))
             readOnlyMessage?.let { message ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -159,7 +161,7 @@ fun SettingsScreen(
                 },
                 leadingIcon = {
                     Icon(
-                        Icons.Outlined.Search,
+                        Icons.Rounded.Search,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
@@ -168,7 +170,7 @@ fun SettingsScreen(
                 trailingIcon = {
                     if (searchText.isNotEmpty()) {
                         IconButton(onClick = { searchText = "" }, modifier = Modifier.testTag("settings-search-clear")) {
-                            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.settings_search_clear))
+                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.settings_search_clear))
                         }
                     }
                 },
@@ -198,9 +200,9 @@ fun SettingsScreen(
                 ) {
                     SettingsGroupHeader(stringResource(R.string.settings_section_appearance))
                     val options = listOf(
-                        Triple(ThemeMode.LIGHT, stringResource(R.string.settings_theme_light), Icons.Outlined.LightMode),
-                        Triple(ThemeMode.DARK, stringResource(R.string.settings_theme_dark), Icons.Outlined.DarkMode),
-                        Triple(ThemeMode.SYSTEM, stringResource(R.string.settings_theme_system), Icons.Outlined.SettingsBrightness),
+                        Triple(ThemeMode.LIGHT, stringResource(R.string.settings_theme_light), Icons.Rounded.LightMode),
+                        Triple(ThemeMode.DARK, stringResource(R.string.settings_theme_dark), Icons.Rounded.DarkMode),
+                        Triple(ThemeMode.SYSTEM, stringResource(R.string.settings_theme_system), Icons.Rounded.SettingsBrightness),
                     )
                     options.forEach { (mode, label, icon) ->
                         val interaction = remember { MutableInteractionSource() }
@@ -255,7 +257,7 @@ fun SettingsScreen(
                             }
                         } else {
                             Icon(
-                                Icons.Outlined.Wallpaper,
+                                Icons.Rounded.Wallpaper,
                                 contentDescription = null,
                                 modifier = Modifier.size(42.dp).align(Alignment.Center),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -291,7 +293,7 @@ fun SettingsScreen(
                             onClick = onChooseCustomBackground,
                             modifier = Modifier.weight(1f).testTag("choose-custom-background")
                         ) {
-                            Icon(Icons.Outlined.Image, null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.Image, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(if (backgroundActive) stringResource(R.string.settings_change_image) else stringResource(R.string.settings_choose_image))
                         }
@@ -439,7 +441,7 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.Outlined.WarningAmber,
+                                    Icons.Rounded.WarningAmber,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(16.dp)
@@ -563,7 +565,7 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Outlined.Info,
+                                Icons.Rounded.Info,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
@@ -608,13 +610,13 @@ fun SettingsScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.CalendarMonth, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.CalendarMonth, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(stringResource(R.string.settings_semester_start_date), fontSize = 15.sp)
                             Text(table.semesterStart, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                         }
-                        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
                     }
                     // 状态放在 if 外面避免重建导致卡顿
                     val dateState = rememberDatePickerState()
@@ -654,21 +656,21 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.ViewWeek, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.ViewWeek, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Text(stringResource(R.string.settings_total_weeks), fontSize = 15.sp, modifier = Modifier.weight(1f))
                         IconButton(
                             onClick = { if (totalWeeks > 1) saveTable(table.copy(totalWeeks = table.totalWeeks - 1)) },
                             enabled = readOnlyMessage == null && totalWeeks > 1
                         ) {
-                            Icon(Icons.Default.Remove, stringResource(R.string.settings_decrease_weeks), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.Remove, stringResource(R.string.settings_decrease_weeks), modifier = Modifier.size(18.dp))
                         }
                         Text("" + totalWeeks, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
                         IconButton(
                             onClick = { if (totalWeeks < 30) saveTable(table.copy(totalWeeks = table.totalWeeks + 1)) },
                             enabled = readOnlyMessage == null && totalWeeks < 30
                         ) {
-                            Icon(Icons.Default.Add, stringResource(R.string.settings_increase_weeks), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.Add, stringResource(R.string.settings_increase_weeks), modifier = Modifier.size(18.dp))
                         }
                     }
                 },
@@ -681,7 +683,7 @@ fun SettingsScreen(
                 ) {
                     SettingsActionRow(
                         modifier = Modifier.testTag("excluded-weeks-setting"),
-                        icon = Icons.Outlined.CalendarMonth,
+                        icon = Icons.Rounded.CalendarMonth,
                         title = stringResource(R.string.settings_calendar_exceptions),
                         subtitle = stringResource(
                             R.string.settings_calendar_exceptions_subtitle,
@@ -776,7 +778,7 @@ fun SettingsScreen(
                                     np.removeAt(idx)
                                     saveTable(table.copy(periods = np))
                                 }) {
-                                    Icon(Icons.Default.RemoveCircleOutline, stringResource(R.string.settings_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Rounded.RemoveCircleOutline, stringResource(R.string.settings_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -833,7 +835,7 @@ fun SettingsScreen(
                                 saveTable(table.copy(periods = np))
                             }
                         }, modifier = Modifier.height(48.dp)) {
-                            Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(stringResource(R.string.settings_add_period), fontSize = 13.sp)
                         }
@@ -843,7 +845,7 @@ fun SettingsScreen(
                             onClick = { saveTable(table.copy(periods = TableData.defaultPeriods())) },
                             modifier = Modifier.height(48.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                            Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Rounded.Restore, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(stringResource(R.string.settings_restore_default), fontSize = 13.sp)
                         }
@@ -860,7 +862,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.Backup,
+                        icon = Icons.Rounded.Backup,
                         title = stringResource(R.string.settings_export_full_backup),
                         subtitle = stringResource(R.string.settings_export_full_backup_subtitle),
                         enabled = readOnlyMessage == null,
@@ -874,7 +876,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.Lock,
+                        icon = Icons.Rounded.Lock,
                         title = stringResource(R.string.settings_export_encrypted_backup),
                         subtitle = stringResource(R.string.settings_export_encrypted_backup_subtitle),
                         enabled = readOnlyMessage == null,
@@ -888,7 +890,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.Share,
+                        icon = Icons.Rounded.Share,
                         title = stringResource(R.string.settings_export_sanitized),
                         subtitle = stringResource(R.string.settings_export_sanitized_subtitle),
                         enabled = readOnlyMessage == null,
@@ -902,7 +904,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.Restore,
+                        icon = Icons.Rounded.Restore,
                         title = stringResource(R.string.settings_import_backup),
                         subtitle = stringResource(R.string.settings_import_backup_subtitle),
                         onClick = onImportBackup
@@ -915,7 +917,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.History,
+                        icon = Icons.Rounded.History,
                         title = stringResource(R.string.settings_history),
                         subtitle = stringResource(R.string.settings_history_subtitle),
                         onClick = onOpenHistory
@@ -928,7 +930,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.ContentPaste,
+                        icon = Icons.Rounded.ContentPaste,
                         title = stringResource(R.string.settings_paste_import),
                         subtitle = stringResource(R.string.settings_paste_import_subtitle),
                         enabled = readOnlyMessage == null,
@@ -942,7 +944,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.Download,
+                        icon = Icons.Rounded.Download,
                         title = stringResource(R.string.settings_export_excel_template),
                         subtitle = stringResource(R.string.settings_export_excel_template_subtitle),
                         onClick = onExportExcelTemplate
@@ -955,7 +957,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.CalendarMonth,
+                        icon = Icons.Rounded.CalendarMonth,
                         title = stringResource(R.string.settings_export_calendar),
                         subtitle = stringResource(R.string.settings_export_calendar_subtitle),
                         enabled = readOnlyMessage == null,
@@ -1008,7 +1010,7 @@ fun SettingsScreen(
                     )
                 ) {
                     SettingsActionRow(
-                        icon = Icons.Outlined.BugReport,
+                        icon = Icons.Rounded.BugReport,
                         title = stringResource(R.string.settings_export_diagnostics),
                         subtitle = stringResource(R.string.settings_export_diagnostics_subtitle),
                         onClick = onExportDiagnostics
@@ -1040,7 +1042,7 @@ fun SettingsScreen(
                 val chosenName = preferences.autoBackupUri.substringAfterLast('/')
                     .ifBlank { stringResource(R.string.settings_auto_backup_none) }
                 SettingsActionRow(
-                    icon = Icons.Outlined.FolderOpen,
+                    icon = Icons.Rounded.FolderOpen,
                     title = stringResource(R.string.settings_auto_backup_choose),
                     subtitle = stringResource(R.string.settings_auto_backup_chosen, chosenName),
                     onClick = onChooseAutoBackupLocation
@@ -1136,7 +1138,7 @@ internal fun SettingsActionRow(
             Text(title, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha))
             Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha))
         }
-        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+        Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
     }
 }
 
@@ -1195,7 +1197,7 @@ private fun SettingsSearchEmptyState(onClear: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            Icons.Outlined.SearchOff,
+            Icons.Rounded.SearchOff,
             contentDescription = null,
             modifier = Modifier.size(40.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)

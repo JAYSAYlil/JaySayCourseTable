@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.SystemUpdateAlt
+import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,7 +38,7 @@ private fun UpdateCheckSettingsContent(context: Context) {
     var checkingUpdate by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<UpdateChecker.Result?>(null) }
     SettingsActionRow(
-        icon = Icons.Outlined.SystemUpdateAlt,
+        icon = Icons.Rounded.SystemUpdateAlt,
         title = stringResource(R.string.settings_check_update),
         subtitle = stringResource(R.string.settings_check_update_subtitle),
         enabled = !checkingUpdate,

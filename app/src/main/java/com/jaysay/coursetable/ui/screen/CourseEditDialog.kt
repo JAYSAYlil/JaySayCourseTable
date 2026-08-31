@@ -11,7 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.mapSaver
@@ -264,7 +264,7 @@ fun CourseEditDialog(
                     ) {
                         Text(if (isNew) stringResource(R.string.edit_title_add) else stringResource(R.string.edit_title_edit),
                             style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, stringResource(R.string.edit_close)) }
+                        IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, stringResource(R.string.edit_close)) }
                     }
                     HorizontalDivider()
 
@@ -581,7 +581,7 @@ fun CourseEditDialog(
         if (showDeleteConfirm && onDelete != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirm = false },
-                icon = { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
+                icon = { Icon(Icons.Rounded.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
                 title = { Text(stringResource(R.string.edit_delete_confirm_title)) },
                 text = {
                     Text(

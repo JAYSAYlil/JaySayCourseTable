@@ -1,13 +1,25 @@
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+
 package com.jaysay.coursetable.ui.screen
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.offset
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -23,6 +35,7 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
 
@@ -46,14 +59,14 @@ fun CourseDetailScreen(
             AppTopBar(
                 title = stringResource(R.string.detail_title),
                 navigationIcon = {
-                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.detail_back)) }
+                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.detail_back)) }
                 },
                 actions = {
                     if (onEdit != null) {
-                        IconButton(onClick = { onEdit(course) }) { Icon(Icons.Default.Edit, stringResource(R.string.detail_edit)) }
+                        IconButton(onClick = { onEdit(course) }) { Icon(Icons.Rounded.Edit, stringResource(R.string.detail_edit)) }
                     }
                     if (onDelete != null) {
-                        IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, stringResource(R.string.detail_delete), tint = MaterialTheme.colorScheme.error) }
+                        IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.detail_delete), tint = MaterialTheme.colorScheme.error) }
                     }
                 }
             )
@@ -62,12 +75,70 @@ fun CourseDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(paddingValues.exceptTop())
                 .verticalScroll(rememberScrollState())
         ) {
-            // Course header card
+            Spacer(Modifier.height(paddingValues.calculateTopPadding()))
+            // Course header card（与课表卡片共享元素配对，跳转时 container transform）
+            val sharedScope = com.jaysay.coursetable.ui.components.LocalSharedTransitionScope.current
+            val navScope = com.jaysay.coursetable.ui.components.LocalNavAnimatedVisibilityScope.current
+            val sharedModifier = if (sharedScope != null && navScope != null) {
+                with(sharedScope) {
+                    Modifier.sharedBounds(
+                        rememberSharedContentState(key = "course-" + course.seriesKey),
+                        animatedVisibilityScope = navScope,
+                        enter = androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.fadeOut()
+                    )
+                }
+            } else Modifier
+
+            // 下拉关闭（Apple 1:1 跟随 + 阻尼 + 速度判定）：从头部卡片按住下滑；
+            // 松手时速度超阈值或位移过半即关闭，否则以临界阻尼弹簧弹回。
+            var dismissRaw by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+            var dismissDragging by remember { androidx.compose.runtime.mutableStateOf(false) }
+            val velocityTracker = remember { androidx.compose.ui.input.pointer.util.VelocityTracker() }
+            fun rubber(raw: Float): Float {
+                val d = 900f
+                return if (raw <= 0f) 0f else (raw * d) / (d + raw)
+            }
+            val dismissTarget = if (dismissDragging) rubber(dismissRaw) else 0f
+            val dismissOffset by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = dismissTarget,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = 1f,
+                    stiffness = if (dismissDragging) androidx.compose.animation.core.Spring.StiffnessHigh
+                    else androidx.compose.animation.core.Spring.StiffnessMediumLow
+                ),
+                label = "dismissOffset"
+            )
             Surface(
-                modifier = Modifier
+                modifier = sharedModifier
+                    .offset { androidx.compose.ui.unit.IntOffset(0, dismissOffset.roundToInt()) }
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                dismissDragging = true
+                                dismissRaw = 0f
+                                velocityTracker.resetTracking()
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                dismissRaw += dragAmount
+                            },
+                            onDragEnd = {
+                                val velocity = velocityTracker.calculateVelocity().y
+                                velocityTracker.resetTracking()
+                                dismissDragging = false
+                                if (velocity > 800f || dismissOffset > 240f) onClose()
+                            },
+                            onDragCancel = {
+                                velocityTracker.resetTracking()
+                                dismissDragging = false
+                            }
+                        )
+                    }
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 shape = AppShapes.card,
@@ -89,11 +160,11 @@ fun CourseDetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         InfoChip(
-                            icon = Icons.Default.Schedule,
+                            icon = Icons.Rounded.Schedule,
                             text = stringResource(R.string.detail_schedule_chip, TimeUtils.getDayName(course.dayOfWeek), course.startPeriod, course.endPeriod)
                         )
                         InfoChip(
-                            icon = Icons.Default.School,
+                            icon = Icons.Rounded.School,
                             text = stringResource(R.string.detail_credits_chip, course.credits)
                         )
                     }
@@ -103,12 +174,12 @@ fun CourseDetailScreen(
                     ) {
                         if (course.courseType.isNotBlank()) {
                             InfoChip(
-                                icon = Icons.Default.Bookmark,
+                                icon = Icons.Rounded.Bookmark,
                                 text = course.courseType
                             )
                         }
                         InfoChip(
-                            icon = Icons.Default.Assessment,
+                            icon = Icons.Rounded.Assessment,
                             text = course.assessmentMethod
                         )
                     }

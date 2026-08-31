@@ -16,17 +16,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddCircleOutline
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.rounded.AddCircleOutline
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FileOpen
+import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -94,18 +94,18 @@ fun ScheduleOverviewBar(
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier.weight(1f).testTag("course-search-input"),
                 placeholder = { Text(stringResource(R.string.overview_search_placeholder), maxLines = 1) },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Clear, stringResource(R.string.overview_clear_search))
+                            Icon(Icons.Rounded.Clear, stringResource(R.string.overview_clear_search))
                         }
                     }
                 },
                 singleLine = true
             )
             IconButton(onClick = { onSearchQueryChange(""); searchVisible = false }) {
-                Icon(Icons.Default.Close, stringResource(R.string.overview_close_search))
+                Icon(Icons.Rounded.Close, stringResource(R.string.overview_close_search))
             }
         } else {
             Column(
@@ -123,7 +123,7 @@ fun ScheduleOverviewBar(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Icon(Icons.Default.ArrowDropDown, stringResource(R.string.overview_switch_table), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Rounded.ArrowDropDown, stringResource(R.string.overview_switch_table), tint = MaterialTheme.colorScheme.primary)
                 }
                 Text(
                     compactAgenda,
@@ -137,13 +137,13 @@ fun ScheduleOverviewBar(
                 )
             }
             IconButton(onClick = { searchVisible = true }, modifier = Modifier.size(48.dp).testTag("course-search-button")) {
-                Icon(Icons.Default.Search, stringResource(R.string.overview_search_course), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.Search, stringResource(R.string.overview_search_course), tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onAddCourseClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("add-course-button")) {
-                Icon(Icons.Default.AddCircleOutline, stringResource(R.string.overview_add_course), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.AddCircleOutline, stringResource(R.string.overview_add_course), tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
-                Icon(Icons.Default.FileOpen, stringResource(R.string.overview_import_table), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.FileOpen, stringResource(R.string.overview_import_table), tint = MaterialTheme.colorScheme.primary)
             }
             if (compactActions) {
                 Box {
@@ -151,7 +151,7 @@ fun ScheduleOverviewBar(
                         onClick = { moreActionsVisible = true },
                         modifier = Modifier.size(48.dp).testTag("more-actions-button")
                     ) {
-                        Icon(Icons.Default.MoreVert, stringResource(R.string.overview_more_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.MoreVert, stringResource(R.string.overview_more_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     DropdownMenu(
                         expanded = moreActionsVisible,
@@ -159,30 +159,30 @@ fun ScheduleOverviewBar(
                     ) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_locate_today)) },
-                            leadingIcon = { Icon(Icons.Default.MyLocation, null) },
+                            leadingIcon = { Icon(Icons.Rounded.MyLocation, null) },
                             onClick = { moreActionsVisible = false; onLocateToday() }
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_agenda_list)) },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, null) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, null) },
                             onClick = { moreActionsVisible = false; onAgendaClick() }
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_settings)) },
-                            leadingIcon = { Icon(Icons.Default.Settings, null) },
+                            leadingIcon = { Icon(Icons.Rounded.Settings, null) },
                             onClick = { moreActionsVisible = false; onSettingsClick() }
                         )
                     }
                 }
             } else {
                 IconButton(onClick = onAgendaClick, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, stringResource(R.string.overview_agenda_list), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, stringResource(R.string.overview_agenda_list), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.Settings, stringResource(R.string.overview_settings), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Rounded.Settings, stringResource(R.string.overview_settings), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -227,7 +227,7 @@ fun ReadOnlyRecoveryBanner(message: String, onRecoveryClick: () -> Unit) {
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f))
     ) {
         Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.WarningAmber, null)
+            Icon(Icons.Rounded.WarningAmber, null)
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.overview_readonly_banner_title), fontWeight = FontWeight.Bold)

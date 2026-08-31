@@ -3,6 +3,9 @@ package com.jaysay.coursetable.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,6 +25,10 @@ import com.jaysay.coursetable.ui.theme.AppShapes
 /** 兼容别名：旧调用点仍引用 AppPanelShape，语义与 AppShapes.medium 一致。 */
 val AppPanelShape = AppShapes.medium
 
+/**
+ * 半透明材质顶栏（Apple materials）：表面 90% 不透明度，滚动内容从其下穿过；
+ * 分隔线由材质的明暗对比承担，不再画硬分隔线。
+ */
 /** Shared top chrome keeps navigation, titles and dividers consistent across screens. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +49,8 @@ fun AppTopBar(
             navigationIcon = navigationIcon,
             actions = actions,
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Transparent,
-                scrolledContainerColor = Color.Transparent
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+                scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f)
             )
         )
         HorizontalDivider(
@@ -81,4 +88,14 @@ fun AppPanel(
     ) {
         Column(content = content)
     }
+}
+
+/** 去掉顶部 inset 的 padding：让滚动内容顶入半透明顶栏之下（首项需自带等高 spacer）。 */
+fun PaddingValues.exceptTop(): PaddingValues {
+    val values = this
+    return PaddingValues(
+        start = values.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+        end = values.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+        bottom = values.calculateBottomPadding()
+    )
 }

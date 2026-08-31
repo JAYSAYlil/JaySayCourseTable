@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +45,7 @@ fun TableManageScreen(
         if (table != null) {
             AlertDialog(
                 onDismissRequest = { pendingDeleteIndex = null },
-                icon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                icon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
                 title = { Text(stringResource(R.string.table_delete_dialog_title)) },
                 text = { Text(stringResource(R.string.table_delete_dialog_message, table.name, table.courses.size)) },
                 confirmButton = {
@@ -65,7 +65,7 @@ fun TableManageScreen(
         topBar = {
             AppTopBar(
                 title = stringResource(R.string.table_manage_title),
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.table_nav_back)) } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.table_nav_back)) } }
             )
         }
     ) { pad ->
@@ -95,7 +95,7 @@ fun TableManageScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                if (idx == activeIndex) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+                                if (idx == activeIndex) Icons.Rounded.CheckCircle else Icons.Rounded.Circle,
                                 null,
                                 tint = if (idx == activeIndex) MaterialTheme.colorScheme.primary
                                        else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -111,7 +111,7 @@ fun TableManageScreen(
                                 IconButton(onClick = {
                                     onRename(idx, editName)
                                     editing = false
-                                }) { Icon(Icons.Default.Check, stringResource(R.string.table_confirm)) }
+                                }) { Icon(Icons.Rounded.Check, stringResource(R.string.table_confirm)) }
                             } else {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(table.name, fontSize = 16.sp, fontWeight = FontWeight.Medium)
@@ -123,16 +123,16 @@ fun TableManageScreen(
                                 }
                                 IconButton(onClick = {
                                     editName = table.name; editing = true
-                                }) { Icon(Icons.Outlined.Edit, stringResource(R.string.table_edit), modifier = Modifier.size(20.dp)) }
+                                }) { Icon(Icons.Rounded.Edit, stringResource(R.string.table_edit), modifier = Modifier.size(20.dp)) }
                             }
 
                             if (!editing) {
                                 IconButton(onClick = { onDuplicate(idx) }, modifier = Modifier.size(44.dp)) {
-                                    Icon(Icons.Outlined.ContentCopy, stringResource(R.string.table_duplicate_table), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Rounded.ContentCopy, stringResource(R.string.table_duplicate_table), modifier = Modifier.size(20.dp))
                                 }
                                 IconButton(onClick = { onArchive(idx, !table.archived) }, modifier = Modifier.size(44.dp)) {
                                     Icon(
-                                        if (table.archived) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
+                                        if (table.archived) Icons.Rounded.Unarchive else Icons.Rounded.Archive,
                                         if (table.archived) stringResource(R.string.table_unarchive) else stringResource(R.string.table_archive),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -141,7 +141,7 @@ fun TableManageScreen(
 
                             if (tables.size > 1 && !editing) {
                                 IconButton(onClick = { pendingDeleteIndex = idx }, modifier = Modifier.size(48.dp)) {
-                                    Icon(Icons.Outlined.Delete, stringResource(R.string.table_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Rounded.Delete, stringResource(R.string.table_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -158,7 +158,7 @@ fun TableManageScreen(
                 shape = AppShapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.Add, null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.table_add_table), fontSize = 15.sp)
             }

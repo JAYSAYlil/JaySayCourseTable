@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,7 +37,7 @@ fun HistoryScreen(
     pending?.let { (snapshot, diff) ->
         AlertDialog(
             onDismissRequest = { pending = null },
-            icon = { Icon(Icons.Outlined.History, null) },
+            icon = { Icon(Icons.Rounded.History, null) },
             title = { Text(stringResource(R.string.history_restore_title)) },
             text = {
                 Text(stringResource(R.string.history_restore_summary, diff.addedCourses, diff.modifiedCourses, diff.deletedCourses))
@@ -53,7 +53,7 @@ fun HistoryScreen(
         topBar = {
             AppTopBar(
                 title = stringResource(R.string.history_title),
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.history_back)) } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.history_back)) } }
             )
         }
     ) { padding ->
