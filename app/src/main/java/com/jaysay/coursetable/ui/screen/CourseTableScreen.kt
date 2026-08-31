@@ -550,7 +550,12 @@ fun CourseTableScreen(
             }
 
             if (viewMode == ScheduleViewMode.DAY) {
-                DayChipRow(focusedDay = focusedDay, onFocusedDayChange = onFocusedDayChange)
+                DayChipRow(
+                    focusedDay = focusedDay,
+                    todayDow = todayDow,
+                    highlightToday = isTodayWeek,
+                    onFocusedDayChange = onFocusedDayChange
+                )
             }
 
             // 月视图不展示课程表头（星期标题由月历自带），周导航胶囊与进度条仍然保留。
@@ -684,8 +689,9 @@ fun CourseTableScreen(
 }
 
 /**
- * 日视图按天翻页：左右滑动切到前一天/后一天；一周滑完自动翻到下一周（或上一周）。
- * 每页只渲染 focusedDay 对应的单列网格；颜色与周视图共用同一映射。
+ * 日视图按天翻页：左右滑动切到前一天/后一天，一周滑完自然翻到下一周。
+ * 页面域即学期日期范围（开学第一天到第 totalWeeks 周最后一天），
+ * 学期外的“无内容日期”天然不可翻到。
  */
 @Composable
 private fun DayPagerSection(
@@ -708,81 +714,111 @@ private fun DayPagerSection(
     excludedWeekSet: Set<Int>,
     dateExceptions: List<ScheduleDateException>
 ) {
-    // 绝对日期页码：以“当前显示的那天”为中心，向前后各留缓冲页，可无限翻页。
     val today = LocalDate.now()
-    val initialDate = remember(semesterStart, currentWeek, focusedDay) {
-        TimeUtils.semesterWeekStartOrNull(semesterStart)
-            ?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
-            ?: today
-    }
-    val PAGE_BUFFER = 60
-    var centerDateEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(initialDate.toEpochDay()) }
-    val centerDate = LocalDate.ofEpochDay(centerDateEpoch)
-    val pageCount = PAGE_BUFFER * 2 + 1
-    val pagerState = rememberPagerState(initialPage = PAGE_BUFFER + 30) { pageCount }
-
-    // 滑动结束：把落点日期写回中心；跨周时同步回写周次与聚焦日。
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            val offset = page - (PAGE_BUFFER + 30)
-            if (offset != 0) {
-                centerDateEpoch += offset
-                pagerState.scrollToPage(PAGE_BUFFER + 30)
+    val semesterStartDate = TimeUtils.semesterWeekStartOrNull(semesterStart)
+    val totalDays = totalWeeks.coerceAtLeast(0) * 7
+    if (semesterStartDate == null || totalDays <= 0) {
+        // 学期日期无效：退化为单页网格，不可翻页。
+        val fallbackCourses = remember(displayedCourses, currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
+            val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+            if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
+                val date = start.plusDays((currentWeek - 1L) * 7L + dayOffset)
+                ScheduleDateResolver.coursesOn(
+                    displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+                ).filter { it.course.dayOfWeek == focusedDay }.map { it.course }
             }
         }
-    }
-    val displayDate = LocalDate.ofEpochDay(centerDateEpoch)
-    val displayWeek = remember(centerDateEpoch, semesterStart, totalWeeks) {
-        TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, displayDate) ?: 1
-    }
-    // 显示日期与视图状态（周/聚焦日）不一致时以视图状态回正（定位今天/点表头跳天时触发）。
-    LaunchedEffect(currentWeek, focusedDay, semesterStart) {
-        val target = TimeUtils.semesterWeekStartOrNull(semesterStart)
-            ?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
-        if (target != null && target != displayDate) centerDateEpoch = target.toEpochDay()
-    }
-    LaunchedEffect(displayDate) {
-        val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, displayDate)
-        val dow = displayDate.dayOfWeek.value
-        if (week != null && (week != currentWeek || dow != focusedDay)) {
-            onWeekChange(week)
-            onFocusedDayChange(dow)
-        }
-    }
-
-    val pageCourses = remember(displayedCourses, centerDateEpoch, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
-        ScheduleDateResolver.coursesOn(
-            displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, displayDate
-        ).map { it.course }
-    }
-    HorizontalPager(
-        state = pagerState,
-        modifier = modifier.testTag("day-swipe-area")
-    ) { _ ->
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(
-                remember { ScrollState(0) }
-            ).testTag("day-scroll")
+            modifier = Modifier.fillMaxSize().verticalScroll(remember { ScrollState(0) }).testTag("day-scroll")
         ) {
             TableGrid(
-                courses = pageCourses,
+                courses = fallbackCourses,
                 colorMap = colorMap,
-                visibleDays = listOf(displayDate.dayOfWeek.value),
+                visibleDays = listOf(focusedDay),
                 timeWidth = timeWidth,
                 cellHeight = cellHeight,
-                currentWeek = displayWeek,
+                currentWeek = currentWeek,
                 onCourseClick = onCourseClick,
                 onEmptyCellClick = onEmptyCellClick,
                 periodTimes = periodTimes,
                 dark = dark,
-                todayWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, LocalDate.now()) ?: -1,
-                todayDow = LocalDate.now().dayOfWeek.value,
+                todayWeek = todayWeekOf(today, semesterStart, totalWeeks),
+                todayDow = today.dayOfWeek.value,
+                viewMode = ScheduleViewMode.DAY,
+                hasCustomBackground = hasCustomBackground
+            )
+        }
+        return
+    }
+
+    fun dateOf(page: Int): LocalDate = semesterStartDate.plusDays(page.toLong())
+    fun indexOf(date: LocalDate): Int =
+        java.time.temporal.ChronoUnit.DAYS.between(semesterStartDate, date).toInt()
+
+    val initialIndex = indexOf(
+        semesterStartDate.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
+    ).coerceIn(0, totalDays - 1)
+    val pagerState = rememberPagerState(initialPage = initialIndex) { totalDays }
+
+    // 外部状态变化（定位今天/表头点击/月视图跳天/返回自月视图）时滚动到对应页。
+    LaunchedEffect(currentWeek, focusedDay, semesterStart) {
+        val target = semesterStartDate
+            .plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
+        val index = indexOf(target).coerceIn(0, totalDays - 1)
+        if (pagerState.settledPage != index && !pagerState.isScrollInProgress) {
+            pagerState.animateScrollToPage(index)
+        }
+    }
+    // 滑动落定：把页码换算回周次与聚焦日，回写视图状态（头部胶囊/日选择条联动）。
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            val date = dateOf(page)
+            val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date) ?: return@collect
+            val dow = date.dayOfWeek.value
+            if (week != currentWeek || dow != focusedDay) {
+                onWeekChange(week)
+                onFocusedDayChange(dow)
+            }
+        }
+    }
+
+    val todayWeek = todayWeekOf(today, semesterStart, totalWeeks)
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier.testTag("day-swipe-area")
+    ) { page ->
+        val date = dateOf(page)
+        val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date) ?: 1
+        val dayCourses = remember(displayedCourses, page, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
+            ScheduleDateResolver.coursesOn(
+                displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+            ).map { it.course }
+        }
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(remember { ScrollState(0) }).testTag("day-scroll")
+        ) {
+            TableGrid(
+                courses = dayCourses,
+                colorMap = colorMap,
+                visibleDays = listOf(date.dayOfWeek.value),
+                timeWidth = timeWidth,
+                cellHeight = cellHeight,
+                currentWeek = week,
+                onCourseClick = onCourseClick,
+                onEmptyCellClick = onEmptyCellClick,
+                periodTimes = periodTimes,
+                dark = dark,
+                todayWeek = todayWeek,
+                todayDow = today.dayOfWeek.value,
                 viewMode = ScheduleViewMode.DAY,
                 hasCustomBackground = hasCustomBackground
             )
         }
     }
 }
+
+private fun todayWeekOf(today: LocalDate, semesterStart: String, totalWeeks: Int): Int =
+    TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, today) ?: -1
 
 /**
  * 周次翻页：HorizontalPager 提供跟手滑动、边缘回弹与翻页联动；
@@ -935,10 +971,16 @@ private fun WeekPagerSection(
 }
 
 @Composable
-private fun DayChipRow(focusedDay: Int, onFocusedDayChange: (Int) -> Unit) {
+private fun DayChipRow(
+    focusedDay: Int,
+    todayDow: Int,
+    highlightToday: Boolean,
+    onFocusedDayChange: (Int) -> Unit
+) {
     Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp, vertical = 2.dp)) {
         for (day in 1..7) {
             val selected = day == focusedDay
+            val isToday = highlightToday && day == todayDow
             val chipColor by animateColorAsState(
                 if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                 animationSpec = Motion.eased(),
@@ -951,11 +993,28 @@ private fun DayChipRow(focusedDay: Int, onFocusedDayChange: (Int) -> Unit) {
                     .semantics { contentDescription = dayChipDescription },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    TimeUtils.getDayName(day).replace("周", ""),
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        TimeUtils.getDayName(day).replace("周", ""),
+                        fontWeight = when {
+                            selected -> FontWeight.Bold
+                            isToday -> FontWeight.SemiBold
+                            else -> FontWeight.Normal
+                        },
+                        color = when {
+                            selected -> MaterialTheme.colorScheme.primary
+                            isToday -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                    if (isToday) {
+                        Spacer(Modifier.height(3.dp))
+                        Box(
+                            Modifier.size(5.dp).clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                }
             }
         }
     }
