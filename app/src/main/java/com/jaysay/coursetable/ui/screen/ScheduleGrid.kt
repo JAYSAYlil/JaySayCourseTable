@@ -58,13 +58,14 @@ import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.courseCardBorderColor
-import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
+import com.jaysay.coursetable.ui.theme.pressScale
+import com.jaysay.coursetable.ui.theme.resolveCustomCourseColor
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
-private data class Section(@StringRes val labelRes: Int, val periods: List<Int>)
+private data class Section(@param:StringRes val labelRes: Int, val periods: List<Int>)
 
 private fun buildSections(periodTimes: List<PeriodTime>): List<Section> {
     val total = periodTimes.size
@@ -124,6 +125,38 @@ internal fun rememberCurrentMinute(): State<Int> {
         }
     }
     return minuteState
+}
+
+/**
+ * 返回当前正在上课的节次索引与节内进度。
+ *
+ * 课程连续跨节时，课间仍然不属于任何 [PeriodTime]，因此返回 null；这保证红线只在
+ * 实际上课时间内出现，而不会把两节课之间的休息时间误判成课程进度。
+ */
+internal fun currentCourseProgressPosition(
+    currentMinute: Int,
+    periodTimes: List<PeriodTime>,
+    dayCourses: List<Course>
+): Pair<Int, Float>? {
+    val activePeriod = periodTimes.mapIndexedNotNull { index, period ->
+        val start = TimeUtils.parseMinuteOfDay(period.start)
+        val end = TimeUtils.parseMinuteOfDay(period.end)
+        if (start != null && end != null && end > start && currentMinute in start until end) {
+            Triple(index, start, end)
+        } else {
+            null
+        }
+    }.firstOrNull() ?: return null
+
+    val periodNumber = activePeriod.first + 1
+    val hasCourseNow = dayCourses.any { course ->
+        periodNumber in course.startPeriod.coerceAtLeast(1)..course.endPeriod.coerceAtLeast(course.startPeriod)
+    }
+    if (!hasCourseNow) return null
+
+    val fraction = ((currentMinute - activePeriod.second).toFloat() /
+        (activePeriod.third - activePeriod.second)).coerceIn(0f, 1f)
+    return activePeriod.first to fraction
 }
 
 @Composable
@@ -314,7 +347,7 @@ internal fun TableGrid(
                         val palette = if (dark) DarkCourseColors else CourseColors
                         val cardColor = when {
                             course.customColor != null && course.customColor in palette.indices -> palette[course.customColor]
-                            course.customColor != null -> Color(course.customColor)
+                            course.customColor != null -> resolveCustomCourseColor(course.customColor, dark)
                             else -> colorMap[course.courseName] ?: palette.first()
                         }
                         val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
@@ -343,7 +376,8 @@ internal fun TableGrid(
                             periodTimes = periodTimes,
                             sections = sections,
                             cellHeight = cellHeight,
-                            dark = dark
+                            dark = dark,
+                            dayCourses = dayCourses.filter { it.dayOfWeek == todayDow }
                         )
                     }
                 }
@@ -362,30 +396,13 @@ private fun CurrentTimeLineOverlay(
     periodTimes: List<PeriodTime>,
     sections: List<Section>,
     cellHeight: Dp,
-    dark: Boolean
+    dark: Boolean,
+    dayCourses: List<Course>
 ) {
     val currentMinute = currentMinuteState.value
     val lineColor = MaterialTheme.colorScheme.error
     Canvas(modifier = Modifier.fillMaxSize().zIndex(3f)) {
-        val validPeriods = periodTimes.mapIndexedNotNull { index, period ->
-            val start = TimeUtils.parseMinuteOfDay(period.start)
-            val end = TimeUtils.parseMinuteOfDay(period.end)
-            if (start != null && end != null && end > start) Triple(index, start, end) else null
-        }
-        // Keep a stable indicator even during breaks and before/after classes. The line
-        // snaps to the nearest period boundary instead of disappearing intermittently.
-        val position = when {
-            validPeriods.isEmpty() -> null
-            currentMinute < validPeriods.first().second -> validPeriods.first().let { it.first to 0f }
-            currentMinute >= validPeriods.last().third -> validPeriods.last().let { it.first to 1f }
-            else -> validPeriods.firstNotNullOfOrNull { (index, start, end) ->
-                when {
-                    currentMinute in start until end -> index to ((currentMinute - start).toFloat() / (end - start))
-                    currentMinute < start -> index to 0f
-                    else -> null
-                }
-            }
-        }
+        val position = currentCourseProgressPosition(currentMinute, periodTimes, dayCourses)
         position?.let { (periodIndex, fraction) ->
             val lineY = (periodOffset(periodIndex + 1, sections, cellHeight) +
                 cellHeight * fraction).toPx()

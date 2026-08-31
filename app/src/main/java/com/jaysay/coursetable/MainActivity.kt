@@ -21,6 +21,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -869,7 +871,26 @@ class MainActivity : ComponentActivity() {
                     }
                     SnackbarHost(
                         hostState = snackbarHostState,
-                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp)
+                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp),
+                        snackbar = { snackbarData ->
+                            // Material 默认使用 inverseSurface，容易造成浅/深色模式观感反转；
+                            // 撤销提示改用品牌语义色，并让操作按钮始终保持足够对比度。
+                            val dark = MaterialTheme.colorScheme.background.luminance() < 0.4f
+                            Snackbar(
+                                snackbarData = snackbarData,
+                                shape = AppShapes.medium,
+                                containerColor = if (dark) MaterialTheme.colorScheme.surfaceVariant
+                                else MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                actionColor = MaterialTheme.colorScheme.primary,
+                                dismissActionContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.border(
+                                    0.8.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = if (dark) 0.55f else 0.28f),
+                                    AppShapes.medium
+                                )
+                            )
+                        }
                     )
                 }
             }

@@ -5,12 +5,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +42,7 @@ import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
 import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.resolveCourseColor
+import com.jaysay.coursetable.util.ChineseCalendarUtils
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
 
@@ -57,6 +60,8 @@ private data class MonthDayData(
     val suspended: Boolean,
     val weekLabel: String?,
     val dayOffTitle: String?,
+    val lunarText: String,
+    val holidayName: String?,
     val cancelledCount: Int,
     val makeupCount: Int,
     val courses: List<Course>
@@ -67,7 +72,7 @@ private data class MonthDayData(
  *
  * - 课程解析复用 [ScheduleDateResolver.coursesOn]，与周视图完全同口径
  *   （日期异常/停课周/单双周规则一致），颜色复用 buildCourseColorMap + resolveCourseColor。
- * - 今天：在学期内且对应周未被停课排除时，加 primary 描边与淡底高亮。
+ * - 今天：不受学期范围、停课周或放假影响，始终加 primary 描边与淡底高亮。
  * - 停课日（整周停课或当天放假）：日期数字置灰加删除线。
  * - 学期外日期正常显示但无课程、不可点击。
  */
@@ -106,47 +111,41 @@ fun MonthGrid(
         )
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp)) {
-            (1..7).forEach { day ->
-                Text(
-                    text = TimeUtils.getDayName(day).replace("周", ""),
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        Spacer(Modifier.height(3.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("课程", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("停课/放假", fontSize = 9.sp, color = MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
-            Text("补课", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f))
-            Spacer(Modifier.weight(1f))
-            Text("点击日期查看详情", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f))
-        }
-        Spacer(Modifier.height(2.dp))
-        cells.forEach { weekCells ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 78.dp)
-                    .padding(horizontal = 3.dp)
-            ) {
-                weekCells.forEach { cell ->
-                    MonthDayCell(
-                        cell = cell,
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        // 小屏也要完整看到 5～6 行月份；大屏则把空余高度还给日期格，避免固定高度裁切。
+        val headerHeight = 23.dp
+        val rowHeight = ((maxHeight - headerHeight) / cells.size.coerceAtLeast(1)).coerceAtMost(106.dp)
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 6.dp)) {
+                (1..7).forEach { day ->
+                    Text(
+                        text = TimeUtils.getDayName(day).replace("周", ""),
                         modifier = Modifier.weight(1f),
-                        courseColors = courseColors,
-                        dark = dark,
-                        onDayClick = onDayClick
+                        textAlign = TextAlign.Center,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            Spacer(Modifier.height(3.dp))
+            cells.forEach { weekCells ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(rowHeight)
+                        .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    weekCells.forEach { cell ->
+                        MonthDayCell(
+                            cell = cell,
+                            modifier = Modifier.weight(1f),
+                            courseColors = courseColors,
+                            dark = dark,
+                            onDayClick = onDayClick
+                        )
+                    }
                 }
             }
         }
@@ -172,19 +171,22 @@ private fun buildMonthCells(
     return (0 until rowCount).map { row ->
         (0 until 7).map { col ->
             val date = gridStart.plusDays((row * 7 + col).toLong())
+            val calendarLabel = ChineseCalendarUtils.label(date)
             val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
             val status = AcademicCalendarStatusResolver.day(
                 date, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
             )
             MonthDayData(
                 date = date,
-                inMonth = date.monthValue == anchor.monthValue,
+                inMonth = date.year == anchor.year && date.monthValue == anchor.monthValue,
                 semesterWeek = week,
                 dayOfWeek = date.dayOfWeek.value,
-                isToday = date == today && week != null && week !in excludedWeekSet,
+                isToday = date == today,
                 suspended = status.suspendedWeek || status.dayOff,
                 weekLabel = status.weekLabel,
                 dayOffTitle = status.dayOffTitle,
+                lunarText = calendarLabel.lunar,
+                holidayName = calendarLabel.holiday,
                 cancelledCount = status.cancelledCount,
                 makeupCount = status.makeupCount,
                 courses = ScheduleDateResolver.coursesOn(
@@ -208,6 +210,7 @@ private fun MonthDayCell(
     val isToday = cell.isToday
     val statusText = when {
         cell.dayOffTitle?.isNotBlank() == true -> cell.dayOffTitle
+        cell.holidayName?.isNotBlank() == true -> cell.holidayName
         cell.suspended -> "停课"
         cell.makeupCount > 0 -> "补课 ${cell.makeupCount}"
         cell.cancelledCount > 0 -> "停 ${cell.cancelledCount}"
@@ -216,6 +219,7 @@ private fun MonthDayCell(
     }
     val cellDescription = buildString {
         append(cell.date)
+        append("，${cell.lunarText}")
         cell.weekLabel?.let { append("，$it") }
         statusText?.let { append("，$it") }
         if (cell.courses.isNotEmpty()) append("，课程 ${cell.courses.joinToString("、") { it.courseName }}")
@@ -231,12 +235,17 @@ private fun MonthDayCell(
                 onDayClick(week, cell.dayOfWeek)
             }
     } ?: Modifier
+    val cellFill = when {
+        isToday -> primary.copy(alpha = if (dark) 0.20f else 0.10f)
+        cell.courses.isNotEmpty() -> MaterialTheme.colorScheme.surface.copy(alpha = if (dark) 0.92f else 0.84f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (dark) 0.46f else 0.34f)
+    }
     Column(
         modifier = modifier
             .padding(1.dp)
-            .heightIn(min = 72.dp)
+            .fillMaxHeight()
             .clip(AppShapes.small)
-            .background(if (isToday) primary.copy(alpha = 0.08f) else Color.Transparent)
+            .background(cellFill)
             .border(
                 width = if (isToday) 1.25.dp else 0.5.dp,
                 color = if (isToday) primary else outline.copy(alpha = 0.28f),
@@ -261,6 +270,15 @@ private fun MonthDayCell(
             textDecoration = if (cell.suspended) TextDecoration.LineThrough else null,
             maxLines = 1
         )
+        Text(
+            text = cell.lunarText,
+            fontSize = 8.sp,
+            lineHeight = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = if (cell.holidayName != null) primary.copy(alpha = 0.88f)
+            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (cell.inMonth) 0.76f else 0.38f)
+        )
         statusText?.let { text ->
             Text(
                 text = text,
@@ -272,6 +290,7 @@ private fun MonthDayCell(
                 color = when {
                     cell.suspended || cell.cancelledCount > 0 -> MaterialTheme.colorScheme.error
                     cell.makeupCount > 0 -> primary
+                    cell.holidayName != null -> primary
                     else -> MaterialTheme.colorScheme.secondary
                 }
             )

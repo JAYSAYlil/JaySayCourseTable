@@ -181,6 +181,15 @@ class MainActivitySmokeTest {
         }
         val courseName = "返回定位-${System.nanoTime()}"
         addCourse(courseName, startPeriod = "10", endPeriod = "11")
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithTag("view-mode-button").fetchSemanticsNodes().isNotEmpty()
+        }
+        // 测试进程会保留上一次人工/自动测试选择的视图；固定到七天视图后再验证网格滚动恢复。
+        composeRule.onNodeWithTag("view-mode-button").performClick()
+        composeRule.onNodeWithTag("view-mode-week").performClick()
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithText("七天").fetchSemanticsNodes().isNotEmpty()
+        }
 
         val cardDescription = "$courseName，点击查看详情"
         composeRule.onNodeWithContentDescription(cardDescription).performScrollTo()

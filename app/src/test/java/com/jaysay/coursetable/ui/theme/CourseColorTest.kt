@@ -70,7 +70,7 @@ class CourseColorTest {
         val argb = 0xFF336699.toInt()
         val courses = listOf(course("甲", customColor = argb))
         val color = resolveCourseColor(courses, courses.first(), dark = false)
-        assertEquals(Color(argb), color)
+        assertEquals(resolveCustomCourseColor(argb, dark = false), color)
     }
 
     @Test
@@ -78,6 +78,22 @@ class CourseColorTest {
         val courses = listOf(course("甲"))
         val color = resolveCourseColor(courses, courses.first(), dark = true)
         assertEquals(DarkCourseColors[0], color)
+    }
+
+    @Test
+    fun lightAndDarkPalettesStayPairedAndUnique() {
+        assertEquals(CourseColors.size, DarkCourseColors.size)
+        assertEquals(CourseColors.size, CourseColors.distinct().size)
+        assertEquals(DarkCourseColors.size, DarkCourseColors.distinct().size)
+        assertTrue("课程色数量不足", CourseColors.size >= 20)
+    }
+
+    @Test
+    fun customColorIsAdaptedForBothAppearances() {
+        val veryLight = 0xFFFFF4D6.toInt()
+        val veryDark = 0xFF091412.toInt()
+        assertTrue(resolveCustomCourseColor(veryLight, dark = true).luminance() < Color(veryLight).luminance())
+        assertTrue(resolveCustomCourseColor(veryDark, dark = false).luminance() > Color(veryDark).luminance())
     }
 
     @Test

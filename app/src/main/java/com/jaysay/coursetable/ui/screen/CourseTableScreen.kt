@@ -357,7 +357,13 @@ fun CourseTableScreen(
             onTableMenuClick = onTableMenuClick,
             onAddCourseClick = onAddCourseClick,
             onImportClick = onImportClick,
-            onLocateToday = onLocateToday,
+            onLocateToday = {
+                // 月视图有独立的月份锚点；定位今天时同步月份，否则只回写周次不会改变月页。
+                if (viewMode == ScheduleViewMode.MONTH) {
+                    monthAnchorEpoch = today.withDayOfMonth(1).toEpochDay()
+                }
+                onLocateToday()
+            },
             onAgendaClick = onAgendaClick,
             onSettingsClick = onSettingsClick,
             writesEnabled = readOnlyMessage == null
@@ -642,31 +648,25 @@ fun CourseTableScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f).testTag("month-swipe-area")
             ) { page ->
                 val pageMonthStart = monthOf(page)
-                val monthScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
-                Column(
-                    modifier = Modifier.fillMaxSize()
-                        .verticalScroll(monthScrollState)
-                        .testTag("month-grid")
-                ) {
-                    MonthGrid(
-                        courses = displayedCourses,
-                        monthStart = pageMonthStart,
-                        totalWeeks = totalWeeks,
-                        semesterStart = semesterStart,
-                        excludedWeekSet = excludedWeekSet,
-                        dateExceptions = dateExceptions,
-                        weekLabels = weekLabels,
-                        dark = dark,
-                        onDayClick = { semesterWeek, dayOfWeek ->
-                            // 点击某天：跳到该天所在周并切到单日视图；记住来源月供返回使用。
-                            dayOpenedFromMonth = true
-                            monthAnchorEpoch = pageMonthStart.toEpochDay()
-                            onWeekChange(semesterWeek)
-                            onFocusedDayChange(dayOfWeek)
-                            onViewModeChange(ScheduleViewMode.DAY)
-                        }
-                    )
-                }
+                MonthGrid(
+                    modifier = Modifier.fillMaxSize().testTag("month-grid"),
+                    courses = displayedCourses,
+                    monthStart = pageMonthStart,
+                    totalWeeks = totalWeeks,
+                    semesterStart = semesterStart,
+                    excludedWeekSet = excludedWeekSet,
+                    dateExceptions = dateExceptions,
+                    weekLabels = weekLabels,
+                    dark = dark,
+                    onDayClick = { semesterWeek, dayOfWeek ->
+                        // 点击某天：跳到该天所在周并切到单日视图；记住来源月供返回使用。
+                        dayOpenedFromMonth = true
+                        monthAnchorEpoch = pageMonthStart.toEpochDay()
+                        onWeekChange(semesterWeek)
+                        onFocusedDayChange(dayOfWeek)
+                        onViewModeChange(ScheduleViewMode.DAY)
+                    }
+                )
             }
         } else if (viewMode == ScheduleViewMode.DAY) {
             // 日视图：左右滑动按天翻页，一周滑完自动切到下一周。
@@ -843,7 +843,7 @@ private fun DayPagerSection(
         val dayCourses = remember(displayedCourses, page, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
             ScheduleDateResolver.coursesOn(
                 displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
-            ).map { it.course }
+            ).map { it.course.copy(dayOfWeek = date.dayOfWeek.value) }
         }
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(remember { ScrollState(0) }).testTag("day-scroll")

@@ -1,20 +1,30 @@
 package com.jaysay.coursetable.ui.screen
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.ScheduleDateException
+import com.jaysay.coursetable.data.model.ScheduleExceptionType
 import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.ThemeMode
 import com.jaysay.coursetable.ui.theme.JaySayTheme
+import com.jaysay.coursetable.util.ChineseCalendarUtils
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
 
 /** 月视图核心交互：点击学期内的日期格跳到该天（对应周 + 星期 + 单日视图）。 */
 @RunWith(AndroidJUnit4::class)
@@ -102,6 +112,74 @@ class MonthGridNavigationTest {
         instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         composeRule.waitForIdle()
         assertEquals(ScheduleViewMode.MONTH, modes.last())
+    }
+
+    @Test
+    fun monthShowsCalendarContextAndRemovesLegacyLegend() {
+        val nationalDay = LocalDate.of(2030, 10, 1)
+        val lunarText = ChineseCalendarUtils.label(nationalDay).lunar
+        composeRule.setContent {
+            JaySayTheme(themeMode = ThemeMode.LIGHT) {
+                CourseTableScreen(
+                    courses = listOf(sampleCourse("高等数学", dayOfWeek = 2, startPeriod = 1, endPeriod = 2)),
+                    currentWeek = 1,
+                    onImportClick = {},
+                    onCourseClick = {},
+                    onWeekChange = {},
+                    semesterStart = "2030-09-30",
+                    totalWeeks = 20,
+                    dateExceptions = listOf(
+                        ScheduleDateException(
+                            date = "2030-10-02",
+                            type = ScheduleExceptionType.DAY_OFF,
+                            title = "校庆停课"
+                        )
+                    ),
+                    viewMode = ScheduleViewMode.MONTH,
+                    onViewModeChange = {},
+                    focusedDay = 1,
+                    onFocusedDayChange = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        assertTrue(composeRule.onAllNodesWithText("国庆节").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText(lunarText).fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("校庆停课").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithText("点击日期查看详情").assertDoesNotExist()
+        composeRule.onNode(hasContentDescription("2030-10-06", substring = true)).assertIsDisplayed()
+    }
+
+    @Test
+    fun locateTodayMovesMonthPagerBackToCurrentMonth() {
+        val today = LocalDate.now()
+        val semesterStart = com.jaysay.coursetable.util.TimeUtils.weekStart(today).minusWeeks(19)
+        composeRule.setContent {
+            var week by remember { mutableIntStateOf(30) }
+            JaySayTheme(themeMode = ThemeMode.LIGHT) {
+                CourseTableScreen(
+                    courses = listOf(sampleCourse("高等数学", dayOfWeek = 2, startPeriod = 1, endPeriod = 2)),
+                    currentWeek = week,
+                    onImportClick = {},
+                    onCourseClick = {},
+                    onWeekChange = { week = it },
+                    onLocateToday = { week = 20 },
+                    semesterStart = semesterStart.toString(),
+                    totalWeeks = 32,
+                    viewMode = ScheduleViewMode.MONTH,
+                    onViewModeChange = {},
+                    focusedDay = 1,
+                    onFocusedDayChange = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("more-actions-button").performClick()
+        composeRule.onNodeWithText("定位到今天").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("${today.year} 年 ${today.monthValue} 月").assertIsDisplayed()
     }
 
     private fun sampleCourse(
