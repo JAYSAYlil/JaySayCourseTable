@@ -672,12 +672,16 @@ fun CourseTableScreen(
             }
             val monthHapticView = LocalView.current
             var skipInitialMonthHaptic by remember { mutableStateOf(true) }
+            // collect 协程捕获的 monthAnchorEpoch 是首次组合的旧值；滑动落定后外部
+            // 状态已是最新，若与旧值比较会误判并回滚月份锚点。rememberUpdatedState
+            // 保证协程内永远读到最新值（与日视图翻页器同一修复模式）。
+            val currentMonthAnchor by androidx.compose.runtime.rememberUpdatedState(monthAnchorEpoch)
             LaunchedEffect(monthPagerState) {
                 snapshotFlow { monthPagerState.settledPage }
                     .distinctUntilChanged()
                     .collect { page ->
                         val epoch = monthOf(page).toEpochDay()
-                        if (epoch != monthAnchorEpoch) {
+                        if (epoch != currentMonthAnchor) {
                             monthAnchorEpoch = epoch
                         }
                         if (skipInitialMonthHaptic) {
