@@ -1,7 +1,9 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$ExpectedVersionName = "2.18.2",
-    [int]$ExpectedVersionCode = 104,
+    # 期望版本默认从 app/build.gradle.kts 自取，避免脚本落后于实际版本；
+    # 仍可显式传参覆盖（例如校验历史版本时）。
+    [string]$ExpectedVersionName,
+    [int]$ExpectedVersionCode,
     [switch]$AllowDirty
 )
 
@@ -15,6 +17,17 @@ try {
     }
 
     $gradle = Get-Content -Raw -Encoding UTF8 -LiteralPath "app/build.gradle.kts"
+    if (-not $ExpectedVersionName) {
+        $nameMatch = [regex]::Match($gradle, 'versionName\s*=\s*"([^"]+)"')
+        Assert-Check $nameMatch.Success "已从 build.gradle.kts 读取 versionName"
+        $ExpectedVersionName = $nameMatch.Groups[1].Value
+    }
+    if (-not $ExpectedVersionCode) {
+        $codeMatch = [regex]::Match($gradle, 'versionCode\s*=\s*(\d+)')
+        Assert-Check $codeMatch.Success "已从 build.gradle.kts 读取 versionCode"
+        $ExpectedVersionCode = [int]$codeMatch.Groups[1].Value
+    }
+
     Assert-Check ($gradle -match "versionName\s*=\s*`"$([regex]::Escape($ExpectedVersionName))`"") "versionName 为 $ExpectedVersionName"
     Assert-Check ($gradle -match "versionCode\s*=\s*$ExpectedVersionCode\b") "versionCode 为 $ExpectedVersionCode"
 
@@ -29,17 +42,24 @@ try {
 
     $readme = Get-Content -Raw -Encoding UTF8 -LiteralPath "README.md"
     $maintenance = Get-Content -Raw -Encoding UTF8 -LiteralPath "docs/MAINTENANCE.md"
-    $readmeVersionMarker = ('`{0}`（versionCode {1}）' -f $ExpectedVersionName, $ExpectedVersionCode)
-    $maintenanceVersionMarker = "当前候选版本：$ExpectedVersionName，versionCode $ExpectedVersionCode"
+    $devStatus = Get-Content -Raw -Encoding UTF8 -LiteralPath "docs/DEVELOPMENT_STATUS.md"
+    $changelogHead = (Get-Content -Encoding UTF8 -LiteralPath "CHANGELOG.md" -TotalCount 60) -join "`n"
+    # 与 CI（android-ci.yml Docs version sync check）同口径，四处缺一不可。
+    $readmeVersionMarker = ('当前版本：`{0}`（versionCode {1}）' -f $ExpectedVersionName, $ExpectedVersionCode)
+    $maintenanceVersionMarker = "当前版本：$ExpectedVersionName，versionCode $ExpectedVersionCode"
+    $devStatusVersionMarker = "当前版本：$ExpectedVersionName / versionCode $ExpectedVersionCode"
     Assert-Check ($readme.Contains($readmeVersionMarker)) "README 版本与构建配置一致"
     Assert-Check ($maintenance.Contains($maintenanceVersionMarker)) "维护文档版本与构建配置一致"
+    Assert-Check ($devStatus.Contains($devStatusVersionMarker)) "开发状态文档版本与构建配置一致"
+    Assert-Check ($changelogHead -match "## v$([regex]::Escape($ExpectedVersionName))") "CHANGELOG 顶部存在当前版本条目"
     Assert-Check ($readme.Contains("Android SDK $compileSdk")) "README Android SDK 与 compileSdk 一致"
     Assert-Check ($readme.Contains("Gradle $gradleVersion")) "README Gradle 版本与 Wrapper 一致"
     Assert-Check (Test-Path -LiteralPath "scripts/build.ps1") "JDK 17 构建预检脚本存在"
 
     $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath "app/src/main/AndroidManifest.xml"
     Assert-Check ($manifest -match 'android:allowBackup="false"') "系统自动备份已关闭"
-    Assert-Check ($manifest -notmatch 'android\.permission\.INTERNET') "Manifest 未声明 INTERNET 权限"
+    # v3.1.0 起应用包含"手动检查更新"，需要 INTERNET 权限；缺失会导致检查更新静默失败。
+    Assert-Check ($manifest -match 'android\.permission\.INTERNET') "Manifest 声明 INTERNET 权限（检查更新所需）"
     Assert-Check (Test-Path -LiteralPath "app/src/main/res/xml/backup_rules.xml") "旧版系统备份排除规则存在"
     Assert-Check (Test-Path -LiteralPath "app/src/main/res/xml/data_extraction_rules.xml") "Android 12+ 数据提取规则存在"
 
