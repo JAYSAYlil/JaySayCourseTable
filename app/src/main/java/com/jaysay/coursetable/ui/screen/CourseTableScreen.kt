@@ -862,10 +862,14 @@ private fun DayPagerSection(
     }
 
     val hapticView = LocalView.current
+    // 关键：collect 协程捕获的 displayedDateEpoch 是首次组合的旧值。若用它比较，
+    // 滑回曾经到过的日期会被误判为"未变化"而不回写，随后外部状态又把页面拽回去，
+    // 表现为"部分日期滑不到/卡死"。rememberUpdatedState 保证协程内永远读到最新值。
+    val currentDisplayedEpoch by androidx.compose.runtime.rememberUpdatedState(displayedDateEpoch)
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val date = dateOf(page)
-            if (date.toEpochDay() != displayedDateEpoch) {
+            if (date.toEpochDay() != currentDisplayedEpoch) {
                 onDisplayedDateChange(date.toEpochDay())
                 val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
                 if (week != null) {
