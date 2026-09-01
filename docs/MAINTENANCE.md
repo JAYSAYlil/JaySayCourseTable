@@ -5,7 +5,7 @@
 - Android 应用模块：`app/`
 - 包名与 applicationId：`com.jaysay.coursetable`
 - 最低/目标系统：Android 8.0（API 26）/ Android 15（API 35）
-- 当前版本：3.3.2，versionCode 121
+- 当前版本：3.4.11，versionCode 131
 - 构建栈：Gradle 9.1.0 / AGP 8.13.0 / Kotlin 2.2.0（内置 Compose 编译器）/ Compose BOM 2025.06.01
 - 应用仅在用户手动检查更新时访问 GitHub Releases；不包含常驻联网客户端，课程、备份、提醒和日历均在本机处理。
 - 全部 UI 用户可见文案位于 `res/values/strings.xml`；数据层错误消息保持纯 Kotlin 数据（不依赖 Context）。
