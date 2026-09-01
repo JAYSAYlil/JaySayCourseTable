@@ -1,10 +1,16 @@
 package com.jaysay.coursetable.ui.screen
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleViewMode
@@ -61,10 +67,19 @@ class DayViewDateNavigationTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("day-swipe-area").assertExists()
-        // 今天（2026-09-01，周二）在学期 2030-09-09 之前：初始应钳制到开学第一天。
-        // 回写验证：对齐效果会把周次/聚焦日写成开学日所在的（周, 星期）。
+        // 初始在周二；真正点击“定位到今天”后，今天位于学期前，必须钳制到开学日。
+        if (composeRule.onAllNodesWithContentDescription("定位到今天").fetchSemanticsNodes().isEmpty()) {
+            composeRule.onNodeWithContentDescription("更多操作").performClick()
+            composeRule.onNodeWithTag("locate-today-menu-item").performClick()
+        } else {
+            composeRule.onNodeWithContentDescription("定位到今天").performClick()
+        }
         composeRule.waitForIdle()
-        assertTrue("学期外初始应钳制到开学所在周", shownWeek == 1 || shownWeek == -1)
+        composeRule.onNodeWithTag("day-swipe-area").assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "2030-09-09")
+        )
+        assertEquals("定位后应回写开学所在周", 1, shownWeek)
+        assertEquals("定位后应回写开学日星期", 1, shownDay)
     }
 
     @Test
@@ -101,5 +116,51 @@ class DayViewDateNavigationTest {
         assertTrue("聚焦日应始终在 1..7 范围", days.all { it in 1..7 })
         assertTrue("滑动应回写周次", weeks.isNotEmpty())
         assertTrue("周次应始终在 1..totalWeeks 范围", weeks.all { it in 1..20 })
+    }
+
+    @Test
+    fun eachDaySwipeSettlesOnExactlyTheAdjacentDate() {
+        val semesterStart = LocalDate.of(2030, 2, 4)
+        composeRule.setContent {
+            JaySayTheme(themeMode = ThemeMode.LIGHT) {
+                CourseTableScreen(
+                    courses = listOf(sampleCourse("高等数学", 1)),
+                    currentWeek = 1,
+                    onImportClick = {},
+                    onCourseClick = {},
+                    onWeekChange = {},
+                    semesterStart = semesterStart.toString(),
+                    totalWeeks = 20,
+                    viewMode = ScheduleViewMode.DAY,
+                    onViewModeChange = {},
+                    focusedDay = 1,
+                    onFocusedDayChange = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        fun assertSettledDate(expected: LocalDate) {
+            composeRule.onNodeWithTag("day-swipe-area").assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    expected.toString()
+                )
+            )
+        }
+
+        // 这是对“快速甩动不能跳过中间日期”的稳定回归断言：每次落定都必须
+        // 恰好移动一天，不能一次跨越两页或被外部状态拉回。
+        assertSettledDate(semesterStart)
+        repeat(3) { offset ->
+            composeRule.onNodeWithTag("day-swipe-area").performTouchInput { swipeLeft() }
+            composeRule.waitForIdle()
+            assertSettledDate(semesterStart.plusDays((offset + 1).toLong()))
+        }
+        repeat(3) { offset ->
+            composeRule.onNodeWithTag("day-swipe-area").performTouchInput { swipeRight() }
+            composeRule.waitForIdle()
+            assertSettledDate(semesterStart.plusDays((2 - offset).toLong()))
+        }
     }
 }

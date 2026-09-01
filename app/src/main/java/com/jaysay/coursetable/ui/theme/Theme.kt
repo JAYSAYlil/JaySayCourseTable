@@ -22,6 +22,16 @@ private val LightColors = lightColorScheme(
     tertiary = Tertiary, onTertiary = Color.White,
     tertiaryContainer = TertiaryLight, onTertiaryContainer = TertiaryDark,
     surface = Surface, onSurface = OnSurface,
+    // Material 3 未显式指定时会回退到默认紫粉色调；所有页面、菜单、弹层的
+    // 浅色基底在这里统一为纯白，层级由描边、阴影和显式 surfaceVariant 表达。
+    surfaceBright = Surface,
+    surfaceDim = Surface,
+    surfaceContainerLowest = Surface,
+    surfaceContainerLow = Surface,
+    surfaceContainer = Surface,
+    surfaceContainerHigh = Surface,
+    surfaceContainerHighest = Surface,
+    surfaceTint = Primary,
     surfaceVariant = Color(0xFFECF0EF), onSurfaceVariant = OnSurfaceVariant,
     background = Background, onBackground = OnSurface,
     outline = Color(0xFF7C8280), outlineVariant = Color(0xFFD8DEDC),

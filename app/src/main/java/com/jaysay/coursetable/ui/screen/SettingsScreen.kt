@@ -17,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,10 +38,11 @@ import com.jaysay.coursetable.data.reminder.ReminderCalculator
 import com.jaysay.coursetable.data.reminder.ReminderPolicy
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.AppDatePickerSheet
+import com.jaysay.coursetable.ui.components.AppTimePickerSheet
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
-import java.util.*
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -127,7 +127,7 @@ fun SettingsScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 24.dp),
+                .padding(top = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             readOnlyMessage?.let { message ->
@@ -588,13 +588,6 @@ fun SettingsScreen(
                 SettingsItem(
                     keywords = listOf(stringResource(R.string.settings_semester_start_date))
                 ) {
-                    val startMillis = remember(table.semesterStart) {
-                        val p = table.semesterStart.split("-")
-                        val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-                        cal.set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt(), 12, 0, 0)
-                        cal.set(Calendar.MILLISECOND, 0)
-                        cal.timeInMillis
-                    }
                     var showDatePicker by remember { mutableStateOf(false) }
                     val dateRowInteraction = remember { MutableInteractionSource() }
                     Row(
@@ -616,34 +609,19 @@ fun SettingsScreen(
                         }
                         Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
                     }
-                    // 状态放在 if 外面避免重建导致卡顿
-                    val dateState = rememberDatePickerState()
-                    LaunchedEffect(startMillis) { dateState.selectedDateMillis = startMillis }
                     if (showDatePicker) {
-                        DatePickerDialog(
-                            onDismissRequest = { showDatePicker = false },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    val millis = dateState.selectedDateMillis
-                                    if (millis != null) {
-                                        val picked = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-                                        picked.timeInMillis = millis
-                                        val dow = picked.get(Calendar.DAY_OF_WEEK)
-                                        val daysBack = if (dow == Calendar.SUNDAY) 6 else dow - Calendar.MONDAY
-                                        picked.add(Calendar.DAY_OF_YEAR, -daysBack)
-                                        val monday = "%04d-%02d-%02d".format(
-                                            picked.get(Calendar.YEAR), picked.get(Calendar.MONTH)+1, picked.get(Calendar.DAY_OF_MONTH))
-                                        saveTable(table.copy(semesterStart = monday))
-                                    }
-                                    showDatePicker = false
-                                }) { Text(stringResource(R.string.settings_confirm)) }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.settings_cancel)) }
+                        AppDatePickerSheet(
+                            initialDate = LocalDate.parse(table.semesterStart),
+                            title = stringResource(R.string.settings_semester_start_date),
+                            confirmLabel = stringResource(R.string.settings_confirm),
+                            cancelLabel = stringResource(R.string.settings_cancel),
+                            onDismiss = { showDatePicker = false },
+                            onConfirm = { picked ->
+                                val monday = picked.minusDays((picked.dayOfWeek.value - 1).toLong())
+                                saveTable(table.copy(semesterStart = monday.toString()))
+                                showDatePicker = false
                             }
-                        ) {
-                            DatePicker(state = dateState)
-                        }
+                        )
                     }
                 },
                 SettingsItem(
@@ -783,28 +761,38 @@ fun SettingsScreen(
 
                         // 弹窗用LaunchedEffect防重复弹出
                         if (showStartPicker) {
-                            var pickH by remember { mutableIntStateOf(startH) }
-                            var pickM by remember { mutableIntStateOf(startM) }
-                            TimePickerDialog(onDismiss = { showStartPicker = false }, onConfirm = {
-                                val newTime = "%02d:%02d".format(pickH, pickM)
-                                val np = table.periods.toMutableList()
-                                np[idx] = PeriodTime(newTime, period.end)
-                                saveTable(table.copy(periods = np))
-                                showStartPicker = false
-                            }, initialHour = startH, initialMinute = startM,
-                                onTimeChange = { h, m -> pickH = h; pickM = m })
+                            AppTimePickerSheet(
+                                onDismiss = { showStartPicker = false },
+                                onConfirm = { hour, minute ->
+                                    val newTime = "%02d:%02d".format(hour, minute)
+                                    val np = table.periods.toMutableList()
+                                    np[idx] = PeriodTime(newTime, period.end)
+                                    saveTable(table.copy(periods = np))
+                                    showStartPicker = false
+                                },
+                                initialHour = startH,
+                                initialMinute = startM,
+                                title = stringResource(R.string.settings_time_picker_title),
+                                confirmLabel = stringResource(R.string.settings_confirm),
+                                cancelLabel = stringResource(R.string.settings_cancel)
+                            )
                         }
                         if (showEndPicker) {
-                            var pickH by remember { mutableIntStateOf(endH) }
-                            var pickM by remember { mutableIntStateOf(endM) }
-                            TimePickerDialog(onDismiss = { showEndPicker = false }, onConfirm = {
-                                val newTime = "%02d:%02d".format(pickH, pickM)
-                                val np = table.periods.toMutableList()
-                                np[idx] = PeriodTime(period.start, newTime)
-                                saveTable(table.copy(periods = np))
-                                showEndPicker = false
-                            }, initialHour = endH, initialMinute = endM,
-                                onTimeChange = { h, m -> pickH = h; pickM = m })
+                            AppTimePickerSheet(
+                                onDismiss = { showEndPicker = false },
+                                onConfirm = { hour, minute ->
+                                    val newTime = "%02d:%02d".format(hour, minute)
+                                    val np = table.periods.toMutableList()
+                                    np[idx] = PeriodTime(period.start, newTime)
+                                    saveTable(table.copy(periods = np))
+                                    showEndPicker = false
+                                },
+                                initialHour = endH,
+                                initialMinute = endM,
+                                title = stringResource(R.string.settings_time_picker_title),
+                                confirmLabel = stringResource(R.string.settings_confirm),
+                                cancelLabel = stringResource(R.string.settings_cancel)
+                            )
                         }
                         } // end key(idx)
                     }
@@ -1211,22 +1199,4 @@ private fun SettingsSearchEmptyState(onClear: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = onClear) { Text(stringResource(R.string.settings_search_clear)) }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TimePickerDialog(
-    onDismiss: () -> Unit, onConfirm: () -> Unit,
-    initialHour: Int, initialMinute: Int,
-    onTimeChange: (Int, Int) -> Unit
-) {
-    val state = rememberTimePickerState(initialHour = initialHour, initialMinute = initialMinute, is24Hour = true)
-    LaunchedEffect(state.hour, state.minute) { onTimeChange(state.hour, state.minute) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_time_picker_title)) },
-        text = { TimePicker(state = state) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.settings_confirm)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) } }
-    )
 }

@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -109,6 +110,7 @@ import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 
 
@@ -235,18 +237,38 @@ fun CourseTableScreen(
     // 日视图来源：从月视图点日期进入时，系统返回手势应切回月视图（回到原月份）；
     // 从视图菜单或表头点击进入日视图时，返回行为保持原样。
     var dayOpenedFromMonth by rememberSaveable { mutableStateOf(false) }
-    // 日视图单一事实来源：当前显示的日期（epoch day）。
-    // 初始 = 钳制进学期范围的今天（今天在学期外时落在最近的学期边界，
-    // 而不是从（周数, 星期数）错误重建出的日期）。所有跳转源都直接改这个日期，
-    // 星期条/日期表头/周胶囊全部从它派生——不存在多套并行状态。
-    var dayViewDateEpoch by rememberSaveable {
-        val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
-        val end = start?.plusDays((totalWeeks.coerceAtLeast(1) * 7L) - 1L)
-        val t = LocalDate.now()
-        androidx.compose.runtime.mutableLongStateOf(
-            (if (start != null && end != null) t.coerceIn(start, end) else t).toEpochDay()
+    // 日视图重新实现：Pager 页码是日期唯一真源。顶部、星期条、课程内容直接读取
+    // 同一个 controller；定位/日期点击只是命令，不再额外保存预览与落定两套日期。
+    val dayController = rememberDayViewController(
+        semesterStart = semesterStart,
+        totalWeeks = totalWeeks,
+        currentWeek = currentWeek,
+        focusedDay = focusedDay
+    )
+    dayController?.let { controller ->
+        DayViewControllerEffects(
+            controller = controller,
+            semesterStart = semesterStart,
+            totalWeeks = totalWeeks,
+            onWeekChange = onWeekChange,
+            onFocusedDayChange = onFocusedDayChange
         )
     }
+    val fallbackDayDate = remember(semesterStart, totalWeeks, currentWeek, focusedDay) {
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+        start?.plusDays(((currentWeek.coerceAtLeast(1) - 1) * 7L) + focusedDay.coerceIn(1, 7) - 1L)
+            ?: LocalDate.now()
+    }
+    val dayPreviewDate = dayController?.displayDate ?: fallbackDayDate
+    fun requestDayDate(date: LocalDate) {
+        dayController?.navigateTo(date)
+    }
+    val displayedWeek = if (viewMode == ScheduleViewMode.DAY) {
+        TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, dayPreviewDate) ?: currentWeek
+    } else {
+        currentWeek
+    }
+        ?: currentWeek
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
     var viewMenuExpanded by remember { mutableStateOf(false) }
@@ -274,20 +296,21 @@ fun CourseTableScreen(
     }
     // Header counts must use the same date resolver as the rendered grid so that
     // cancellations, suspended weeks and makeup classes stay in sync in every view.
+    val calendarWeek = if (viewMode == ScheduleViewMode.DAY) displayedWeek else currentWeek
     val weekCourses = remember(
-        displayedCourses, currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions
+        displayedCourses, calendarWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions
     ) {
         val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
         if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
-            val date = start.plusDays((currentWeek - 1L) * 7L + dayOffset)
+            val date = start.plusDays((calendarWeek - 1L) * 7L + dayOffset)
             ScheduleDateResolver.coursesOn(
                 displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
             ).map { it.course }
         }
     }
-    val weekStatus = remember(currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels) {
+    val weekStatus = remember(calendarWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels) {
         AcademicCalendarStatusResolver.week(
-            currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+            calendarWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
         )
     }
     val dayStatuses = remember(currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels) {
@@ -339,9 +362,7 @@ fun CourseTableScreen(
     if (viewMode == ScheduleViewMode.DAY && dayOpenedFromMonth) {
         BackHandler {
             // 返回到当前显示日期所在月份的月视图。
-            val shown = TimeUtils.semesterWeekStartOrNull(semesterStart)
-                ?.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (focusedDay - 1).coerceAtLeast(0))
-            if (shown != null) monthAnchorEpoch = shown.withDayOfMonth(1).toEpochDay()
+            monthAnchorEpoch = dayPreviewDate.withDayOfMonth(1).toEpochDay()
             onViewModeChange(ScheduleViewMode.MONTH)
         }
     }
@@ -386,9 +407,8 @@ fun CourseTableScreen(
                     monthAnchorEpoch = today.withDayOfMonth(1).toEpochDay()
                 }
                 if (viewMode == ScheduleViewMode.DAY) {
-                    val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
-                    val end = start?.plusDays((totalWeeks.coerceAtLeast(1) * 7L) - 1L)
-                    dayViewDateEpoch = (if (start != null && end != null) today.coerceIn(start, end) else today).toEpochDay()
+                    // Controller 自己负责学期边界钳制；新的定位命令会立即打断旧手势/动画。
+                    requestDayDate(today)
                 }
                 onLocateToday()
             },
@@ -421,11 +441,17 @@ fun CourseTableScreen(
                             onClick = {
                                 if (viewMode == ScheduleViewMode.MONTH) {
                                     monthAnchorEpoch = monthAnchorDate.minusMonths(1).toEpochDay()
+                                } else if (viewMode == ScheduleViewMode.DAY) {
+                                    requestDayDate(dayPreviewDate.minusWeeks(1))
                                 } else {
                                     onWeekChange(currentWeek - 1)
                                 }
                             },
-                            enabled = if (viewMode == ScheduleViewMode.MONTH) monthAnchorIndex > 0 else currentWeek > 1,
+                            enabled = when (viewMode) {
+                                ScheduleViewMode.MONTH -> monthAnchorIndex > 0
+                                ScheduleViewMode.DAY -> displayedWeek > 1
+                                else -> currentWeek > 1
+                            },
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
@@ -433,7 +459,9 @@ fun CourseTableScreen(
                                 stringResource(if (viewMode == ScheduleViewMode.MONTH) R.string.month_prev_month else R.string.course_prev_week),
                                 tint = if (viewMode == ScheduleViewMode.MONTH) {
                                     if (monthAnchorIndex > 0) weekControlTint else weekDisabledTint
-                                } else if (currentWeek > 1) weekControlTint else weekDisabledTint,
+                                } else if ((if (viewMode == ScheduleViewMode.DAY) displayedWeek else currentWeek) > 1) {
+                                    weekControlTint
+                                } else weekDisabledTint,
                                 modifier = Modifier.size(27.dp)
                             )
                         }
@@ -463,7 +491,7 @@ fun CourseTableScreen(
                                 )
                             } else {
                                 Text(
-                                    text = stringResource(R.string.course_week_number, currentWeek),
+                                    text = stringResource(R.string.course_week_number, displayedWeek),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -485,11 +513,13 @@ fun CourseTableScreen(
                                         weekStatus.dateAdjustmentCount
                                     )
                                     else -> stringResource(R.string.course_week_course_count, weekCourses.size) +
-                                        if (isTodayWeek) stringResource(R.string.course_week_today_suffix) else ""
-                                },
+                                        if ((if (viewMode == ScheduleViewMode.DAY) displayedWeek else currentWeek) == todayWeek) {
+                                            stringResource(R.string.course_week_today_suffix)
+                                        } else ""
+                                    },
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 10.sp,
-                                color = if (isTodayWeek) MaterialTheme.colorScheme.primary
+                                color = if ((if (viewMode == ScheduleViewMode.DAY) displayedWeek else currentWeek) == todayWeek) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1
                             )
@@ -498,11 +528,17 @@ fun CourseTableScreen(
                             onClick = {
                                 if (viewMode == ScheduleViewMode.MONTH) {
                                     monthAnchorEpoch = monthAnchorDate.plusMonths(1).toEpochDay()
+                                } else if (viewMode == ScheduleViewMode.DAY) {
+                                    requestDayDate(dayPreviewDate.plusWeeks(1))
                                 } else {
                                     onWeekChange(currentWeek + 1)
                                 }
                             },
-                            enabled = if (viewMode == ScheduleViewMode.MONTH) monthAnchorIndex < monthCount - 1 else currentWeek < totalWeeks,
+                            enabled = when (viewMode) {
+                                ScheduleViewMode.MONTH -> monthAnchorIndex < monthCount - 1
+                                ScheduleViewMode.DAY -> displayedWeek < totalWeeks
+                                else -> currentWeek < totalWeeks
+                            },
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
@@ -510,7 +546,9 @@ fun CourseTableScreen(
                                 stringResource(if (viewMode == ScheduleViewMode.MONTH) R.string.month_next_month else R.string.course_next_week),
                                 tint = if (viewMode == ScheduleViewMode.MONTH) {
                                     if (monthAnchorIndex < monthCount - 1) weekControlTint else weekDisabledTint
-                                } else if (currentWeek < totalWeeks) weekControlTint else weekDisabledTint,
+                                } else if ((if (viewMode == ScheduleViewMode.DAY) displayedWeek else currentWeek) < totalWeeks) {
+                                    weekControlTint
+                                } else weekDisabledTint,
                                 modifier = Modifier.size(27.dp)
                             )
                         }
@@ -545,7 +583,18 @@ fun CourseTableScreen(
                             )
                         }
                     }
-                    DropdownMenu(expanded = viewMenuExpanded, onDismissRequest = { viewMenuExpanded = false }) {
+                    DropdownMenu(
+                        expanded = viewMenuExpanded,
+                        onDismissRequest = { viewMenuExpanded = false },
+                        shape = AppShapes.medium,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 12.dp,
+                        border = BorderStroke(
+                            0.75.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
+                        )
+                    ) {
                         ScheduleViewMode.entries.forEach { mode ->
                             DropdownMenuItem(
                                 modifier = Modifier.testTag("view-mode-${mode.name.lowercase()}"),
@@ -566,6 +615,16 @@ fun CourseTableScreen(
                                 onClick = {
                                     val modeChanged = mode != viewMode
                                     dayOpenedFromMonth = false
+                                    if (mode == ScheduleViewMode.DAY) {
+                                        val target = if (isTodayWeek && todayDow in 1..7) {
+                                            today
+                                        } else {
+                                            val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+                                            start?.plusDays((currentWeek - 1L) * 7L + focusedDay.coerceIn(1, 7) - 1L)
+                                                ?: dayPreviewDate
+                                        }
+                                        requestDayDate(target)
+                                    }
                                     onViewModeChange(mode)
                                     if (mode == ScheduleViewMode.DAY && isTodayWeek && todayDow in 1..7) {
                                         onFocusedDayChange(todayDow)
@@ -583,7 +642,7 @@ fun CourseTableScreen(
 
             if (viewMode != ScheduleViewMode.MONTH) {
                 val animatedWeekProgress by animateFloatAsState(
-                    targetValue = currentWeek.toFloat() / totalWeeks.coerceAtLeast(1),
+                    targetValue = displayedWeek.toFloat() / totalWeeks.coerceAtLeast(1),
                     animationSpec = Motion.interactive(),
                     label = "weekProgress"
                 )
@@ -610,7 +669,7 @@ fun CourseTableScreen(
             }
 
             if (viewMode == ScheduleViewMode.DAY) {
-                val chipDate = LocalDate.ofEpochDay(dayViewDateEpoch)
+                val chipDate = dayPreviewDate
                 val chipWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, chipDate)
                 DayChipRow(
                     focusedDay = chipDate.dayOfWeek.value,
@@ -619,7 +678,7 @@ fun CourseTableScreen(
                     onFocusedDayChange = { day ->
                         // 星期条是周内导航：跳到显示周的同星期数那一天。
                         val weekStart = chipDate.minusDays((chipDate.dayOfWeek.value - 1).toLong())
-                        dayViewDateEpoch = weekStart.plusDays((day - 1).toLong()).toEpochDay()
+                        requestDayDate(weekStart.plusDays((day - 1).toLong()))
                         onFocusedDayChange(day)
                     }
                 )
@@ -627,8 +686,17 @@ fun CourseTableScreen(
 
             // 月视图不展示课程表头（星期标题由月历自带），周导航胶囊与进度条仍然保留。
             if (viewMode != ScheduleViewMode.MONTH) {
-                val headerDate = LocalDate.ofEpochDay(dayViewDateEpoch)
+                val headerDate = if (viewMode == ScheduleViewMode.DAY) dayPreviewDate else fallbackDayDate
                 val headerWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, headerDate) ?: currentWeek
+                val headerDayStatuses = if (viewMode == ScheduleViewMode.DAY) {
+                    mapOf(
+                        headerDate.dayOfWeek.value to AcademicCalendarStatusResolver.day(
+                            headerDate, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, weekLabels
+                        )
+                    )
+                } else {
+                    dayStatuses
+                }
                 DayHeader(
                     visibleDays = if (viewMode == ScheduleViewMode.DAY) listOf(headerDate.dayOfWeek.value) else visibleDays,
                     timeWidth = timeWidth,
@@ -636,12 +704,16 @@ fun CourseTableScreen(
                     semesterStart = semesterStart,
                     isTodayWeek = if (viewMode == ScheduleViewMode.DAY) headerWeek == todayWeek && todayWeek > 0 else isTodayWeek,
                     todayDow = todayDow,
-                    dayStatuses = dayStatuses,
+                    dayStatuses = headerDayStatuses,
                     onDayClick = { day ->
                         dayOpenedFromMonth = false
                         if (viewMode == ScheduleViewMode.DAY) {
                             val weekStart = headerDate.minusDays((headerDate.dayOfWeek.value - 1).toLong())
-                            dayViewDateEpoch = weekStart.plusDays((day - 1).toLong()).toEpochDay()
+                            requestDayDate(weekStart.plusDays((day - 1).toLong()))
+                        } else {
+                            TimeUtils.semesterWeekStartOrNull(semesterStart)?.let { start ->
+                                requestDayDate(start.plusDays((currentWeek - 1L) * 7L + day - 1L))
+                            }
                         }
                         onFocusedDayChange(day)
                         onViewModeChange(ScheduleViewMode.DAY)
@@ -667,6 +739,10 @@ fun CourseTableScreen(
             // 用 currentPage 做目标判断，避免 settledPage 更新与重组之间重复启动动画。
             LaunchedEffect(monthAnchorEpoch, monthCount) {
                 if (monthAnchorEpoch == 0L) return@LaunchedEffect
+                // 外部跳转不能抢占用户正在进行的拖拽；若请求发生在拖拽期间，
+                // 等待 Pager 空闲后再处理最新目标，避免请求被静默丢弃。
+                snapshotFlow { monthPagerState.isScrollInProgress }
+                    .first { isScrolling -> !isScrolling }
                 val target = monthIndexOf(LocalDate.ofEpochDay(monthAnchorEpoch))
                     .coerceIn(0, monthCount - 1)
                 if (monthPagerState.currentPage != target && !monthPagerState.isScrollInProgress) {
@@ -696,6 +772,9 @@ fun CourseTableScreen(
             }
             val monthFling = PagerDefaults.flingBehavior(
                 state = monthPagerState,
+                // 月视图同样保持“一次手势一页”，避免快速甩动越过月份后
+                // 外部锚点回写与 Pager 产生竞态。
+                pagerSnapDistance = PagerSnapDistance.atMost(1),
                 snapAnimationSpec = spring(dampingRatio = 1f, stiffness = 300f),
                 decayAnimationSpec = exponentialDecay(frictionMultiplier = 12f)
             )
@@ -722,7 +801,7 @@ fun CourseTableScreen(
                         // 点击某天：跳到该天所在周并切到单日视图；记住来源月供返回使用。
                         dayOpenedFromMonth = true
                         monthAnchorEpoch = pageMonthStart.toEpochDay()
-                        dayViewDateEpoch = date.toEpochDay()
+                        requestDayDate(date)
                         onWeekChange(TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date) ?: 1)
                         onFocusedDayChange(date.dayOfWeek.value)
                         onViewModeChange(ScheduleViewMode.DAY)
@@ -731,28 +810,25 @@ fun CourseTableScreen(
             }
         } else if (viewMode == ScheduleViewMode.DAY) {
             // 日视图：左右滑动按天翻页，一周滑完自动切到下一周。
-            DayPagerSection(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                displayedCourses = displayedCourses,
-                colorMap = colorMap,
-                timeWidth = timeWidth,
-                cellHeight = cellHeight,
-                currentWeek = currentWeek,
-                focusedDay = focusedDay,
-                totalWeeks = totalWeeks,
-                onWeekChange = onWeekChange,
-                onFocusedDayChange = onFocusedDayChange,
-                onCourseClick = onCourseClick,
-                displayedDateEpoch = dayViewDateEpoch,
-                onDisplayedDateChange = { dayViewDateEpoch = it },
-                                onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
-                periodTimes = periodTimes,
-                dark = dark,
-                hasCustomBackground = customBackground != null,
-                semesterStart = semesterStart,
-                excludedWeekSet = excludedWeekSet,
-                dateExceptions = dateExceptions
-            )
+            dayController?.let { controller ->
+                DaySchedulePager(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    controller = controller,
+                    displayedCourses = displayedCourses,
+                    colorMap = colorMap,
+                    timeWidth = timeWidth,
+                    cellHeight = cellHeight,
+                    totalWeeks = totalWeeks,
+                    onCourseClick = onCourseClick,
+                    onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
+                    periodTimes = periodTimes,
+                    dark = dark,
+                    hasCustomBackground = customBackground != null,
+                    semesterStart = semesterStart,
+                    excludedWeekSet = excludedWeekSet,
+                    dateExceptions = dateExceptions
+                )
+            }
         } else {
             WeekPagerSection(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -784,157 +860,6 @@ fun CourseTableScreen(
     }
     }
 }
-
-/**
- * 日视图按天翻页：左右滑动切到前一天/后一天，一周滑完自然翻到下一周。
- * 页面域即学期日期范围（开学第一天到第 totalWeeks 周最后一天），
- * 学期外的“无内容日期”天然不可翻到。
- */
-@Composable
-private fun DayPagerSection(
-    modifier: Modifier,
-    displayedDateEpoch: Long,
-    onDisplayedDateChange: (Long) -> Unit,
-    displayedCourses: List<Course>,
-    colorMap: Map<String, Color>,
-    timeWidth: Dp,
-    cellHeight: Dp,
-    currentWeek: Int,
-    focusedDay: Int,
-    totalWeeks: Int,
-    onWeekChange: (Int) -> Unit,
-    onFocusedDayChange: (Int) -> Unit,
-    onCourseClick: (Course) -> Unit,
-    onEmptyCellClick: (Int, Int) -> Unit,
-    periodTimes: List<PeriodTime>,
-    dark: Boolean,
-    hasCustomBackground: Boolean,
-    semesterStart: String,
-    excludedWeekSet: Set<Int>,
-    dateExceptions: List<ScheduleDateException>
-) {
-    val today = LocalDate.now()
-    val semesterStartDate = TimeUtils.semesterWeekStartOrNull(semesterStart)
-    val totalDays = totalWeeks.coerceAtLeast(0) * 7
-    if (semesterStartDate == null || totalDays <= 0) {
-        // 学期日期无效：退化为单页网格，不可翻页。
-        val fallbackCourses = remember(displayedCourses, currentWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
-            val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
-            if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
-                val date = start.plusDays((currentWeek - 1L) * 7L + dayOffset)
-                ScheduleDateResolver.coursesOn(
-                    displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
-                ).filter { it.course.dayOfWeek == focusedDay }.map { it.course }
-            }
-        }
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).testTag("day-scroll")
-        ) {
-            TableGrid(
-                courses = fallbackCourses,
-                colorMap = colorMap,
-                visibleDays = listOf(focusedDay),
-                timeWidth = timeWidth,
-                cellHeight = cellHeight,
-                currentWeek = currentWeek,
-                onCourseClick = onCourseClick,
-                                onEmptyCellClick = onEmptyCellClick,
-                periodTimes = periodTimes,
-                dark = dark,
-                todayWeek = todayWeekOf(today, semesterStart, totalWeeks),
-                todayDow = today.dayOfWeek.value,
-                viewMode = ScheduleViewMode.DAY,
-                hasCustomBackground = hasCustomBackground
-            )
-        }
-        return
-    }
-
-    fun dateOf(page: Int): LocalDate = semesterStartDate.plusDays(page.toLong())
-    fun indexOf(date: LocalDate): Int =
-        java.time.temporal.ChronoUnit.DAYS.between(semesterStartDate, date).toInt()
-
-    // 单一事实来源就是外部的 displayedDateEpoch：
-    // - 滑动落定 → 回写 displayedDateEpoch（并同步周次/聚焦日给头部）；
-    // - 外部跳转（定位今天/星期条/月视图）→ 改 displayedDateEpoch → 此处滚动跟随。
-    // 单一状态、双向收敛，无并行通道，无中间态竞态。
-    val displayedDate = LocalDate.ofEpochDay(displayedDateEpoch)
-    val pagerState = rememberPagerState(
-        initialPage = indexOf(displayedDate).coerceIn(0, totalDays - 1)
-    ) { totalDays }
-
-    LaunchedEffect(displayedDateEpoch) {
-        val index = indexOf(LocalDate.ofEpochDay(displayedDateEpoch)).coerceIn(0, totalDays - 1)
-        if (pagerState.settledPage != index && !pagerState.isScrollInProgress) {
-            pagerState.animateScrollToPage(index)
-        }
-    }
-
-    val hapticView = LocalView.current
-    // 关键：collect 协程捕获的 displayedDateEpoch 是首次组合的旧值。若用它比较，
-    // 滑回曾经到过的日期会被误判为"未变化"而不回写，随后外部状态又把页面拽回去，
-    // 表现为"部分日期滑不到/卡死"。rememberUpdatedState 保证协程内永远读到最新值。
-    val currentDisplayedEpoch by androidx.compose.runtime.rememberUpdatedState(displayedDateEpoch)
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            val date = dateOf(page)
-            if (date.toEpochDay() != currentDisplayedEpoch) {
-                onDisplayedDateChange(date.toEpochDay())
-                val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
-                if (week != null) {
-                    onWeekChange(week)
-                    onFocusedDayChange(date.dayOfWeek.value)
-                }
-                hapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            }
-        }
-    }
-
-    val todayWeek = todayWeekOf(today, semesterStart, totalWeeks)
-    // 单日步进：高摩擦衰减把惯性甩动距离限制在一页以内——快速滑动也只翻一天，
-    // 不会"略过"中间日期（Apple 日历日视图的行为）。
-    val dayFling = PagerDefaults.flingBehavior(
-        state = pagerState,
-        snapAnimationSpec = spring(dampingRatio = 1f, stiffness = 380f),
-        decayAnimationSpec = exponentialDecay(frictionMultiplier = 12f)
-    )
-    HorizontalPager(
-        state = pagerState,
-        flingBehavior = dayFling,
-        modifier = modifier.testTag("day-swipe-area")
-    ) { page ->
-        val date = dateOf(page)
-        val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date) ?: 1
-        val dayCourses = remember(displayedCourses, page, semesterStart, totalWeeks, excludedWeekSet, dateExceptions) {
-            ScheduleDateResolver.coursesOn(
-                displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
-            ).map { it.course.copy(dayOfWeek = date.dayOfWeek.value) }
-        }
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).testTag("day-scroll")
-        ) {
-            TableGrid(
-                courses = dayCourses,
-                colorMap = colorMap,
-                visibleDays = listOf(date.dayOfWeek.value),
-                timeWidth = timeWidth,
-                cellHeight = cellHeight,
-                currentWeek = week,
-                onCourseClick = onCourseClick,
-                                onEmptyCellClick = onEmptyCellClick,
-                periodTimes = periodTimes,
-                dark = dark,
-                todayWeek = todayWeek,
-                todayDow = today.dayOfWeek.value,
-                viewMode = ScheduleViewMode.DAY,
-                hasCustomBackground = hasCustomBackground
-            )
-        }
-    }
-}
-
-private fun todayWeekOf(today: LocalDate, semesterStart: String, totalWeeks: Int): Int =
-    TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, today) ?: -1
 
 /**
  * 周次翻页：HorizontalPager 提供跟手滑动、边缘回弹与翻页联动；

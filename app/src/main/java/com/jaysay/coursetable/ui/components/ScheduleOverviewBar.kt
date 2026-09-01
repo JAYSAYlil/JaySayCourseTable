@@ -155,12 +155,21 @@ fun ScheduleOverviewBar(
                     }
                     DropdownMenu(
                         expanded = moreActionsVisible,
-                        onDismissRequest = { moreActionsVisible = false }
+                        onDismissRequest = { moreActionsVisible = false },
+                        shape = AppShapes.medium,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 12.dp,
+                        border = BorderStroke(
+                            0.75.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
+                        )
                     ) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_locate_today)) },
                             leadingIcon = { Icon(Icons.Rounded.MyLocation, null) },
-                            onClick = { moreActionsVisible = false; onLocateToday() }
+                            onClick = { moreActionsVisible = false; onLocateToday() },
+                            modifier = Modifier.testTag("locate-today-menu-item")
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_agenda_list)) },
@@ -178,7 +187,10 @@ fun ScheduleOverviewBar(
                 IconButton(onClick = onAgendaClick, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, stringResource(R.string.overview_agenda_list), tint = MaterialTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp)) {
+                IconButton(
+                    onClick = onLocateToday,
+                    modifier = Modifier.size(48.dp).testTag("locate-today-button")
+                ) {
                     Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
