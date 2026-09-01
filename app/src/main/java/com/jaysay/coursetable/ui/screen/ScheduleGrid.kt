@@ -501,14 +501,15 @@ private fun CourseCard(
         label = "courseCardBorder"
     )
     val backgroundAlpha = courseCardBackgroundAlpha(background, hasCustomBackground)
-    // 深色卡片使用更深的实色基底与顶部高光渐变，营造克制的毛玻璃质感；
+    // 深色卡片使用更深的实色基底与三段式渐变：顶部高光提到 +26%、中段回落基色、
+    // 底部压暗到 -22%，光源感比早期的 +14%/-10% 明显得多，仍不稀释色相本身；
     // 浅色则保留原有的平整嵌套卡片，不让两种外观沦为同一种设计。
     val cardFill = if (dark) {
         Brush.verticalGradient(
-            colors = listOf(
-                lerp(background, Color.White, 0.14f).copy(alpha = 0.98f),
-                background.copy(alpha = backgroundAlpha),
-                lerp(background, Color.Black, 0.10f).copy(alpha = backgroundAlpha)
+            colorStops = arrayOf(
+                0.00f to lerp(background, Color.White, 0.26f).copy(alpha = 0.98f),
+                0.45f to background.copy(alpha = backgroundAlpha),
+                1.00f to lerp(background, Color.Black, 0.22f).copy(alpha = backgroundAlpha)
             )
         )
     } else {

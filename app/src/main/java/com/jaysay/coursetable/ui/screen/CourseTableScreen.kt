@@ -11,6 +11,7 @@ import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -76,6 +77,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.luminance
@@ -111,6 +116,7 @@ import com.jaysay.coursetable.ui.theme.buildCourseColorMap
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlin.math.max
 import java.time.LocalDate
 
 
@@ -646,12 +652,10 @@ fun CourseTableScreen(
                     animationSpec = Motion.interactive(),
                     label = "weekProgress"
                 )
-                LinearProgressIndicator(
-                progress = { animatedWeekProgress },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(2.dp).clip(CircleShape),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = if (dark) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
-                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                // 周进度标尺：品牌双色渐变胶囊 + 当前周光点，替代 2dp 单色细条。
+                WeekProgressRuler(
+                    progress = animatedWeekProgress,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                 )
             }
 
@@ -1077,6 +1081,43 @@ private fun DayChipRow(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 周进度标尺：4dp 圆角轨道 + 品牌双色（primary → tertiary）渐变填充，
+ * 当前周位置带一枚柔光圆点，替代原先 2dp 单色细条；深浅色各自取材。
+ */
+@Composable
+private fun WeekProgressRuler(progress: Float, modifier: Modifier = Modifier) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.4f
+    val fillStart = MaterialTheme.colorScheme.primary
+    val fillEnd = MaterialTheme.colorScheme.tertiary
+    val trackColor = if (dark) Color.White.copy(alpha = 0.14f)
+    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    val clamped = progress.coerceIn(0f, 1f)
+    Canvas(modifier.height(16.dp)) {
+        val barHeight = 4.dp.toPx()
+        val barTop = size.height / 2f - barHeight / 2f
+        drawRoundRect(
+            color = trackColor,
+            topLeft = Offset(0f, barTop),
+            size = Size(size.width, barHeight),
+            cornerRadius = CornerRadius(barHeight / 2f)
+        )
+        if (clamped > 0f) {
+            val fillWidth = max(size.width * clamped, barHeight)
+            drawRoundRect(
+                brush = Brush.horizontalGradient(listOf(fillStart, fillEnd)),
+                topLeft = Offset(0f, barTop),
+                size = Size(fillWidth, barHeight),
+                cornerRadius = CornerRadius(barHeight / 2f)
+            )
+            val headX = (size.width * clamped).coerceIn(barHeight / 2f, size.width - barHeight / 2f)
+            val centerY = size.height / 2f
+            drawCircle(color = fillStart.copy(alpha = 0.20f), radius = 7.dp.toPx(), center = Offset(headX, centerY))
+            drawCircle(color = fillStart, radius = 3.dp.toPx(), center = Offset(headX, centerY))
         }
     }
 }
