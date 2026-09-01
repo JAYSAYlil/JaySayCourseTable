@@ -232,6 +232,10 @@ fun CourseTableScreen(
     // 日视图来源：从月视图点日期进入时，系统返回手势应切回月视图（回到原月份）；
     // 从视图菜单或表头点击进入日视图时，返回行为保持原样。
     var dayOpenedFromMonth by rememberSaveable { mutableStateOf(false) }
+    // 日视图跳转令牌（epoch day，0 = 无）：定位今天/点星期条/月视图点日期都发"目标日期"，
+    // 翻页器只认日期——杜绝用（周数, 星期数）两个异步更新的状态拼回日期的竞态
+    // （表现为"定位到今天"跳到了显示周的同星期数那一天）。
+    var dayJumpEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
     var viewMenuExpanded by remember { mutableStateOf(false) }
@@ -675,12 +679,13 @@ fun CourseTableScreen(
                     dateExceptions = dateExceptions,
                     weekLabels = weekLabels,
                     dark = dark,
-                    onDayClick = { semesterWeek, dayOfWeek ->
+                    onDayClick = { date ->
                         // 点击某天：跳到该天所在周并切到单日视图；记住来源月供返回使用。
                         dayOpenedFromMonth = true
                         monthAnchorEpoch = pageMonthStart.toEpochDay()
-                        onWeekChange(semesterWeek)
-                        onFocusedDayChange(dayOfWeek)
+                        dayJumpEpoch = date.toEpochDay()
+                        onWeekChange(TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date) ?: 1)
+                        onFocusedDayChange(date.dayOfWeek.value)
                         onViewModeChange(ScheduleViewMode.DAY)
                     }
                 )
@@ -699,6 +704,8 @@ fun CourseTableScreen(
                 onWeekChange = onWeekChange,
                 onFocusedDayChange = onFocusedDayChange,
                 onCourseClick = onCourseClick,
+                jumpTargetEpoch = dayJumpEpoch,
+                onJumpConsumed = { dayJumpEpoch = 0L },
                                 onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
                 periodTimes = periodTimes,
                 dark = dark,
@@ -747,6 +754,8 @@ fun CourseTableScreen(
 @Composable
 private fun DayPagerSection(
     modifier: Modifier,
+    jumpTargetEpoch: Long,
+    onJumpConsumed: () -> Unit,
     displayedCourses: List<Course>,
     colorMap: Map<String, Color>,
     timeWidth: Dp,

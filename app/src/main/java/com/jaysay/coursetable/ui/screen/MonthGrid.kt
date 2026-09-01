@@ -87,7 +87,7 @@ fun MonthGrid(
     dateExceptions: List<ScheduleDateException>,
     weekLabels: Map<Int, String>,
     dark: Boolean,
-    onDayClick: (semesterWeek: Int, dayOfWeek: Int) -> Unit
+    onDayClick: (date: java.time.LocalDate) -> Unit
 ) {
     val today = remember { LocalDate.now() }
     // 与周视图同源的课程配色映射（含自定义颜色），按课程名去重后一次解析。
@@ -203,7 +203,7 @@ private fun MonthDayCell(
     modifier: Modifier = Modifier,
     courseColors: Map<String, Color>,
     dark: Boolean,
-    onDayClick: (semesterWeek: Int, dayOfWeek: Int) -> Unit
+    onDayClick: (date: java.time.LocalDate) -> Unit
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val outline = MaterialTheme.colorScheme.outlineVariant
@@ -232,7 +232,7 @@ private fun MonthDayCell(
         Modifier
             .pressScale(cellInteraction, 0.94f)
             .clickable(interactionSource = cellInteraction, indication = null) {
-                onDayClick(week, cell.dayOfWeek)
+                onDayClick(cell.date)
             }
     } ?: Modifier
     val cellFill = when {
