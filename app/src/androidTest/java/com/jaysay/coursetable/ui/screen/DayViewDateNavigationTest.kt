@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -16,6 +17,7 @@ import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.ThemeMode
 import com.jaysay.coursetable.ui.theme.JaySayTheme
+import com.jaysay.coursetable.util.TimeUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -162,5 +164,49 @@ class DayViewDateNavigationTest {
             composeRule.waitForIdle()
             assertSettledDate(semesterStart.plusDays((2 - offset).toLong()))
         }
+    }
+
+    @Test
+    fun dayPagingPreservesScrollPosition() {
+        val semesterStart = LocalDate.of(2030, 2, 4)
+        composeRule.setContent {
+            JaySayTheme(themeMode = ThemeMode.LIGHT) {
+                CourseTableScreen(
+                    courses = listOf(sampleCourse("高等数学", 1)),
+                    currentWeek = 1,
+                    onImportClick = {},
+                    onCourseClick = {},
+                    onWeekChange = {},
+                    semesterStart = semesterStart.toString(),
+                    totalWeeks = 20,
+                    viewMode = ScheduleViewMode.DAY,
+                    onViewModeChange = {},
+                    focusedDay = 1,
+                    onFocusedDayChange = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        // 同一节次格在相邻日期页里布局位置相同，其屏幕纵坐标差就是滚动偏移。
+        // 默认节次共 12 节，取最底部的第 12 节，保证滚动后位置差足够大。
+        fun slotY(day: Int, period: Int): Float =
+            composeRule.onAllNodesWithContentDescription(
+                "${TimeUtils.getDayName(day)}第${period}节空白，点击添加课程"
+            ).fetchSemanticsNodes().first().positionInRoot.y
+
+        val beforeScroll = slotY(1, 12)
+        repeat(3) {
+            composeRule.onNodeWithTag("day-swipe-area").performTouchInput { swipeUp() }
+            composeRule.waitForIdle()
+        }
+        val afterScroll = slotY(1, 12)
+        assertTrue("纵向滚动应实际发生", afterScroll < beforeScroll - 200f)
+
+        // 翻到第二天：同一节次格必须停留在相同屏幕位置（滚动位置跨页保持，与周视图一致）。
+        composeRule.onNodeWithTag("day-swipe-area").performTouchInput { swipeLeft() }
+        composeRule.waitForIdle()
+        val tuesday = slotY(2, 12)
+        assertEquals("翻页后滚动位置应保持不变", afterScroll, tuesday, 8f)
     }
 }

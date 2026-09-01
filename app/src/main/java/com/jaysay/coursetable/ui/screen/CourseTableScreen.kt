@@ -229,31 +229,31 @@ fun CourseTableScreen(
     val excludedWeekSet = remember(excludedWeeks) { excludedWeeks.toSet() }
     var searchQuery by remember { mutableStateOf("") }
 
-    // 月视图锚点：epoch 天数，0 表示未初始化（进入月视图时按当前周所在月份重建）。
+    // 月视图锚点：epoch 天数，0 表示未初始化（首次进入月视图时按当前周所在月份重建）。
+    // 锚点由落定回写持续同步：切换视图、进出详情不再重置，月视图保持用户上次所在月份；
+    // 仅在学期起点/总周数真正变化（换表、改学期设置）时重建，避免跨表沿用失效月份。
+    // 用"上一次键值"比较而不是 LaunchedEffect：后者在屏幕重回组合时会重新执行，误清锚点。
     var monthAnchorEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
-    LaunchedEffect(viewMode) {
-        if (viewMode == ScheduleViewMode.MONTH) monthAnchorEpoch = 0L
+    val monthSemesterKey = semesterStart to totalWeeks
+    var lastMonthSemesterKey by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    if (lastMonthSemesterKey != null && lastMonthSemesterKey != monthSemesterKey) {
+        monthAnchorEpoch = 0L
     }
+    lastMonthSemesterKey = monthSemesterKey
     // 日视图来源：从月视图点日期进入时，系统返回手势应切回月视图（回到原月份）；
     // 从视图菜单或表头点击进入日视图时，返回行为保持原样。
     var dayOpenedFromMonth by rememberSaveable { mutableStateOf(false) }
     // 日视图重新实现：Pager 页码是日期唯一真源。顶部、星期条、课程内容直接读取
     // 同一个 controller；定位/日期点击只是命令，不再额外保存预览与落定两套日期。
+    // 注意：控制器本身常驻（保证切换视图后日视图位置不丢），但它的副作用
+    // 只在 DAY 分支内激活——周次/星期回写绝不能在周/月视图下运行，
+    // 否则屏幕重回组合（详情返回）时会把共享周次拉回日视图旧值造成乱跳。
     val dayController = rememberDayViewController(
         semesterStart = semesterStart,
         totalWeeks = totalWeeks,
         currentWeek = currentWeek,
         focusedDay = focusedDay
     )
-    dayController?.let { controller ->
-        DayViewControllerEffects(
-            controller = controller,
-            semesterStart = semesterStart,
-            totalWeeks = totalWeeks,
-            onWeekChange = onWeekChange,
-            onFocusedDayChange = onFocusedDayChange
-        )
-    }
     val fallbackDayDate = remember(semesterStart, totalWeeks, currentWeek, focusedDay) {
         val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
         start?.plusDays(((currentWeek.coerceAtLeast(1) - 1) * 7L) + focusedDay.coerceIn(1, 7) - 1L)
@@ -810,7 +810,15 @@ fun CourseTableScreen(
             }
         } else if (viewMode == ScheduleViewMode.DAY) {
             // 日视图：左右滑动按天翻页，一周滑完自动切到下一周。
+            // 周次/星期回写副作用只在日视图可见时激活（见 DayViewControllerEffects）。
             dayController?.let { controller ->
+                DayViewControllerEffects(
+                    controller = controller,
+                    semesterStart = semesterStart,
+                    totalWeeks = totalWeeks,
+                    onWeekChange = onWeekChange,
+                    onFocusedDayChange = onFocusedDayChange
+                )
                 DaySchedulePager(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     controller = controller,
@@ -896,18 +904,20 @@ private fun WeekPagerSection(
     val pagerState = rememberPagerState(
         initialPage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
     ) { totalWeeks.coerceAtLeast(1) }
-    var lastSettledWeekPage by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(pagerState.currentPage) }
 
     // 用户滑动结束后回写周次；外部（箭头/定位今天）改变周次时滚动到对应页。
     val weekHapticView = LocalView.current
     LaunchedEffect(pagerState) {
+        // 以效果启动时的落定页为基线：屏幕重回组合（课程详情返回、切视图）时的
+        // 初始快照不回写共享周次，避免外部同步效果再把 Pager 拽向旧周（乱跳根源）。
+        var lastSettledPage = pagerState.settledPage
         snapshotFlow { pagerState.settledPage }.collect { page ->
-            val pageChanged = page != lastSettledWeekPage
-            lastSettledWeekPage = page
-            if (page + 1 != currentWeekState) {
+            val pageChanged = page != lastSettledPage
+            lastSettledPage = page
+            if (pageChanged && page + 1 != currentWeekState) {
                 onWeekChangeState(page + 1)
+                weekHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             }
-            if (pageChanged) weekHapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
         }
     }
     LaunchedEffect(currentWeek, totalWeeks) {

@@ -8,11 +8,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -108,8 +110,65 @@ fun AppDatePickerSheet(
         ) { month ->
             CalendarMonthGrid(month, selectedDate) { selectedDate = it }
         }
+        YearQuickStrip(
+            initialYear = initialDate.year,
+            visibleYear = visibleMonth.year,
+            onSelectYear = { year ->
+                if (year != visibleMonth.year) {
+                    transitionDirection = if (year > visibleMonth.year) 1 else -1
+                    visibleMonth = YearMonth.of(year, visibleMonth.monthValue)
+                }
+            }
+        )
         PickerActions(confirmLabel, cancelLabel, onDismiss) { onConfirm(selectedDate) }
     }
+}
+
+/**
+ * 年份快速选择条：横向滚动点选年份，免去连续点"上/下个月"跨年。
+ * 范围以选择器打开时的年份为中心 ±20 年，并跟随可见月份自动居中。
+ */
+@Composable
+private fun YearQuickStrip(
+    initialYear: Int,
+    visibleYear: Int,
+    onSelectYear: (Int) -> Unit
+) {
+    val years = remember(initialYear) { ((initialYear - 20)..(initialYear + 20)).toList() }
+    val yearListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (visibleYear - years.first()).coerceIn(0, years.lastIndex)
+    )
+    LaunchedEffect(visibleYear) {
+        val index = (visibleYear - years.first()).coerceIn(0, years.lastIndex)
+        yearListState.animateScrollToItem((index - 2).coerceAtLeast(0))
+    }
+    LazyRow(
+        state = yearListState,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(years, key = { it }) { year ->
+            val selected = year == visibleYear
+            Surface(
+                onClick = { onSelectYear(year) },
+                shape = AppShapes.input,
+                color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                border = if (selected) null
+                else BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+                modifier = Modifier.testTag("date-picker-year-$year")
+            ) {
+                Text(
+                    text = year.toString(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(4.dp))
 }
 
 @Composable

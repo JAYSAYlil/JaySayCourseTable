@@ -10,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.theme.JaySayTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,6 +33,54 @@ class SettingsPickerSheetsTest {
     }
 
     @Test
+    fun semesterDateSheetOpensOnCurrentSemesterStart() {
+        setSettingsContent()
+
+        composeRule.onNodeWithText("开学日期").performScrollTo().performClick()
+        composeRule.onNodeWithTag("semester-date-picker-sheet").assertExists()
+        // 选择器必须直接落在当前课表的开学日期：月份标题与该日可选都来自它。
+        composeRule.onNodeWithText("2026 年 9 月").assertExists()
+        composeRule.onNodeWithTag("date-picker-day-2026-09-07").assertExists()
+    }
+
+    @Test
+    fun semesterDateSheetOffersYearQuickSelection() {
+        setSettingsContent()
+
+        composeRule.onNodeWithText("开学日期").performScrollTo().performClick()
+        composeRule.onNodeWithTag("semester-date-picker-sheet").assertExists()
+        composeRule.onNodeWithTag("date-picker-year-2026").assertExists()
+        // 点选上一年：月份标题立即切到对应年份，无需连续点"上个月"跨年。
+        composeRule.onNodeWithTag("date-picker-year-2025").performScrollTo().performClick()
+        composeRule.onNodeWithText("2025 年 9 月").assertExists()
+    }
+
+    @Test
+    fun semesterDateSavesExactlyPickedDay() {
+        var saved: TableData? = null
+        composeRule.setContent {
+            JaySayTheme {
+                SettingsScreen(
+                    tableData = TableData("测试课表", emptyList(), semesterStart = "2026-09-07"),
+                    preferences = AppPreferences(),
+                    onUpdatePrefs = {},
+                    onUpdateTable = { saved = it },
+                    onExportBackup = {},
+                    onImportBackup = {},
+                    onBack = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("开学日期").performScrollTo().performClick()
+        // 9/9 是周三：保存侧不做周一归一化，重开选择器时还原用户选择的那一天。
+        composeRule.onNodeWithTag("date-picker-day-2026-09-09").performClick()
+        composeRule.onNodeWithText("确定").performClick()
+        composeRule.waitForIdle()
+        assertEquals("2026-09-09", saved?.semesterStart)
+    }
+
+    @Test
     fun periodTimeOpensCustomWheelSheet() {
         setSettingsContent()
 
@@ -49,6 +98,7 @@ class SettingsPickerSheetsTest {
                     tableData = TableData("测试课表", emptyList(), semesterStart = "2026-09-07"),
                     preferences = AppPreferences(),
                     onUpdatePrefs = {},
+                    onUpdateTable = {},
                     onExportBackup = {},
                     onImportBackup = {},
                     onBack = {}

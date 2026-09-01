@@ -617,8 +617,10 @@ fun SettingsScreen(
                             cancelLabel = stringResource(R.string.settings_cancel),
                             onDismiss = { showDatePicker = false },
                             onConfirm = { picked ->
-                                val monday = picked.minusDays((picked.dayOfWeek.value - 1).toLong())
-                                saveTable(table.copy(semesterStart = monday.toString()))
+                                // 保存用户选择的原日期：周次计算在读取侧统一按周一归一
+                                // （TimeUtils.semesterWeekStartOrNull），保存侧不再改写，
+                                // 重新打开选择器时忠实还原用户当时选择的那一天。
+                                saveTable(table.copy(semesterStart = picked.toString()))
                                 showDatePicker = false
                             }
                         )

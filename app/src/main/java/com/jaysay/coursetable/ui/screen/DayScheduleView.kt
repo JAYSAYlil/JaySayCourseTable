@@ -36,7 +36,6 @@ import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.util.TimeUtils
-import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -105,6 +104,9 @@ internal fun rememberDayViewController(
 
 /**
  * 导航与落定副作用集中在一处：命令负责滚动，settledPage 只负责通知外层周次/星期。
+ * 回写以效果启动时的落定页为基线，只有真实翻页才通知外层：主屏幕重回组合
+ * （详情返回、切换视图）会让控制器重建，初始快照绝不能把共享的周次/星期状态
+ * 拉回日视图上次的旧值，否则周/月视图会被外部同步效果拽到错误页面（乱跳根源）。
  */
 @Composable
 internal fun DayViewControllerEffects(
@@ -117,7 +119,6 @@ internal fun DayViewControllerEffects(
     val onWeekChangeState by rememberUpdatedState(onWeekChange)
     val onFocusedDayChangeState by rememberUpdatedState(onFocusedDayChange)
     val hapticView = LocalView.current
-    var lastSettledPage by remember(controller) { mutableIntStateOf(controller.pagerState.settledPage) }
 
     LaunchedEffect(controller, controller.requestSerial) {
         val target = controller.requestedPage
@@ -132,16 +133,16 @@ internal fun DayViewControllerEffects(
     }
 
     LaunchedEffect(controller) {
-        snapshotFlow { controller.pagerState.settledPage }
-            .distinctUntilChanged()
+        val pagerState = controller.pagerState
+        var lastReportedPage = pagerState.settledPage
+        snapshotFlow { pagerState.settledPage }
             .collect { page ->
+                if (page == lastReportedPage) return@collect
+                lastReportedPage = page
                 val date = controller.dateForPage(page)
                 TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)?.let(onWeekChangeState)
                 onFocusedDayChangeState(date.dayOfWeek.value)
-                if (page != lastSettledPage) {
-                    hapticView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    lastSettledPage = page
-                }
+                hapticView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
             }
     }
 }
@@ -166,6 +167,9 @@ internal fun DaySchedulePager(
 ) {
     val today = LocalDate.now()
     val todayWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, today) ?: -1
+    // 翻页共享同一纵向滚动状态：翻到相邻一天时停在上一天的阅读位置，与周视图一致；
+    // 离开主界面（课程详情/设置）再返回同样恢复原位置。
+    val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val dayFling = PagerDefaults.flingBehavior(
         state = controller.pagerState,
         pagerSnapDistance = PagerSnapDistance.atMost(1),
@@ -202,7 +206,6 @@ internal fun DaySchedulePager(
                 date
             ).map { it.course.copy(dayOfWeek = date.dayOfWeek.value) }
         }
-        val scrollState = rememberSaveable(page, saver = ScrollState.Saver) { ScrollState(0) }
         Column(
             modifier = Modifier
                 .fillMaxSize()
