@@ -232,10 +232,18 @@ fun CourseTableScreen(
     // 日视图来源：从月视图点日期进入时，系统返回手势应切回月视图（回到原月份）；
     // 从视图菜单或表头点击进入日视图时，返回行为保持原样。
     var dayOpenedFromMonth by rememberSaveable { mutableStateOf(false) }
-    // 日视图跳转令牌（epoch day，0 = 无）：定位今天/点星期条/月视图点日期都发"目标日期"，
-    // 翻页器只认日期——杜绝用（周数, 星期数）两个异步更新的状态拼回日期的竞态
-    // （表现为"定位到今天"跳到了显示周的同星期数那一天）。
-    var dayJumpEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
+    // 日视图单一事实来源：当前显示的日期（epoch day）。
+    // 初始 = 钳制进学期范围的今天（今天在学期外时落在最近的学期边界，
+    // 而不是从（周数, 星期数）错误重建出的日期）。所有跳转源都直接改这个日期，
+    // 星期条/日期表头/周胶囊全部从它派生——不存在多套并行状态。
+    var dayViewDateEpoch by rememberSaveable {
+        val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+        val end = start?.plusDays((totalWeeks.coerceAtLeast(1) * 7L) - 1L)
+        val t = LocalDate.now()
+        androidx.compose.runtime.mutableLongStateOf(
+            (if (start != null && end != null) t.coerceIn(start, end) else t).toEpochDay()
+        )
+    }
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
 
     var viewMenuExpanded by remember { mutableStateOf(false) }
@@ -375,7 +383,9 @@ fun CourseTableScreen(
                     monthAnchorEpoch = today.withDayOfMonth(1).toEpochDay()
                 }
                 if (viewMode == ScheduleViewMode.DAY) {
-                    dayJumpEpoch = today.toEpochDay()
+                    val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
+                    val end = start?.plusDays((totalWeeks.coerceAtLeast(1) * 7L) - 1L)
+                    dayViewDateEpoch = (if (start != null && end != null) today.coerceIn(start, end) else today).toEpochDay()
                 }
                 onLocateToday()
             },
@@ -597,35 +607,38 @@ fun CourseTableScreen(
             }
 
             if (viewMode == ScheduleViewMode.DAY) {
+                val chipDate = LocalDate.ofEpochDay(dayViewDateEpoch)
+                val chipWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, chipDate)
                 DayChipRow(
-                    focusedDay = focusedDay,
+                    focusedDay = chipDate.dayOfWeek.value,
                     todayDow = todayDow,
-                    highlightToday = isTodayWeek,
+                    highlightToday = chipWeek == todayWeek && todayWeek > 0,
                     onFocusedDayChange = { day ->
+                        // 星期条是周内导航：跳到显示周的同星期数那一天。
+                        val weekStart = chipDate.minusDays((chipDate.dayOfWeek.value - 1).toLong())
+                        dayViewDateEpoch = weekStart.plusDays((day - 1).toLong()).toEpochDay()
                         onFocusedDayChange(day)
-                        semesterStartDate?.let { start ->
-                            dayJumpEpoch = start.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (day - 1L)).toEpochDay()
-                        }
                     }
                 )
             }
 
             // 月视图不展示课程表头（星期标题由月历自带），周导航胶囊与进度条仍然保留。
             if (viewMode != ScheduleViewMode.MONTH) {
+                val headerDate = LocalDate.ofEpochDay(dayViewDateEpoch)
+                val headerWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, headerDate) ?: currentWeek
                 DayHeader(
-                    visibleDays = visibleDays,
+                    visibleDays = if (viewMode == ScheduleViewMode.DAY) listOf(headerDate.dayOfWeek.value) else visibleDays,
                     timeWidth = timeWidth,
-                    currentWeek = currentWeek,
+                    currentWeek = if (viewMode == ScheduleViewMode.DAY) headerWeek else currentWeek,
                     semesterStart = semesterStart,
-                    isTodayWeek = isTodayWeek,
+                    isTodayWeek = if (viewMode == ScheduleViewMode.DAY) headerWeek == todayWeek && todayWeek > 0 else isTodayWeek,
                     todayDow = todayDow,
                     dayStatuses = dayStatuses,
                     onDayClick = { day ->
                         dayOpenedFromMonth = false
                         if (viewMode == ScheduleViewMode.DAY) {
-                            semesterStartDate?.let { start ->
-                                dayJumpEpoch = start.plusDays((currentWeek - 1L).coerceAtLeast(0) * 7L + (day - 1L)).toEpochDay()
-                            }
+                            val weekStart = headerDate.minusDays((headerDate.dayOfWeek.value - 1).toLong())
+                            dayViewDateEpoch = weekStart.plusDays((day - 1).toLong()).toEpochDay()
                         }
                         onFocusedDayChange(day)
                         onViewModeChange(ScheduleViewMode.DAY)
@@ -696,7 +709,7 @@ fun CourseTableScreen(
                         // 点击某天：跳到该天所在周并切到单日视图；记住来源月供返回使用。
                         dayOpenedFromMonth = true
                         monthAnchorEpoch = pageMonthStart.toEpochDay()
-                        dayJumpEpoch = date.toEpochDay()
+                        dayViewDateEpoch = date.toEpochDay()
                         onWeekChange(TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date) ?: 1)
                         onFocusedDayChange(date.dayOfWeek.value)
                         onViewModeChange(ScheduleViewMode.DAY)
@@ -717,8 +730,8 @@ fun CourseTableScreen(
                 onWeekChange = onWeekChange,
                 onFocusedDayChange = onFocusedDayChange,
                 onCourseClick = onCourseClick,
-                jumpTargetEpoch = dayJumpEpoch,
-                onJumpConsumed = { dayJumpEpoch = 0L },
+                displayedDateEpoch = dayViewDateEpoch,
+                onDisplayedDateChange = { dayViewDateEpoch = it },
                                 onEmptyCellClick = if (readOnlyMessage == null) onAddCourseAt else ({ _, _ -> }),
                 periodTimes = periodTimes,
                 dark = dark,
@@ -767,8 +780,8 @@ fun CourseTableScreen(
 @Composable
 private fun DayPagerSection(
     modifier: Modifier,
-    jumpTargetEpoch: Long,
-    onJumpConsumed: () -> Unit,
+    displayedDateEpoch: Long,
+    onDisplayedDateChange: (Long) -> Unit,
     displayedCourses: List<Course>,
     colorMap: Map<String, Color>,
     timeWidth: Dp,
@@ -828,67 +841,35 @@ private fun DayPagerSection(
     fun indexOf(date: LocalDate): Int =
         java.time.temporal.ChronoUnit.DAYS.between(semesterStartDate, date).toInt()
 
-    // 双向同步令牌：记录“最后一次双方确认的日期”（epoch day）。
-    // 滑动落定回写周次/聚焦日时先更新令牌，外部状态（可能先后到达）变化时发现
-    // 目标日期 == 令牌即不再回滚页面；外部跳转（定位今天/表头/月视图返回）同样
-    // 先更新令牌再滚页。两侧都不会把对方刚做的变更再改回去，消除回写/回正竞态。
-    val semesterEndDate = semesterStartDate?.plusDays(totalDays - 1L)
-    val initialEpoch = today.let { raw ->
-        if (semesterStartDate != null && semesterEndDate != null) {
-            raw.coerceIn(semesterStartDate, semesterEndDate)
-        } else raw
-    }.toEpochDay()
-    var reportedEpoch by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(initialEpoch) }
+    // 单一事实来源就是外部的 displayedDateEpoch：
+    // - 滑动落定 → 回写 displayedDateEpoch（并同步周次/聚焦日给头部）；
+    // - 外部跳转（定位今天/星期条/月视图）→ 改 displayedDateEpoch → 此处滚动跟随。
+    // 单一状态、双向收敛，无并行通道，无中间态竞态。
+    val displayedDate = LocalDate.ofEpochDay(displayedDateEpoch)
     val pagerState = rememberPagerState(
-        initialPage = indexOf(LocalDate.ofEpochDay(reportedEpoch)).coerceIn(0, totalDays - 1)
+        initialPage = indexOf(displayedDate).coerceIn(0, totalDays - 1)
     ) { totalDays }
-    var lastSettledDayPage by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(pagerState.currentPage) }
 
-    // 外部跳转（定位今天/星期条/月视图点日期）：以日期为一次性目标，精确跳页。
-    // 目标钳制进学期范围：定位今天在学期外时落在最近的学期边界。
-    // 不从（周数, 星期数）重建日期——两个状态异步到达会拼出错误的中间日期。
-    LaunchedEffect(jumpTargetEpoch) {
-        if (jumpTargetEpoch != 0L) {
-            val targetDate = LocalDate.ofEpochDay(jumpTargetEpoch).let { raw ->
-                if (semesterStartDate != null && semesterEndDate != null) {
-                    raw.coerceIn(semesterStartDate, semesterEndDate)
-                } else raw
-            }
-            val index = indexOf(targetDate).coerceIn(0, totalDays - 1)
-            reportedEpoch = targetDate.toEpochDay()
-            if (pagerState.settledPage != index) {
-                pagerState.animateScrollToPage(index)
-            }
-            onJumpConsumed()
+    LaunchedEffect(displayedDateEpoch) {
+        val index = indexOf(LocalDate.ofEpochDay(displayedDateEpoch)).coerceIn(0, totalDays - 1)
+        if (pagerState.settledPage != index && !pagerState.isScrollInProgress) {
+            pagerState.animateScrollToPage(index)
         }
     }
 
-    // 首次组合对齐：头部周次/聚焦日回写为初始页（钳制后的今天）。
-    LaunchedEffect(Unit) {
-        if (jumpTargetEpoch == 0L) {
-            val d = dateOf(pagerState.currentPage)
-            val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, d)
-            if (week != null) onWeekChange(week)
-            onFocusedDayChange(d.dayOfWeek.value)
-        }
-    }
-
-    // 滑动落定：把页码换算回周次与聚焦日，回写视图状态（头部胶囊/日选择条随之刷新）。
     val hapticView = LocalView.current
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val date = dateOf(page)
-            val pageChanged = page != lastSettledDayPage
-            lastSettledDayPage = page
-            if (date.toEpochDay() != reportedEpoch) {
-                reportedEpoch = date.toEpochDay()
+            if (date.toEpochDay() != displayedDateEpoch) {
+                onDisplayedDateChange(date.toEpochDay())
                 val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
                 if (week != null) {
                     onWeekChange(week)
                     onFocusedDayChange(date.dayOfWeek.value)
                 }
+                hapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             }
-            if (pageChanged) hapticView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
         }
     }
 
