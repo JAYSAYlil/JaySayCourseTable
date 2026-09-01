@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -691,8 +692,14 @@ fun CourseTableScreen(
                         }
                     }
             }
+            val monthFling = PagerDefaults.flingBehavior(
+                state = monthPagerState,
+                snapAnimationSpec = spring(dampingRatio = 1f, stiffness = 300f),
+                decayAnimationSpec = exponentialDecay(frictionMultiplier = 12f)
+            )
             HorizontalPager(
                 state = monthPagerState,
+                flingBehavior = monthFling,
                 modifier = Modifier.fillMaxWidth().weight(1f).testTag("month-swipe-area"),
                 // 月份页面内容是纯快照，关闭额外预加载可避免页面重组时复用旧月份状态。
                 beyondViewportPageCount = 0,
@@ -882,8 +889,16 @@ private fun DayPagerSection(
     }
 
     val todayWeek = todayWeekOf(today, semesterStart, totalWeeks)
+    // 单日步进：高摩擦衰减把惯性甩动距离限制在一页以内——快速滑动也只翻一天，
+    // 不会"略过"中间日期（Apple 日历日视图的行为）。
+    val dayFling = PagerDefaults.flingBehavior(
+        state = pagerState,
+        snapAnimationSpec = spring(dampingRatio = 1f, stiffness = 380f),
+        decayAnimationSpec = exponentialDecay(frictionMultiplier = 12f)
+    )
     HorizontalPager(
         state = pagerState,
+        flingBehavior = dayFling,
         modifier = modifier.testTag("day-swipe-area")
     ) { page ->
         val date = dateOf(page)
