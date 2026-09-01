@@ -39,7 +39,6 @@ import com.jaysay.coursetable.data.reminder.ReminderCalculator
 import com.jaysay.coursetable.data.reminder.ReminderPolicy
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppTopBar
-import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.*
 import com.jaysay.coursetable.util.TimeUtils
@@ -126,12 +125,11 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
-                .padding(pad.exceptTop())
+                .padding(pad)
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Spacer(Modifier.height(pad.calculateTopPadding()))
             readOnlyMessage?.let { message ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),

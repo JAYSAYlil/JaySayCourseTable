@@ -33,7 +33,6 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
-import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.theme.*
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -76,10 +75,9 @@ fun CourseDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues.exceptTop())
+                .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(Modifier.height(paddingValues.calculateTopPadding()))
             // 下拉关闭（Apple 1:1 跟随 + 阻尼 + 速度判定）：从头部卡片按住下滑；
             // 松手时速度超阈值或位移过半即关闭，否则以临界阻尼弹簧弹回。
             var dismissRaw by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }

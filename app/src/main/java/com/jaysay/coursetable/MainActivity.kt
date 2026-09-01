@@ -76,7 +76,6 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import com.jaysay.coursetable.widget.CourseWidgetProvider
 import com.jaysay.coursetable.ui.components.AppTopBar
-import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.components.BackupRestoreConfirmDialog
 import com.jaysay.coursetable.ui.components.ConflictConfirmDialog
 import com.jaysay.coursetable.ui.components.DetailDeleteConfirmDialog
@@ -806,7 +805,7 @@ class MainActivity : ComponentActivity() {
                                         val selected = state.courses.firstOrNull { it.seriesKey == course.seriesKey } ?: course
                                         openCourseDetail(selected, Screen.AGENDA)
                                     },
-                                    modifier = Modifier.padding(padding.exceptTop())
+                                    modifier = Modifier.padding(padding)
                                 )
                             }
 

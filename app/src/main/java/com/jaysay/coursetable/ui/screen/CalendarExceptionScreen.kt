@@ -68,7 +68,6 @@ import com.jaysay.coursetable.data.model.ScheduleExceptionType
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
-import com.jaysay.coursetable.ui.components.exceptTop
 import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.Instant
@@ -149,7 +148,7 @@ fun CalendarExceptionScreen(
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding.exceptTop()).testTag("academic-calendar-screen"),
+            modifier = Modifier.fillMaxSize().padding(padding).testTag("academic-calendar-screen"),
             contentPadding = PaddingValues(16.dp, 14.dp, 16.dp, 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

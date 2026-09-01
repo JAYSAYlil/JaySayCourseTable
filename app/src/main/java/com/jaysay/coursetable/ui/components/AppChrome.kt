@@ -3,9 +3,6 @@ package com.jaysay.coursetable.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,8 +46,8 @@ fun AppTopBar(
             navigationIcon = navigationIcon,
             actions = actions,
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f)
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface
             )
         )
         HorizontalDivider(
@@ -90,12 +87,3 @@ fun AppPanel(
     }
 }
 
-/** 去掉顶部 inset 的 padding：让滚动内容顶入半透明顶栏之下（首项需自带等高 spacer）。 */
-fun PaddingValues.exceptTop(): PaddingValues {
-    val values = this
-    return PaddingValues(
-        start = values.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-        end = values.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-        bottom = values.calculateBottomPadding()
-    )
-}
