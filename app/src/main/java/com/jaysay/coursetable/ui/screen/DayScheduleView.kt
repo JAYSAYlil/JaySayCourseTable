@@ -58,8 +58,9 @@ internal class DayViewController internal constructor(
         private set
 
     val displayPage: Int
-        get() = (if (pagerState.isScrollInProgress) pagerState.targetPage else pagerState.currentPage)
-            .coerceIn(0, totalDays - 1)
+        // currentPage 在跨过相邻页的临界点时立即更新；targetPage 只在 Pager
+        // 判定完落点后才可靠，使用它会让顶部日期在快速滑动时明显滞后。
+        get() = pagerState.currentPage.coerceIn(0, totalDays - 1)
 
     val displayDate: LocalDate
         get() = dateForPage(displayPage)
@@ -184,7 +185,10 @@ internal fun DaySchedulePager(
         modifier = modifier
             .testTag("day-swipe-area")
             .semantics { stateDescription = controller.settledDate.toString() },
-        beyondViewportPageCount = 1,
+        // 日页包含完整的节次网格；预加载相邻页会同时创建两套重型网格，
+        // 在中低端设备上会把横向手势拖入布局预算。Pager 仍会绘制当前可见的
+        // 邻页部分，但不再额外保留视口外页面。
+        beyondViewportPageCount = 0,
         key = { page -> controller.dateForPage(page).toEpochDay() }
     ) { page ->
         val date = controller.dateForPage(page)
@@ -231,4 +235,3 @@ internal fun DaySchedulePager(
         }
     }
 }
-

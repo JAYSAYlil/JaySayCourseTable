@@ -110,6 +110,7 @@ import com.jaysay.coursetable.ui.components.ReadOnlyRecoveryBanner
 import com.jaysay.coursetable.ui.components.ScheduleOverviewBar
 import com.jaysay.coursetable.ui.components.CustomBackgroundImage
 import com.jaysay.coursetable.ui.theme.AppShapes
+import com.jaysay.coursetable.ui.theme.AppSizes
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.ui.theme.buildCourseColorMap
@@ -458,7 +459,7 @@ fun CourseTableScreen(
                                 ScheduleViewMode.DAY -> displayedWeek > 1
                                 else -> currentWeek > 1
                             },
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(AppSizes.compactControl)
                         ) {
                             Icon(
                                 Icons.Rounded.ChevronLeft,
@@ -545,7 +546,7 @@ fun CourseTableScreen(
                                 ScheduleViewMode.DAY -> displayedWeek < totalWeeks
                                 else -> currentWeek < totalWeeks
                             },
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(AppSizes.compactControl)
                         ) {
                             Icon(
                                 Icons.Rounded.ChevronRight,
@@ -1297,7 +1298,7 @@ private fun ColumnScope.EmptySchedule(
 
 @Composable
 private fun EmptyImportButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    Button(onClick = onClick, enabled = enabled, shape = AppShapes.small, modifier = modifier.height(48.dp)) {
+    Button(onClick = onClick, enabled = enabled, shape = AppShapes.small, modifier = modifier.height(AppSizes.control)) {
         Icon(Icons.Rounded.FileOpen, null)
         Spacer(Modifier.width(8.dp))
         Text(stringResource(R.string.course_empty_import_button), maxLines = 1)
@@ -1309,7 +1310,7 @@ private fun EmptyManualButton(onClick: () -> Unit, modifier: Modifier = Modifier
     val contentAlpha = if (enabled) 1f else 0.38f
     val interaction = remember { MutableInteractionSource() }
     Surface(
-        modifier = modifier.height(48.dp).clip(AppShapes.small)
+        modifier = modifier.height(AppSizes.control).clip(AppShapes.small)
             .pressScale(interaction)
             .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick),
         shape = AppShapes.small,

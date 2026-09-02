@@ -6,6 +6,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.repository.TableData
@@ -89,6 +91,27 @@ class SettingsPickerSheetsTest {
         composeRule.onNodeWithTag("period-time-picker-sheet").assertExists()
         composeRule.onNodeWithTag("time-picker-hour-wheel").assertExists()
         composeRule.onNodeWithTag("time-picker-minute-wheel").assertExists()
+    }
+
+    @Test
+    fun lightThemeKeepsAllElevatedSurfaceRolesWhite() {
+        var surfaces = emptyList<Color>()
+        composeRule.setContent {
+            JaySayTheme {
+                val colors = MaterialTheme.colorScheme
+                surfaces = listOf(
+                    colors.surface,
+                    colors.surfaceContainerLowest,
+                    colors.surfaceContainerLow,
+                    colors.surfaceContainer,
+                    colors.surfaceContainerHigh,
+                    colors.surfaceContainerHighest
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        assertEquals(List(6) { Color.White }, surfaces)
     }
 
     private fun setSettingsContent() {

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -29,10 +30,16 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.jaysay.coursetable.R
 import com.jaysay.coursetable.ui.theme.AppShapes
+import com.jaysay.coursetable.ui.theme.AppSizes
 import com.jaysay.coursetable.ui.theme.AppSpacing
 import com.jaysay.coursetable.ui.theme.Motion
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -41,6 +48,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 private val WeekdayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
+private val HourValues = (0..23).toList()
+private val MinuteValues = (0..59).toList()
 
 /** 应用自己的月历面板，不依赖系统或 Material 日期弹窗。 */
 @Composable
@@ -66,7 +75,7 @@ fun AppDatePickerSheet(
                 },
                 modifier = Modifier.testTag("date-picker-previous-month")
             ) {
-                Icon(Icons.Rounded.ChevronLeft, contentDescription = "上个月")
+                Icon(Icons.Rounded.ChevronLeft, contentDescription = stringResource(R.string.month_prev_month))
             }
             Text(
                 text = "${visibleMonth.year} 年 ${visibleMonth.monthValue} 月",
@@ -82,7 +91,7 @@ fun AppDatePickerSheet(
                 },
                 modifier = Modifier.testTag("date-picker-next-month")
             ) {
-                Icon(Icons.Rounded.ChevronRight, contentDescription = "下个月")
+                Icon(Icons.Rounded.ChevronRight, contentDescription = stringResource(R.string.month_next_month))
             }
         }
         Row(Modifier.fillMaxWidth()) {
@@ -236,7 +245,7 @@ fun AppTimePickerSheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             NumberWheel(
-                values = (0..23).toList(),
+                values = HourValues,
                 initialValue = hour,
                 suffix = "时",
                 onValueChange = { hour = it },
@@ -244,7 +253,7 @@ fun AppTimePickerSheet(
             )
             Text(":", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             NumberWheel(
-                values = (0..59).toList(),
+                values = MinuteValues,
                 initialValue = minute,
                 suffix = "分",
                 onValueChange = { minute = it },
@@ -266,6 +275,7 @@ private fun NumberWheel(
     val initialIndex = values.indexOf(initialValue).coerceAtLeast(0)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+    val selectedValue = values.getOrNull(listState.firstVisibleItemIndex) ?: initialValue
 
     LaunchedEffect(listState, values) {
         snapshotFlow { listState.isScrollInProgress }
@@ -286,16 +296,21 @@ private fun NumberWheel(
         Surface(
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
             shape = AppShapes.input,
-            modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 8.dp).height(44.dp)
+            modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = AppSpacing.sm).height(AppSizes.compactControl)
         ) {}
         LazyColumn(
             state = listState,
             flingBehavior = flingBehavior,
             contentPadding = PaddingValues(vertical = 88.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription = "${suffix}选择"
+                    stateDescription = "%02d  %s".format(selectedValue, suffix)
+                }
         ) {
-            items(values, key = { it }) { value ->
-                val distance = kotlin.math.abs(values.indexOf(value) - listState.firstVisibleItemIndex)
+            itemsIndexed(values, key = { _, value -> value }) { index, value ->
+                val distance = kotlin.math.abs(index - listState.firstVisibleItemIndex)
                 Text(
                     text = "%02d  %s".format(value, suffix),
                     style = MaterialTheme.typography.titleMedium,
@@ -304,7 +319,7 @@ private fun NumberWheel(
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(AppSizes.compactControl)
                         .padding(top = 11.dp)
                         .alpha(if (distance <= 1) 1f else 0.38f)
                 )

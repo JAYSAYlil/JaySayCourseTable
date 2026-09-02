@@ -193,8 +193,8 @@ internal fun TableGrid(
     val sectionText = if (dark) DarkPrimaryDark.copy(alpha = 0.72f) else PrimaryDark.copy(alpha = 0.72f)
     val isTodayVisible = currentWeek == todayWeek
     val totalHeight = remember(periodTimes, cellHeight) { cellHeight * periodTimes.size + 20.dp * sections.size }
-    val byDay = remember(courses) {
-        (1..7).associateWith { day -> courses.filter { it.dayOfWeek == day }.sortedBy { it.startPeriod } }
+    val byDay = remember(courses, visibleDays) {
+        visibleDays.associateWith { day -> courses.filter { it.dayOfWeek == day }.sortedBy { it.startPeriod } }
     }
 
     Row(modifier = Modifier.fillMaxWidth().background(gridBackground)) {

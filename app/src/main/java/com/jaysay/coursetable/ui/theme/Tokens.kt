@@ -39,6 +39,13 @@ object AppSpacing {
     val cardInner = 16.dp
 }
 
+/** 可交互控件的统一尺寸；视觉尺寸可以更小，但点击反馈应尽量落在该范围内。 */
+object AppSizes {
+    val icon = 24.dp
+    val compactControl = 44.dp
+    val control = 48.dp
+}
+
 /**
  * 动效令牌（Apple "Designing Fluid Interfaces" 准则的 Compose 落地）：
  * - 交互与页面级弹簧一律**临界阻尼**（dampingRatio = 1，无过冲），快速跟随、可随时中断；

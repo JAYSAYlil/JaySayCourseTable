@@ -127,8 +127,8 @@ fun SettingsScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(top = 20.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(top = AppSpacing.screenH, bottom = AppSpacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
         ) {
             readOnlyMessage?.let { message ->
                 Surface(
@@ -1152,10 +1152,14 @@ private fun SettingsCardSection(
             section.title,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
+            modifier = Modifier.padding(
+                start = AppSpacing.screenH,
+                end = AppSpacing.screenH,
+                bottom = AppSpacing.sm
+            )
         )
         Surface(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screenH),
             shape = AppShapes.panel,
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
@@ -1187,7 +1191,7 @@ private fun SettingsSearchEmptyState(onClear: () -> Unit) {
         Icon(
             Icons.Rounded.SearchOff,
             contentDescription = null,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(AppSizes.compactControl),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
         )
         Spacer(Modifier.height(12.dp))
