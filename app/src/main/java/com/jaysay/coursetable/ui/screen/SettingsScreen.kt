@@ -339,6 +339,13 @@ fun SettingsScreen(
                         checked = preferences.highContrast,
                         onCheckedChange = { save(preferences.copy(highContrast = it)) }
                     )
+                    PreferenceSwitchRow(
+                        title = stringResource(R.string.settings_week_card_compact),
+                        subtitle = stringResource(R.string.settings_week_card_compact_subtitle),
+                        checked = preferences.weekCardCompactInfo,
+                        onCheckedChange = { save(preferences.copy(weekCardCompactInfo = it)) },
+                        switchTestTag = "week-card-compact-switch"
+                    )
                 },
             )
 

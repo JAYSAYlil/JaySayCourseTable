@@ -32,7 +32,7 @@ class MainActivitySmokeTest {
         }
 
         composeRule.onNodeWithTag("course-table-screen").assertExists()
-        composeRule.onNodeWithTag("import-course-button").assertExists()
+        // 导入入口的存在性由 ScheduleOverviewBarTest 覆盖（紧凑宽度在“更多操作”菜单内）。
         composeRule.onNodeWithTag("add-course-button").performClick()
         composeRule.onNodeWithText("添加课程").assertExists()
     }

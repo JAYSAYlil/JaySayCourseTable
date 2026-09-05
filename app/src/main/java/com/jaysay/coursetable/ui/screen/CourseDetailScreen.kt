@@ -50,8 +50,10 @@ fun CourseDetailScreen(
 ) {
     BackHandler(onBack = onClose)
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.4f
-    // 与课表网格共用同一配色映射，保证同一课程在两处的颜色一致。
-    val courseColor = remember(course, allCourses, dark) { resolveCourseColor(allCourses, course, dark) }
+    // 与课表网格共用同一“最终色”映射算法，保证同一课程在两处的颜色一致。
+    val courseColor = remember(course, allCourses, dark) {
+        buildResolvedCourseColorMap(allCourses, dark)[course.courseName] ?: coursePalette(dark).first()
+    }
     val headerTextColors = remember(courseColor, dark) { courseCardTextColors(courseColor, dark) }
 
     Scaffold(

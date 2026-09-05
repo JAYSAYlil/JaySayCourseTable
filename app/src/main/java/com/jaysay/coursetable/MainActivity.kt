@@ -877,6 +877,7 @@ class MainActivity : ComponentActivity() {
                                         weekLabels = activeTable.weekLabels,
                                         customBackground = customBackground,
                                         customBackgroundOverlayEnabled = state.preferences.customBackgroundOverlayEnabled,
+                                        weekCardCompactInfo = state.preferences.weekCardCompactInfo,
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,

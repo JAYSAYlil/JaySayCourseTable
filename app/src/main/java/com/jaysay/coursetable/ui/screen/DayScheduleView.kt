@@ -36,6 +36,7 @@ import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.util.TimeUtils
+import com.jaysay.coursetable.util.rememberToday
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -162,11 +163,14 @@ internal fun DaySchedulePager(
     periodTimes: List<PeriodTime>,
     dark: Boolean,
     hasCustomBackground: Boolean,
+    weekCardCompactInfo: Boolean,
     semesterStart: String,
     excludedWeekSet: Set<Int>,
     dateExceptions: List<ScheduleDateException>
 ) {
-    val today = LocalDate.now()
+    // 跨午夜、回到前台或时区变化后自动校准：只影响今日列高亮与今日徽标，
+    // 不改变 Pager 当前页与滚动位置。
+    val today = rememberToday().value
     val todayWeek = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, today) ?: -1
     // 翻页共享同一纵向滚动状态：翻到相邻一天时停在上一天的阅读位置，与周视图一致；
     // 离开主界面（课程详情/设置）再返回同样恢复原位置。
@@ -230,7 +234,8 @@ internal fun DaySchedulePager(
                 todayWeek = todayWeek,
                 todayDow = today.dayOfWeek.value,
                 viewMode = ScheduleViewMode.DAY,
-                hasCustomBackground = hasCustomBackground
+                hasCustomBackground = hasCustomBackground,
+                weekCardCompactInfo = weekCardCompactInfo
             )
         }
     }

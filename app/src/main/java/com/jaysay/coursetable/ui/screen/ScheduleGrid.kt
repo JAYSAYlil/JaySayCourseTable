@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,8 +39,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -53,13 +53,16 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.PeriodTime
+import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.ui.theme.CourseColors
 import com.jaysay.coursetable.ui.theme.DarkBackground
 import com.jaysay.coursetable.ui.theme.DarkCourseColors
 import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
+import com.jaysay.coursetable.ui.theme.LocalEnhancedContrast
 import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.courseCardBorderColor
+import com.jaysay.coursetable.ui.theme.courseCardFillStops
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
 import com.jaysay.coursetable.ui.theme.pressScale
 import androidx.compose.ui.layout.boundsInRoot
@@ -94,20 +97,6 @@ private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): 
         offset += cellHeight * section.periods.size
     }
     return offset
-}
-
-/**
- * 课程卡片透明度的单一来源，供视觉对比度回归测试复用。
- */
-internal fun courseCardBackgroundAlpha(background: Color, hasCustomBackground: Boolean): Float {
-    val isDarkCourseCard = background.luminance() < 0.35f
-    return when {
-        // 深色材质需要保留颜色本体；渐变高光只作为表层，不稀释卡片层级。
-        !hasCustomBackground && isDarkCourseCard -> 0.94f
-        !hasCustomBackground -> 0.82f
-        isDarkCourseCard -> 0.90f
-        else -> 0.74f
-    }
 }
 
 /**
@@ -180,7 +169,8 @@ internal fun TableGrid(
     todayWeek: Int,
     todayDow: Int,
     viewMode: ScheduleViewMode,
-    hasCustomBackground: Boolean
+    hasCustomBackground: Boolean,
+    weekCardCompactInfo: Boolean = false
 ) {
     val sections = remember(periodTimes) { buildSections(periodTimes) }
     // 只持有 State 引用而不读取 .value，本层不会随分钟刷新重组；
@@ -197,6 +187,10 @@ internal fun TableGrid(
         visibleDays.associateWith { day -> courses.filter { it.dayOfWeek == day }.sortedBy { it.startPeriod } }
     }
 
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // 课程卡片实际可用宽度按列数摊分，是信息密度与字号档位的依据；
+        // 替代旧版“按课程名字符总数缩小字体”的估算方式。
+        val columnWidth = (maxWidth - timeWidth) / visibleDays.size.coerceAtLeast(1)
     Row(modifier = Modifier.fillMaxWidth().background(gridBackground)) {
         // 在组合上下文取色，供 Canvas 绘制闭包使用（DrawScope 不能访问 @Composable 属性）。
         val gridPrimary = MaterialTheme.colorScheme.primary
@@ -350,12 +344,9 @@ internal fun TableGrid(
                         val end = course.endPeriod.coerceIn(start, periodTimes.size.coerceAtLeast(start))
                         val y = periodOffset(start, sections, cellHeight)
                         val bottom = periodOffset(end, sections, cellHeight) + cellHeight
-                        val palette = if (dark) DarkCourseColors else CourseColors
-                        val cardColor = course.customColor
-                            ?.takeIf { it in palette.indices }
-                            ?.let(palette::get)
-                            ?: colorMap[course.courseName]
-                            ?: palette.first()
+                        // colorMap 已是“应用自定义预设色后的最终色”，与月视图/详情同源。
+                        val cardColor = colorMap[course.courseName]
+                            ?: (if (dark) DarkCourseColors else CourseColors).first()
                         val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
                         CourseCard(
@@ -371,6 +362,8 @@ internal fun TableGrid(
                             viewMode = viewMode,
                             hasCustomBackground = hasCustomBackground,
                             dark = dark,
+                            columnWidth = columnWidth,
+                            compactInfo = weekCardCompactInfo,
                             onClick = { onCourseClick(course) }
                         )
                     }
@@ -389,6 +382,7 @@ internal fun TableGrid(
                 }
             }
         }
+    }
     }
 }
 
@@ -441,34 +435,47 @@ private fun CourseCard(
     viewMode: ScheduleViewMode,
     hasCustomBackground: Boolean,
     dark: Boolean,
+    columnWidth: Dp,
+    compactInfo: Boolean,
     onClick: () -> Unit
 ) {
     // 在卡片作用域内读取分钟状态：只有状态发生变化的卡片才随分钟刷新重组。
     val isCurrent = isCurrentProvider()
-    val shape = RoundedCornerShape(if (viewMode == ScheduleViewMode.WEEK) 12.dp else 14.dp)
+    val enhancedContrast = LocalEnhancedContrast.current
+    // 圆角归入形状令牌：周/五天列卡片用 small(12dp)，单日宽卡片用 input(14dp)。
+    val shape = if (viewMode == ScheduleViewMode.WEEK) AppShapes.small else AppShapes.input
     val compactWeekCard = viewMode == ScheduleViewMode.WEEK && course.periodSpan == 1
-    val textLoad = course.courseName.length + course.teacher.length + course.classroom.length
+    // 信息密度按实际列宽与系统字体缩放分档：大字体等效于更窄的列。
+    // 放不下时先减少同时显示的信息（教师进入详情），而不是把字号压到不可读；
+    // 周视图字号下限 9sp/8sp，不再出现 7sp 的辅助文字。
+    val fontScale = LocalDensity.current.fontScale.coerceIn(0.8f, 3f)
+    val effectiveColumn = columnWidth / fontScale
+    val isWeekBased = viewMode == ScheduleViewMode.WEEK || viewMode == ScheduleViewMode.WORK_WEEK
     val titleSize = when (viewMode) {
         ScheduleViewMode.WEEK -> when {
-            textLoad > 34 -> 8.sp
-            compactWeekCard -> 9.sp
-            else -> 10.5.sp
+            effectiveColumn >= 42.dp -> 10.5.sp
+            effectiveColumn >= 34.dp -> 10.sp
+            else -> 9.sp
         }
-        ScheduleViewMode.WORK_WEEK -> if (textLoad > 30) 11.5.sp else 13.sp
+        ScheduleViewMode.WORK_WEEK -> if (effectiveColumn >= 52.dp) 13.sp else 11.5.sp
         ScheduleViewMode.DAY -> 16.sp
         // MONTH 不渲染课程卡片（月视图走 MonthGrid），分支仅为 when 穷尽性补齐。
-        ScheduleViewMode.MONTH -> if (textLoad > 30) 11.5.sp else 13.sp
+        ScheduleViewMode.MONTH -> 13.sp
     }
     val subSize = when (viewMode) {
         ScheduleViewMode.WEEK -> when {
-            textLoad > 34 -> 7.sp
-            textLoad > 24 -> 7.5.sp
-            else -> 8.25.sp
+            effectiveColumn >= 42.dp -> 8.5.sp
+            effectiveColumn >= 34.dp -> 8.25.sp
+            else -> 8.sp
         }
-        ScheduleViewMode.WORK_WEEK -> if (textLoad > 30) 9.sp else 10.5.sp
+        ScheduleViewMode.WORK_WEEK -> if (effectiveColumn >= 52.dp) 10.5.sp else 9.sp
         ScheduleViewMode.DAY -> 12.sp
-        ScheduleViewMode.MONTH -> if (textLoad > 30) 9.sp else 10.5.sp
+        ScheduleViewMode.MONTH -> 10.5.sp
     }
+    // 紧凑信息档：用户偏好，或窄列自动降级——只保留课程名与教室，教师进入详情。
+    val narrowColumn = isWeekBased && effectiveColumn < 34.dp
+    val showTeacher = viewMode == ScheduleViewMode.DAY ||
+        (!compactInfo && !narrowColumn && course.teacher.isNotBlank())
     val titleLines = when (viewMode) {
         ScheduleViewMode.WEEK -> if (compactWeekCard) 3 else (course.periodSpan + 2).coerceAtMost(6)
         ScheduleViewMode.WORK_WEEK -> if (course.periodSpan == 1) 3 else (course.periodSpan + 2).coerceAtMost(6)
@@ -487,31 +494,29 @@ private fun CourseCard(
         ScheduleViewMode.DAY -> 3
         ScheduleViewMode.MONTH -> 2
     }
-    val cardOverflow = TextOverflow.Clip
+    // 明确的省略标记：放不下的内容在课程详情中完整可读。
+    val cardOverflow = TextOverflow.Ellipsis
     val description = listOf(course.courseName, course.teacher, course.classroom)
         .filter { it.isNotBlank() }
         .plus(stringResource(R.string.course_card_view_details))
         .joinToString("，")
-    val (titleColor, subColor) = courseCardTextColors(background, dark)
-    val baseBorder = courseCardBorderColor(background, dark)
+    val (titleColor, subColor) = remember(background, dark, hasCustomBackground, enhancedContrast) {
+        courseCardTextColors(background, dark, hasCustomBackground, enhancedContrast)
+    }
+    val baseBorder = courseCardBorderColor(background, dark, enhancedContrast)
     // 当前正在上的课：描边平滑过渡到品牌色并加重阴影，形成呼吸感高亮。
     val borderColor by animateColorAsState(
         targetValue = if (isCurrent) MaterialTheme.colorScheme.primary else baseBorder,
         animationSpec = Motion.eased(),
         label = "courseCardBorder"
     )
-    val backgroundAlpha = courseCardBackgroundAlpha(background, hasCustomBackground)
-    // 深色卡片使用更深的实色基底与三段式渐变：顶部高光提到 +26%、中段回落基色、
-    // 底部压暗到 -22%，光源感比早期的 +14%/-10% 明显得多，仍不稀释色相本身；
-    // 浅色则保留原有的平整嵌套卡片，不让两种外观沦为同一种设计。
+    // 填充停止点是渲染与对比度测试共享的单一来源（ui.theme/courseCardFillStops）：
+    // 浅色为单段实色，深色为顶部高光、中段基色、底部压暗的三段式渐变。
+    val cardFillStops = remember(background, dark, hasCustomBackground) {
+        courseCardFillStops(background, dark, hasCustomBackground)
+    }
     val cardFill = if (dark) {
-        Brush.verticalGradient(
-            colorStops = arrayOf(
-                0.00f to lerp(background, Color.White, 0.26f).copy(alpha = 0.98f),
-                0.45f to background.copy(alpha = backgroundAlpha),
-                1.00f to lerp(background, Color.Black, 0.22f).copy(alpha = backgroundAlpha)
-            )
-        )
+        Brush.verticalGradient(colorStops = cardFillStops.toTypedArray())
     } else {
         null
     }
@@ -537,11 +542,20 @@ private fun CourseCard(
                 }
             }
             .pressScale(cardInteraction, 0.96f)
-            .shadow(if (isCurrent) 6.dp else if (dark) 4.dp else 2.dp, shape, clip = false)
+            // 普通课程降低阴影减少视觉竞争；正在上的课以更重的阴影 + 品牌描边突出。
+            .shadow(
+                elevation = when {
+                    isCurrent -> 8.dp
+                    dark -> 3.dp
+                    else -> 1.5.dp
+                },
+                shape = shape,
+                clip = false
+            )
             .clip(shape)
             .then(
                 if (cardFill != null) Modifier.background(cardFill, shape)
-                else Modifier.background(background.copy(alpha = backgroundAlpha), shape)
+                else Modifier.background(cardFillStops.first().second, shape)
             )
             .border(
                 if (isCurrent) 1.6.dp else 0.75.dp,
@@ -568,7 +582,7 @@ private fun CourseCard(
                 color = titleColor,
                 lineHeight = titleSize * 1.24f
             )
-            if (course.teacher.isNotBlank()) {
+            if (showTeacher && course.teacher.isNotBlank()) {
                 Text(
                     course.teacher,
                     modifier = Modifier.fillMaxWidth(),

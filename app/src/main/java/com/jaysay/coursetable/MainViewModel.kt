@@ -155,13 +155,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * 视图模式是纯展示偏好：界面状态立即切换，不等待整表持久化；
+     * 写入仍在串行互斥区完成。写入失败时回滚展示状态（仅当用户此后未再次切换），
+     * 交由 onError 提示。视图模式的变更不会产生课程历史快照（见 CourseRepository）。
+     */
     fun setScheduleViewMode(mode: ScheduleViewMode, onError: (Throwable) -> Unit = {}) {
         val targetIndex = state.activeTableIndex
-        launchWrite(onError) {
-            val current = state.tables.getOrNull(targetIndex) ?: return@launchWrite
-            if (current.viewMode == mode) return@launchWrite
-            val updated = mutateTable(targetIndex) { it.copy(viewMode = mode) } ?: return@launchWrite
-            state = state.copy(tables = updated)
+        val current = state.tables.getOrNull(targetIndex) ?: return
+        if (current.viewMode == mode) return
+        val previousMode = current.viewMode
+        state = state.copy(
+            tables = state.tables.toMutableList().also {
+                it[targetIndex] = current.copy(viewMode = mode)
+            }
+        )
+        launchWrite({ error ->
+            val latest = state.tables.getOrNull(targetIndex)
+            // 只在展示状态仍停留在失败模式时回滚，避免覆盖用户随后的真实切换。
+            if (latest != null && latest.viewMode == mode) {
+                state = state.copy(
+                    tables = state.tables.toMutableList().also {
+                        it[targetIndex] = latest.copy(viewMode = previousMode)
+                    }
+                )
+            }
+            onError(error)
+        }) {
+            mutateTable(targetIndex) { it.copy(viewMode = mode) } ?: return@launchWrite
         }
     }
 

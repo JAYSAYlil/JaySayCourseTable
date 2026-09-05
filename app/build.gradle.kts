@@ -12,8 +12,8 @@ android {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 131
-        versionName = "3.4.11"
+        versionCode = 132
+        versionName = "3.4.12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     androidResources {
@@ -32,6 +32,18 @@ android {
         }
         debug {
             isMinifyEnabled = false
+        }
+        // Macrobenchmark 目标变体：接近 Release 的 R8 配置，debuggable=false。
+        // 不参与常规构建与发布（assembleDebug/assembleRelease 不受影响），
+        // 仅由 benchmarks/macrobenchmark 模块在真机测量时组装。
+        create("benchmark") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            matchingFallbacks += listOf("release")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {

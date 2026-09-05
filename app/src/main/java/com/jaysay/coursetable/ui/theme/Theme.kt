@@ -7,7 +7,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
@@ -38,8 +40,7 @@ private val LightColors = lightColorScheme(
     error = Error
 )
 
-private val DarkColors = darkColorScheme(
-    primary = DarkPrimary, onPrimary = Color(0xFF00332C),
+private val DarkColors = darkColorScheme(    primary = DarkPrimary, onPrimary = Color(0xFF00332C),
     primaryContainer = DarkPrimaryLight, onPrimaryContainer = DarkPrimaryDark,
     secondary = DarkSecondary, onSecondary = Color(0xFF0A261B),
     secondaryContainer = DarkSecondaryLight, onSecondaryContainer = DarkSecondaryDark,
@@ -52,6 +53,9 @@ private val DarkColors = darkColorScheme(
     outlineVariant = DarkOutlineVariant,
     error = Color(0xFFEF5350)
 )
+
+/** 系统级“增强对比度”偏好在组合树的可达形式，供课程卡片等自定义绘制组件读取。 */
+val LocalEnhancedContrast = compositionLocalOf { false }
 
 @Composable
 fun JaySayTheme(
@@ -73,20 +77,24 @@ fun JaySayTheme(
         outlineVariant = baseColors.onSurface.copy(alpha = 0.7f)
     ) else baseColors
     val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            // targetSdk 35 强制 edge-to-edge：系统栏始终透明，
-            // 栏位颜色由 decorView 底色与页面 Compose 图层决定（自定义背景绘制在系统栏之后）。
-            // 保留统一 edge-to-edge 坐标系，避免系统避让与 Compose Insets 重复叠加。
-            WindowCompat.setDecorFitsSystemWindows(window, false)
+    MaterialTheme(colorScheme = colors, typography = Typography) {
+        CompositionLocalProvider(LocalEnhancedContrast provides highContrast) {
             // 页面交叉淡化时始终有与当前主题一致的底色，深色模式不会透出窗口默认白色。
-            window.decorView.setBackgroundColor(colors.background.toArgb())
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !isDark
-                isAppearanceLightNavigationBars = !isDark
+            if (!view.isInEditMode) {
+                SideEffect {
+                    val window = (view.context as Activity).window
+                    // targetSdk 35 强制 edge-to-edge：系统栏始终透明，
+                    // 栏位颜色由 decorView 底色与页面 Compose 图层决定（自定义背景绘制在系统栏之后）。
+                    // 保留统一 edge-to-edge 坐标系，避免系统避让与 Compose Insets 重复叠加。
+                    WindowCompat.setDecorFitsSystemWindows(window, false)
+                    window.decorView.setBackgroundColor(colors.background.toArgb())
+                    WindowCompat.getInsetsController(window, view).apply {
+                        isAppearanceLightStatusBars = !isDark
+                        isAppearanceLightNavigationBars = !isDark
+                    }
+                }
             }
+            content()
         }
     }
-    MaterialTheme(colorScheme = colors, typography = Typography, content = content)
 }

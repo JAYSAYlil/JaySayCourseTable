@@ -39,12 +39,13 @@ import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleDateException
 import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.ui.theme.AppShapes
-import com.jaysay.coursetable.ui.theme.courseCardTextColors
+import com.jaysay.coursetable.ui.theme.buildResolvedCourseColorMap
 import com.jaysay.coursetable.ui.theme.pressScale
-import com.jaysay.coursetable.ui.theme.resolveCourseColor
 import com.jaysay.coursetable.util.ChineseCalendarUtils
 import com.jaysay.coursetable.util.TimeUtils
+import com.jaysay.coursetable.util.rememberToday
 import java.time.LocalDate
+import androidx.compose.ui.unit.Dp
 
 /**
  * 月视图单个日期格的静态快照：
@@ -89,13 +90,12 @@ fun MonthGrid(
     dark: Boolean,
     onDayClick: (date: java.time.LocalDate) -> Unit
 ) {
-    val today = remember { LocalDate.now() }
-    // 与周视图同源的课程配色映射（含自定义颜色），按课程名去重后一次解析。
-    val courseColors = remember(courses, dark) {
-        courses.distinctBy { it.courseName }.associate { course ->
-            course.courseName to resolveCourseColor(courses, course, dark)
-        }
-    }
+    // 生命周期感知的“今天”：跨午夜、回到前台或时区变化后自动校准今日高亮，
+    // 不驱动月份锚点或翻页位置。
+    val today = rememberToday().value
+    // 与周视图同源的课程配色映射（含自定义颜色），一次性构建，
+    // 不再对每门课程逐个调用 resolveCourseColor 重建整表映射。
+    val courseColors = remember(courses, dark) { buildResolvedCourseColorMap(courses, dark) }
     val cells = remember(
         courses, monthStart, totalWeeks, semesterStart, excludedWeekSet, dateExceptions, weekLabels, today
     ) {
@@ -143,6 +143,7 @@ fun MonthGrid(
                             modifier = Modifier.weight(1f),
                             courseColors = courseColors,
                             dark = dark,
+                            rowHeight = rowHeight,
                             onDayClick = onDayClick
                         )
                     }
@@ -203,6 +204,7 @@ private fun MonthDayCell(
     modifier: Modifier = Modifier,
     courseColors: Map<String, Color>,
     dark: Boolean,
+    rowHeight: Dp,
     onDayClick: (date: java.time.LocalDate) -> Unit
 ) {
     val primary = MaterialTheme.colorScheme.primary
@@ -217,9 +219,14 @@ private fun MonthDayCell(
         cell.weekLabel?.isNotBlank() == true -> cell.weekLabel
         else -> null
     }
+    // 月视图空间分配：日期格按高度分档展示。农历最先让位；
+    // 极矮行（六行月份 + 大字体 + 小屏）改用“N 门课”计数，
+    // 与头部“共 N 节课”的节数口径明确区分；停课/节假日状态任何档位都保留。
+    val showLunar = rowHeight >= 64.dp
+    val showCourseNames = rowHeight >= 52.dp
     val cellDescription = buildString {
         append(cell.date)
-        append("，${cell.lunarText}")
+        if (showLunar) append("，${cell.lunarText}")
         cell.weekLabel?.let { append("，$it") }
         statusText?.let { append("，$it") }
         if (cell.courses.isNotEmpty()) append("，课程 ${cell.courses.joinToString("、") { it.courseName }}")
@@ -258,8 +265,8 @@ private fun MonthDayCell(
     ) {
         Text(
             text = cell.date.dayOfMonth.toString(),
-            fontSize = 10.sp,
-            lineHeight = 12.sp,
+            fontSize = 11.sp,
+            lineHeight = 13.sp,
             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium,
             color = when {
                 isToday -> primary
@@ -270,15 +277,17 @@ private fun MonthDayCell(
             textDecoration = if (cell.suspended) TextDecoration.LineThrough else null,
             maxLines = 1
         )
-        Text(
-            text = cell.lunarText,
-            fontSize = 8.sp,
-            lineHeight = 10.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = if (cell.holidayName != null) primary.copy(alpha = 0.88f)
-            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (cell.inMonth) 0.76f else 0.38f)
-        )
+        if (showLunar) {
+            Text(
+                text = cell.lunarText,
+                fontSize = 8.sp,
+                lineHeight = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = if (cell.holidayName != null) primary.copy(alpha = 0.88f)
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (cell.inMonth) 0.76f else 0.38f)
+            )
+        }
         statusText?.let { text ->
             Text(
                 text = text,
@@ -295,32 +304,46 @@ private fun MonthDayCell(
                 }
             )
         }
-        cell.courses.take(2).forEach { course ->
-            val color = courseColors[course.courseName] ?: primary
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .padding(end = 2.dp)
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(color)
-                )
+        if (showCourseNames) {
+            cell.courses.take(2).forEach { course ->
+                val color = courseColors[course.courseName] ?: primary
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 2.dp)
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                    )
+                    Text(
+                        text = course.courseName,
+                        fontSize = 8.sp,
+                        lineHeight = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        // 文字位于中性单元格背景上，用主题前景色而不是课程圆点底色派生；
+                        // 课程色相由圆点承载。
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (cell.inMonth) 0.88f else 0.5f)
+                    )
+                }
+            }
+            if (cell.courses.size > 2) {
                 Text(
-                    text = course.courseName,
+                    text = stringResource(R.string.month_more_courses, cell.courses.size - 2),
                     fontSize = 8.sp,
                     lineHeight = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = courseCardTextColors(color, dark).first
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-        if (cell.courses.size > 2) {
+        } else if (cell.courses.isNotEmpty()) {
             Text(
-                text = stringResource(R.string.month_more_courses, cell.courses.size - 2),
+                text = stringResource(R.string.month_course_summary, cell.courses.distinctBy { it.courseName }.size),
                 fontSize = 8.sp,
                 lineHeight = 10.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (cell.inMonth) 0.72f else 0.45f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

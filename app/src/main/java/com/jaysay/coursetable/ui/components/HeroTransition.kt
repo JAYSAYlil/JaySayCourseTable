@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -55,6 +56,10 @@ object HeroRegistry {
     /** 最近一次正向飞行的快照，供返回时反向配对。 */
     private var lastSpec: HeroRequest? = null
 
+    /** 最近一次飞行的实时进度（0..1）与系列键，供新请求从中断点续接。 */
+    internal var lastProgress: Float = 0f
+    internal var lastFlightKey: String? = null
+
     class HeroRequest(
         val key: String,
         val color: Color,
@@ -83,6 +88,22 @@ object HeroRegistry {
         val header = liveHeader ?: spec.toHeader ?: return
         request = HeroRequest(spec.key, spec.color, card, header, forward = false)
     }
+
+    /**
+     * 新请求的起始进度：正向与反向共用同一条“卡片 ↔ 头部”插值线段，
+     * 同键请求一律从当前可见进度续接，避免先跳到端点再重新起飞；
+     * 换了课程（不同键）或此前没有在途飞行时从标准端点开始。
+     */
+    internal fun seedProgress(request: HeroRequest): Float {
+        val continuing = lastFlightKey == request.key
+        val progress = lastProgress
+        return when {
+            request.forward ->
+                if (continuing && progress > 0f && progress < 1f) progress else 0f
+            continuing -> progress.coerceIn(0f, 1f)
+            else -> 1f
+        }
+    }
 }
 
 /** 飞行矩形两端的圆角（dp）：起点与课程卡一致，终点与详情头部一致。 */
@@ -104,7 +125,9 @@ private fun edgeFade(progress: Float): Float =
 @Composable
 fun HeroOverlay() {
     val request = HeroRegistry.request ?: return
-    val progress = remember(request) { Animatable(if (request.forward) 0f else 1f) }
+    // 从中断点续接：正向中途返回、快速进出、旋转重建都从当前可见进度继续，
+    // 而不是先消失再从端点重新起飞。
+    val progress = remember(request) { Animatable(HeroRegistry.seedProgress(request)) }
 
     LaunchedEffect(request) {
         if (request.forward) {
@@ -118,11 +141,18 @@ fun HeroOverlay() {
             }
             request.toHeader = header
         }
+        // 实时记录飞行进度：下一次请求（返回、再次点击、旋转重建）从这里续接。
+        HeroRegistry.lastFlightKey = request.key
+        val progressTracker = launch {
+            snapshotFlow { progress.value }.collect { HeroRegistry.lastProgress = it }
+        }
         progress.animateTo(
             targetValue = if (request.forward) 1f else 0f,
             // 临界阻尼弹簧：无过冲、可中断，与全应用动效体系一致。
             animationSpec = spring(dampingRatio = 1f, stiffness = 380f)
         )
+        progressTracker.cancel()
+        HeroRegistry.lastProgress = progress.value
         HeroRegistry.request = null
     }
 

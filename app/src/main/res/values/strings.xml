@@ -323,6 +323,8 @@
     <string name="settings_export_sanitized_subtitle">"移除教师、教室、班号、院系和备注，仅用于分享"</string>
     <string name="settings_high_contrast">"增强对比度"</string>
     <string name="settings_high_contrast_subtitle">"提高次要文字、边框和控件的可见度"</string>
+    <string name="settings_week_card_compact">"周视图精简课程卡片"</string>
+    <string name="settings_week_card_compact_subtitle">"七列/五列视图优先显示课程名与教室，教师信息进入课程详情查看"</string>
     <string name="settings_history">"本机历史版本"</string>
     <string name="settings_history_subtitle">"自动保留最近 10 次改动，可预览差异后恢复"</string>
     <string name="settings_import_backup">"从备份恢复"</string>
@@ -405,6 +407,7 @@
     <string name="month_next_month">"下一个月"</string>
     <string name="month_no_courses">"本月该时间段无课程"</string>
     <string name="month_more_courses">"+%1$d 节"</string>
+    <string name="month_course_summary">"%1$d 门课"</string>
 
     <string name="settings_section_data">"数据与版本"</string>
     <string name="settings_check_update">"检查更新"</string>

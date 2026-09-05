@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -176,8 +177,8 @@ class MonthGridNavigationTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("more-actions-button").performClick()
-        composeRule.onNodeWithText("定位到今天").performClick()
+        // 浏览非今日月份时“回到今天”直接可达（contentDescription 定位，不再依赖菜单）。
+        composeRule.onNodeWithContentDescription("定位到今天").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("${today.year} 年 ${today.monthValue} 月").assertIsDisplayed()
     }

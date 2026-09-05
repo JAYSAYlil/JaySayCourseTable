@@ -73,7 +73,7 @@ class CourseRepository private constructor(
 
     suspend fun saveAllTables(tables: List<TableData>) = withContext(Dispatchers.IO) {
         synchronized(storageLock) {
-            persistWithHistory(encodeTables(tables), replaceWithValidated = false)
+            persistWithHistory(encodeTables(tables), tables, replaceWithValidated = false)
         }
     }
 
@@ -82,6 +82,7 @@ class CourseRepository private constructor(
         synchronized(storageLock) {
             persistWithHistory(
                 content = encodeTables(tables),
+                tables = tables,
                 replaceWithValidated = true,
                 allowCorruptCurrent = true
             )
@@ -106,6 +107,7 @@ class CourseRepository private constructor(
             val target = historyStore.loadSnapshot(id, ::parseTables).tables
             persistWithHistory(
                 content = encodeTables(target),
+                tables = target,
                 replaceWithValidated = true,
                 allowCorruptCurrent = true
             )
@@ -135,6 +137,7 @@ class CourseRepository private constructor(
 
     private fun persistWithHistory(
         content: String,
+        tables: List<TableData>,
         replaceWithValidated: Boolean,
         allowCorruptCurrent: Boolean = false
     ) {
@@ -149,14 +152,22 @@ class CourseRepository private constructor(
         // 减少 JSON 编码、文件同步和闪存写入。
         if (currentContent == content) return
         if (currentTables != null && currentContent != null) {
-            historyStore.createSnapshot(
-                content = currentContent,
-                tables = currentTables,
-                force = replaceWithValidated
-            )
+            // 仅展示偏好（视图模式）变化时不产生课程历史快照：
+            // 该快照与上一次课程内容完全相同，只会浪费磁盘并干扰历史回溯。
+            val displayOnlyChange = !replaceWithValidated &&
+                currentTables.map(::withoutDisplayPreference) == tables.map(::withoutDisplayPreference)
+            if (!displayOnlyChange) {
+                historyStore.createSnapshot(
+                    content = currentContent,
+                    tables = currentTables,
+                    force = replaceWithValidated
+                )
+            }
         }
         if (replaceWithValidated) store.replaceWithValidated(content) else store.write(content)
     }
+
+    private fun withoutDisplayPreference(table: TableData) = table.copy(viewMode = ScheduleViewMode.WEEK)
 
     private companion object {
         const val SCHEMA_VERSION = 4

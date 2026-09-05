@@ -38,7 +38,12 @@ data class AppPreferences(
     /** 0 表示使用默认背景；正数同时用作图片缓存刷新标记。 */
     val customBackgroundRevision: Long = 0L,
     /** 自定义背景上是否叠加全屏可读遮罩；旧版数据默认开启以保持原显示效果。 */
-    val customBackgroundOverlayEnabled: Boolean = true
+    val customBackgroundOverlayEnabled: Boolean = true,
+    /**
+     * 周视图课程卡片是否精简为“课程名 + 教室”（教师进入详情查看）。
+     * 默认关闭以保持既有完整信息习惯；开启后仍由宽度密度自动降级兜底。
+     */
+    val weekCardCompactInfo: Boolean = false
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -64,6 +69,7 @@ class PreferencesManager(context: Context) {
             .put("autoBackupUri", prefs.autoBackupUri)
             .put("customBackgroundRevision", prefs.customBackgroundRevision.coerceAtLeast(0L))
             .put("customBackgroundOverlayEnabled", prefs.customBackgroundOverlayEnabled)
+            .put("weekCardCompactInfo", prefs.weekCardCompactInfo)
         store.write(obj.toString(2))
     }
 
@@ -80,7 +86,8 @@ class PreferencesManager(context: Context) {
             autoBackupEnabled = obj.optBoolean("autoBackupEnabled", false),
             autoBackupUri = obj.optString("autoBackupUri"),
             customBackgroundRevision = obj.optLong("customBackgroundRevision", 0L).coerceAtLeast(0L),
-            customBackgroundOverlayEnabled = obj.optBoolean("customBackgroundOverlayEnabled", true)
+            customBackgroundOverlayEnabled = obj.optBoolean("customBackgroundOverlayEnabled", true),
+            weekCardCompactInfo = obj.optBoolean("weekCardCompactInfo", false)
         )
     }
 

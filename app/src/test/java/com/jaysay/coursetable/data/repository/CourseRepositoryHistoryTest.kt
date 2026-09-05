@@ -2,6 +2,7 @@ package com.jaysay.coursetable.data.repository
 
 import com.jaysay.coursetable.data.history.CourseSnapshotDiff
 import com.jaysay.coursetable.data.model.Course
+import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.storage.DataCorruptionException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -48,6 +49,24 @@ class CourseRepositoryHistoryTest {
         repository.saveAllTables(tables)
 
         assertEquals(0, repository.listSnapshots().size)
+    }
+
+    @Test
+    fun viewModeOnlyChangePersistsWithoutCourseSnapshot() = runBlocking {
+        val filesDir = Files.createTempDirectory("course-repository-viewmode").toFile()
+        val repository = CourseRepository(filesDir)
+        val courses = listOf(course("math", "高等数学", "A101"))
+        val base = table(*courses.toTypedArray())
+
+        repository.saveAllTables(listOf(base.copy(viewMode = ScheduleViewMode.WEEK)))
+        // 纯展示偏好变化：持久化生效（重启后保留），但不产生课程历史快照。
+        repository.saveAllTables(listOf(base.copy(viewMode = ScheduleViewMode.DAY)))
+        assertEquals(ScheduleViewMode.DAY, repository.loadAllTables().single().viewMode)
+        assertEquals(0, repository.listSnapshots().size)
+
+        // 真实课程变化仍然照常快照。
+        repository.saveAllTables(listOf(base.copy(viewMode = ScheduleViewMode.DAY, courses = courses + course("eng", "大学英语", "B202"))))
+        assertEquals(1, repository.listSnapshots().size)
     }
 
     @Test

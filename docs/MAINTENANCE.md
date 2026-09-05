@@ -5,7 +5,7 @@
 - Android 应用模块：`app/`
 - 包名与 applicationId：`com.jaysay.coursetable`
 - 最低/目标系统：Android 8.0（API 26）/ Android 15（API 35）
-- 当前版本：3.4.11，versionCode 131
+- 当前版本：3.4.12，versionCode 132
 - 构建栈：Gradle 9.1.0 / AGP 8.13.0 / Kotlin 2.2.0（内置 Compose 编译器）/ Compose BOM 2025.06.01
 - 应用仅在用户手动检查更新时访问 GitHub Releases；不包含常驻联网客户端，课程、备份、提醒和日历均在本机处理。
 - 全部 UI 用户可见文案位于 `res/values/strings.xml`；数据层错误消息保持纯 Kotlin 数据（不依赖 Context）。
@@ -29,7 +29,7 @@
 ## 本地数据与兼容性
 
 - `files/tables.json`：schemaVersion 4，包含多课表、课程、节次、学期、视图模式、日期例外、周标签和归档状态。
-- `files/preferences.json`：schemaVersion 4，包含主题、活动课表、提醒、增强对比度、减少动画、背景缓存版本标记和可读遮罩开关；旧数据缺少遮罩字段时默认开启。
+- `files/preferences.json`：schemaVersion 4，包含主题、活动课表、提醒、增强对比度、周视图精简课程卡片、背景缓存版本标记和可读遮罩开关；旧数据缺少新字段时使用默认值（遮罩开启、完整卡片信息）。
 - `files/appearance/custom_background.jpg`：经限尺寸、方向校正和去元数据重编码的本机背景；故意不写入完整备份或脱敏副本。
 - `files/course_history/`：最多 10 份自动快照；文件名不含课程正文。
 - `files/import_draft.json`：待确认导入草稿，确认或取消后删除。

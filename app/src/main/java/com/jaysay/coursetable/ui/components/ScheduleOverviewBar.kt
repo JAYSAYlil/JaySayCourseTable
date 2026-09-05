@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -74,7 +77,9 @@ fun ScheduleOverviewBar(
     onLocateToday: () -> Unit,
     onAgendaClick: () -> Unit = {},
     onSettingsClick: () -> Unit,
-    writesEnabled: Boolean = true
+    writesEnabled: Boolean = true,
+    /** 浏览非今日日期时为 true：紧凑宽度下也在操作行直接展示“回到今天”。 */
+    awayFromToday: Boolean = false
 ) {
     var searchVisible by remember { mutableStateOf(false) }
     var agendaVisible by remember { mutableStateOf(false) }
@@ -89,10 +94,13 @@ fun ScheduleOverviewBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
         if (searchVisible) {
+            // 展开即输入：搜索框出现的第一帧就持有焦点，无需二次点击。
+            val searchFocus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { searchFocus.requestFocus() }
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                modifier = Modifier.weight(1f).testTag("course-search-input"),
+                modifier = Modifier.weight(1f).focusRequester(searchFocus).testTag("course-search-input"),
                 placeholder = { Text(stringResource(R.string.overview_search_placeholder), maxLines = 1) },
                 leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 trailingIcon = {
@@ -142,8 +150,12 @@ fun ScheduleOverviewBar(
             IconButton(onClick = onAddCourseClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("add-course-button")) {
                 Icon(Icons.Rounded.AddCircleOutline, stringResource(R.string.overview_add_course), tint = MaterialTheme.colorScheme.primary)
             }
-            IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
-                Icon(Icons.Rounded.FileOpen, stringResource(R.string.overview_import_table), tint = MaterialTheme.colorScheme.primary)
+            // 浏览其他日期时，紧凑宽度的“回到今天”也直接可达，不再依赖更多菜单；
+            // 宽屏操作行本就常驻定位按钮，不重复添加。
+            if (compactActions && awayFromToday) {
+                IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp).testTag("locate-today-button")) {
+                    Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
+                }
             }
             if (compactActions) {
                 Box {
@@ -165,16 +177,25 @@ fun ScheduleOverviewBar(
                             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
                         )
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.overview_locate_today)) },
-                            leadingIcon = { Icon(Icons.Rounded.MyLocation, null) },
-                            onClick = { moreActionsVisible = false; onLocateToday() },
-                            modifier = Modifier.testTag("locate-today-menu-item")
-                        )
+                        if (!awayFromToday) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.overview_locate_today)) },
+                                leadingIcon = { Icon(Icons.Rounded.MyLocation, null) },
+                                onClick = { moreActionsVisible = false; onLocateToday() },
+                                modifier = Modifier.testTag("locate-today-menu-item")
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_agenda_list)) },
                             leadingIcon = { Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, null) },
                             onClick = { moreActionsVisible = false; onAgendaClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.overview_import_table)) },
+                            leadingIcon = { Icon(Icons.Rounded.FileOpen, null) },
+                            onClick = { moreActionsVisible = false; onImportClick() },
+                            enabled = writesEnabled,
+                            modifier = Modifier.testTag("import-course-menu-item")
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_settings)) },
@@ -192,6 +213,9 @@ fun ScheduleOverviewBar(
                     modifier = Modifier.size(48.dp).testTag("locate-today-button")
                 ) {
                     Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
+                    Icon(Icons.Rounded.FileOpen, stringResource(R.string.overview_import_table), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Rounded.Settings, stringResource(R.string.overview_settings), tint = MaterialTheme.colorScheme.onSurfaceVariant)

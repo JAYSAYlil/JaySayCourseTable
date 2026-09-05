@@ -43,6 +43,7 @@ import com.jaysay.coursetable.data.preferences.PeriodTime
 import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.util.TimeUtils
+import com.jaysay.coursetable.util.rememberToday
 import java.time.LocalDate
 
 /**
@@ -63,7 +64,7 @@ fun AgendaScreen(
     dateExceptions: List<ScheduleDateException> = emptyList(),
     searchQuery: String? = null,
     onSearchQueryChange: ((String) -> Unit)? = null,
-    today: LocalDate = LocalDate.now()
+    today: LocalDate = rememberToday().value
 ) {
     var localSearchQuery by rememberSaveable { mutableStateOf("") }
     val query = searchQuery ?: localSearchQuery
