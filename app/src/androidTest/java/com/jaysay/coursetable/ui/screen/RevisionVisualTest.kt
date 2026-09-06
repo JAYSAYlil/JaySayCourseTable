@@ -67,7 +67,7 @@ class RevisionVisualTest {
     private fun capture(name: String) {
         rule.waitForIdle()
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val directory = File(context.getExternalFilesDir(null), "visual-3.4.13").apply { mkdirs() }
+        val directory = File(context.getExternalFilesDir(null), "visual-3.4.14").apply { mkdirs() }
         File(directory, "$name.png").outputStream().use {
             rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
         }

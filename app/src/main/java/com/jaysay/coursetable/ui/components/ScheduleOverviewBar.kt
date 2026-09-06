@@ -90,9 +90,11 @@ fun ScheduleOverviewBar(
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val compactActions = maxWidth < 430.dp
+        // 顶栏功能键统一 44dp 触控尺寸与节奏：44dp 容器 + 24dp 图标自带 10dp 视觉边距，
+        // 行尾 padding 6dp 恰好落在 16dp 视觉边距上，两行左右边缘完全对齐。
         Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
         if (searchVisible) {
@@ -126,7 +128,7 @@ fun ScheduleOverviewBar(
                     Text(
                         tableName,
                         modifier = Modifier.weight(1f, fill = false),
-                        fontSize = 23.sp,
+                        fontSize = 21.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = (-0.4).sp,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -146,10 +148,10 @@ fun ScheduleOverviewBar(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = { searchVisible = true }, modifier = Modifier.size(48.dp).testTag("course-search-button")) {
+            IconButton(onClick = { searchVisible = true }, modifier = Modifier.size(44.dp).testTag("course-search-button")) {
                 Icon(Icons.Rounded.Search, stringResource(R.string.overview_search_course), tint = MaterialTheme.colorScheme.primary)
             }
-            IconButton(onClick = onAddCourseClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("add-course-button")) {
+            IconButton(onClick = onAddCourseClick, enabled = writesEnabled, modifier = Modifier.size(44.dp).testTag("add-course-button")) {
                 Icon(Icons.Rounded.AddCircleOutline, stringResource(R.string.overview_add_course), tint = MaterialTheme.colorScheme.primary)
             }
             // 浏览其他日期时，紧凑宽度的“回到今天”也直接可达，不再依赖更多菜单；
@@ -158,7 +160,7 @@ fun ScheduleOverviewBar(
                 Box {
                     IconButton(
                         onClick = { moreActionsVisible = true },
-                        modifier = Modifier.size(48.dp).testTag("more-actions-button")
+                        modifier = Modifier.size(44.dp).testTag("more-actions-button")
                     ) {
                         Icon(Icons.Rounded.MoreVert, stringResource(R.string.overview_more_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -202,34 +204,44 @@ fun ScheduleOverviewBar(
                     }
                 }
             } else {
-                IconButton(onClick = onAgendaClick, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = onAgendaClick, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, stringResource(R.string.overview_agenda_list), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(
                     onClick = onLocateToday,
-                    modifier = Modifier.size(48.dp).testTag("locate-today-button")
+                    modifier = Modifier.size(44.dp).testTag("locate-today-button")
                 ) {
                     Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
+                IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(44.dp).testTag("import-course-button")) {
                     Icon(Icons.Rounded.FileOpen, stringResource(R.string.overview_import_table), tint = MaterialTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = onSettingsClick, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.Rounded.Settings, stringResource(R.string.overview_settings), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
         if (compactActions && !searchVisible) {
-            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(compactAgenda,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).clip(AppShapes.small)
-                        .clickable { agendaVisible = true }.padding(vertical = 14.dp)
-                        .semantics { contentDescription = agendaSummaryDescription }.testTag("today-agenda-summary"),
-                    style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // 摘要行与标题行同一起始边距、同一 44dp 高度：文字垂直居中，
+            // “回到今天”按钮与上方功能键同列对齐，出现/消失不带动文字跳动。
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, bottom = 4.dp).heightIn(min = 44.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(AppShapes.small)
+                        .clickable { agendaVisible = true }
+                        .semantics { contentDescription = agendaSummaryDescription }
+                        .testTag("today-agenda-summary"),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(compactAgenda,
+                        style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (awayFromToday) {
-                    IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp).testTag("locate-today-button")) {
+                    IconButton(onClick = onLocateToday, modifier = Modifier.size(44.dp).testTag("locate-today-button")) {
                         Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
                     }
                 }

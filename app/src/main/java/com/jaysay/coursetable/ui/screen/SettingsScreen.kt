@@ -3,6 +3,12 @@ package com.jaysay.coursetable.ui.screen
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -19,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -128,7 +135,7 @@ fun SettingsScreen(
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
                 .padding(top = AppSpacing.screenH, bottom = AppSpacing.xxl),
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
         ) {
             readOnlyMessage?.let { message ->
                 Surface(
@@ -717,167 +724,243 @@ fun SettingsScreen(
                         stringResource(R.string.settings_period_time_exceeds)
                     )
                 ) {
-                    SettingsGroupHeader(stringResource(R.string.settings_section_periods))
+                    // 节次时间默认折叠为一行摘要（共 N 节 · 首末时间），搜索命中时自动展开，
+                    // 保证结果与时间选择器可以直接触达；展开状态在配置变更间保留。
+                    var periodsExpanded by rememberSaveable { mutableStateOf(false) }
+                    val periodsVisible = periodsExpanded || isSearching
                     val periodCount = table.periods.size
-                    Text(
-                        stringResource(R.string.settings_period_count, periodCount),
-                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-
-                    table.periods.forEachIndexed { idx, period ->
-                        key(idx) {
-                        var showStartPicker by remember { mutableStateOf(false) }
-                        var showEndPicker by remember { mutableStateOf(false) }
-
-                        // 解析当前时间
-                        val startParts = period.start.split(":")
-                        val startH = startParts.getOrNull(0)?.toIntOrNull() ?: 8
-                        val startM = startParts.getOrNull(1)?.toIntOrNull() ?: 0
-                        val endParts = period.end.split(":")
-                        val endH = endParts.getOrNull(0)?.toIntOrNull() ?: 8
-                        val endM = endParts.getOrNull(1)?.toIntOrNull() ?: 45
-                        val startInteraction = remember { MutableInteractionSource() }
-                        val endInteraction = remember { MutableInteractionSource() }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    val firstPeriod = table.periods.firstOrNull()
+                    val lastPeriod = table.periods.lastOrNull()
+                    val headerInteraction = remember { MutableInteractionSource() }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().testTag("period-times-header")
+                            .pressScale(headerInteraction)
+                            .clickable(
+                                interactionSource = headerInteraction,
+                                indication = null
+                            ) { periodsExpanded = !periodsExpanded }
+                            .padding(horizontal = 16.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Schedule, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_section_periods), fontSize = 15.sp)
+                            if (!periodsVisible) {
+                                Text(
+                                    stringResource(
+                                        R.string.settings_periods_summary,
+                                        periodCount,
+                                        firstPeriod?.start.orEmpty(),
+                                        lastPeriod?.end.orEmpty()
+                                    ),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Icon(
+                            if (periodsVisible) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            stringResource(if (periodsVisible) R.string.settings_periods_hide else R.string.settings_periods_show),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = periodsVisible,
+                        enter = expandVertically(Motion.interactive()) + fadeIn(tween(Motion.DURATION_SHORT)),
+                        exit = shrinkVertically(Motion.interactive()) + fadeOut(tween(Motion.DURATION_SHORT))
+                    ) {
+                        Column {
                             Text(
-                                stringResource(R.string.settings_period_index, idx + 1),
-                                fontSize = 13.sp, modifier = Modifier.width(44.dp), fontWeight = FontWeight.Medium
+                                stringResource(R.string.settings_period_count, periodCount),
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                             )
 
-                            // 开始时间
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                    .pressScale(startInteraction, 0.97f)
-                                    .clickable(
-                                        interactionSource = startInteraction,
-                                        indication = null,
-                                        enabled = readOnlyMessage == null
-                                    ) { showStartPicker = true }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp)
-                            ) {
-                                Text(period.start, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            table.periods.forEachIndexed { idx, period ->
+                                key(idx) {
+                                var showStartPicker by remember { mutableStateOf(false) }
+                                var showEndPicker by remember { mutableStateOf(false) }
+
+                                // 解析当前时间
+                                val startParts = period.start.split(":")
+                                val startH = startParts.getOrNull(0)?.toIntOrNull() ?: 8
+                                val startM = startParts.getOrNull(1)?.toIntOrNull() ?: 0
+                                val endParts = period.end.split(":")
+                                val endH = endParts.getOrNull(0)?.toIntOrNull() ?: 8
+                                val endM = endParts.getOrNull(1)?.toIntOrNull() ?: 45
+                                val startInteraction = remember { MutableInteractionSource() }
+                                val endInteraction = remember { MutableInteractionSource() }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        stringResource(R.string.settings_period_index, idx + 1),
+                                        fontSize = 13.sp, modifier = Modifier.width(44.dp), fontWeight = FontWeight.Medium
+                                    )
+
+                                    // 开始时间
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                                            .pressScale(startInteraction, 0.97f)
+                                            .clickable(
+                                                interactionSource = startInteraction,
+                                                indication = null,
+                                                enabled = readOnlyMessage == null
+                                            ) { showStartPicker = true }
+                                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(period.start, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    }
+
+                                    Text(" ～ ", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                                    // 结束时间
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                                            .pressScale(endInteraction, 0.97f)
+                                            .clickable(
+                                                interactionSource = endInteraction,
+                                                indication = null,
+                                                enabled = readOnlyMessage == null
+                                            ) { showEndPicker = true }
+                                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(period.end, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    }
+
+                                    if (periodCount > 1) {
+                                        IconButton(enabled = readOnlyMessage == null, onClick = {
+                                            val np = table.periods.toMutableList()
+                                            np.removeAt(idx)
+                                            saveTable(table.copy(periods = np))
+                                        }) {
+                                            Icon(Icons.Rounded.RemoveCircleOutline, stringResource(R.string.settings_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
+
+                                // 弹窗用LaunchedEffect防重复弹出
+                                if (showStartPicker) {
+                                    AppTimePickerSheet(
+                                        onDismiss = { showStartPicker = false },
+                                        onConfirm = { hour, minute ->
+                                            val newTime = "%02d:%02d".format(hour, minute)
+                                            val np = table.periods.toMutableList()
+                                            np[idx] = PeriodTime(newTime, period.end)
+                                            saveTable(table.copy(periods = np))
+                                            showStartPicker = false
+                                        },
+                                        initialHour = startH,
+                                        initialMinute = startM,
+                                        title = stringResource(R.string.settings_time_picker_title),
+                                        confirmLabel = stringResource(R.string.settings_confirm),
+                                        cancelLabel = stringResource(R.string.settings_cancel)
+                                    )
+                                }
+                                if (showEndPicker) {
+                                    AppTimePickerSheet(
+                                        onDismiss = { showEndPicker = false },
+                                        onConfirm = { hour, minute ->
+                                            val newTime = "%02d:%02d".format(hour, minute)
+                                            val np = table.periods.toMutableList()
+                                            np[idx] = PeriodTime(period.start, newTime)
+                                            saveTable(table.copy(periods = np))
+                                            showEndPicker = false
+                                        },
+                                        initialHour = endH,
+                                        initialMinute = endM,
+                                        title = stringResource(R.string.settings_time_picker_title),
+                                        confirmLabel = stringResource(R.string.settings_confirm),
+                                        cancelLabel = stringResource(R.string.settings_cancel)
+                                    )
+                                }
+                                } // end key(idx)
                             }
 
-                            Text(" ～ ", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                            // 结束时间
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                    .pressScale(endInteraction, 0.97f)
-                                    .clickable(
-                                        interactionSource = endInteraction,
-                                        indication = null,
-                                        enabled = readOnlyMessage == null
-                                    ) { showEndPicker = true }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text(period.end, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            }
+                                OutlinedButton(enabled = readOnlyMessage == null, onClick = {
+                                    val last = table.periods.lastOrNull()
+                                    val startMinute = if (last != null) {
+                                        val p = last.end.split(":")
+                                        val h = p.getOrNull(0)?.toIntOrNull() ?: 22
+                                        val m = p.getOrNull(1)?.toIntOrNull() ?: 0
+                                        h * 60 + m + 10
+                                    } else 8 * 60
+                                    val endMinute = startMinute + 45
+                                    if (endMinute > 23 * 60 + 59) {
+                                        // 避免跨天回绕出 00:xx 的错误时间
+                                        Toast.makeText(context, context.getString(R.string.settings_period_time_exceeds), Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val ns = "%02d:%02d".format(startMinute / 60, startMinute % 60)
+                                        val ne = "%02d:%02d".format(endMinute / 60, endMinute % 60)
+                                        val np = table.periods.toMutableList()
+                                        np.add(PeriodTime(ns, ne))
+                                        saveTable(table.copy(periods = np))
+                                    }
+                                }, modifier = Modifier.height(48.dp)) {
+                                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(stringResource(R.string.settings_add_period), fontSize = 13.sp)
+                                }
 
-                            if (periodCount > 1) {
-                                IconButton(enabled = readOnlyMessage == null, onClick = {
-                                    val np = table.periods.toMutableList()
-                                    np.removeAt(idx)
-                                    saveTable(table.copy(periods = np))
-                                }) {
-                                    Icon(Icons.Rounded.RemoveCircleOutline, stringResource(R.string.settings_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                OutlinedButton(
+                                    enabled = readOnlyMessage == null,
+                                    onClick = { saveTable(table.copy(periods = TableData.defaultPeriods())) },
+                                    modifier = Modifier.height(48.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                    Icon(Icons.Rounded.Restore, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(stringResource(R.string.settings_restore_default), fontSize = 13.sp)
                                 }
                             }
-                        }
-
-                        // 弹窗用LaunchedEffect防重复弹出
-                        if (showStartPicker) {
-                            AppTimePickerSheet(
-                                onDismiss = { showStartPicker = false },
-                                onConfirm = { hour, minute ->
-                                    val newTime = "%02d:%02d".format(hour, minute)
-                                    val np = table.periods.toMutableList()
-                                    np[idx] = PeriodTime(newTime, period.end)
-                                    saveTable(table.copy(periods = np))
-                                    showStartPicker = false
-                                },
-                                initialHour = startH,
-                                initialMinute = startM,
-                                title = stringResource(R.string.settings_time_picker_title),
-                                confirmLabel = stringResource(R.string.settings_confirm),
-                                cancelLabel = stringResource(R.string.settings_cancel)
-                            )
-                        }
-                        if (showEndPicker) {
-                            AppTimePickerSheet(
-                                onDismiss = { showEndPicker = false },
-                                onConfirm = { hour, minute ->
-                                    val newTime = "%02d:%02d".format(hour, minute)
-                                    val np = table.periods.toMutableList()
-                                    np[idx] = PeriodTime(period.start, newTime)
-                                    saveTable(table.copy(periods = np))
-                                    showEndPicker = false
-                                },
-                                initialHour = endH,
-                                initialMinute = endM,
-                                title = stringResource(R.string.settings_time_picker_title),
-                                confirmLabel = stringResource(R.string.settings_confirm),
-                                cancelLabel = stringResource(R.string.settings_cancel)
-                            )
-                        }
-                        } // end key(idx)
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedButton(enabled = readOnlyMessage == null, onClick = {
-                            val last = table.periods.lastOrNull()
-                            val startMinute = if (last != null) {
-                                val p = last.end.split(":")
-                                val h = p.getOrNull(0)?.toIntOrNull() ?: 22
-                                val m = p.getOrNull(1)?.toIntOrNull() ?: 0
-                                h * 60 + m + 10
-                            } else 8 * 60
-                            val endMinute = startMinute + 45
-                            if (endMinute > 23 * 60 + 59) {
-                                // 避免跨天回绕出 00:xx 的错误时间
-                                Toast.makeText(context, context.getString(R.string.settings_period_time_exceeds), Toast.LENGTH_SHORT).show()
-                            } else {
-                                val ns = "%02d:%02d".format(startMinute / 60, startMinute % 60)
-                                val ne = "%02d:%02d".format(endMinute / 60, endMinute % 60)
-                                val np = table.periods.toMutableList()
-                                np.add(PeriodTime(ns, ne))
-                                saveTable(table.copy(periods = np))
-                            }
-                        }, modifier = Modifier.height(48.dp)) {
-                            Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(R.string.settings_add_period), fontSize = 13.sp)
-                        }
-
-                        OutlinedButton(
-                            enabled = readOnlyMessage == null,
-                            onClick = { saveTable(table.copy(periods = TableData.defaultPeriods())) },
-                            modifier = Modifier.height(48.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                            Icon(Icons.Rounded.Restore, null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(R.string.settings_restore_default), fontSize = 13.sp)
                         }
                     }
                 },
             )
 
-            // —— 数据备份与恢复 ——
+            // —— 数据备份与恢复：自动备份 + 导出 / 导入 / 历史 ——
             val backupItems = listOf(
+            SettingsItem(
+                keywords = listOf(
+                    stringResource(R.string.settings_auto_backup),
+                    stringResource(R.string.settings_auto_backup_subtitle)
+                )
+            ) {
+                PreferenceSwitchRow(
+                    title = stringResource(R.string.settings_auto_backup),
+                    subtitle = stringResource(R.string.settings_auto_backup_subtitle),
+                    checked = preferences.autoBackupEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled && preferences.autoBackupUri.isBlank()) {
+                            onChooseAutoBackupLocation()
+                        } else {
+                            save(preferences.copy(autoBackupEnabled = enabled))
+                        }
+                    },
+                    switchTestTag = "auto-backup-switch"
+                )
+                val chosenName = preferences.autoBackupUri.substringAfterLast('/')
+                    .ifBlank { stringResource(R.string.settings_auto_backup_none) }
+                SettingsActionRow(
+                    icon = Icons.Rounded.FolderOpen,
+                    title = stringResource(R.string.settings_auto_backup_choose),
+                    subtitle = stringResource(R.string.settings_auto_backup_chosen, chosenName),
+                    onClick = onChooseAutoBackupLocation
+                )
+            },
                 SettingsItem(
                     keywords = listOf(
                         stringResource(R.string.settings_export_full_backup),
@@ -946,6 +1029,10 @@ fun SettingsScreen(
                         onClick = onOpenHistory
                     )
                 },
+            )
+
+            // —— 导入与导出：粘贴导入 / Excel 模板 / 系统日历 ——
+            val importExportItems = listOf(
                 SettingsItem(
                     keywords = listOf(
                         stringResource(R.string.settings_paste_import),
@@ -1041,45 +1128,20 @@ fun SettingsScreen(
                 },
             )
 
-            // —— 数据与版本：自动备份 + 检查更新 + 备份恢复 + 诊断 ——
+            // —— 数据与版本：检查更新 ——
             val dataItems = listOf(
-            SettingsItem(
-                keywords = listOf(
-                    stringResource(R.string.settings_auto_backup),
-                    stringResource(R.string.settings_auto_backup_subtitle)
-                )
-            ) {
-                PreferenceSwitchRow(
-                    title = stringResource(R.string.settings_auto_backup),
-                    subtitle = stringResource(R.string.settings_auto_backup_subtitle),
-                    checked = preferences.autoBackupEnabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled && preferences.autoBackupUri.isBlank()) {
-                            onChooseAutoBackupLocation()
-                        } else {
-                            save(preferences.copy(autoBackupEnabled = enabled))
-                        }
-                    },
-                    switchTestTag = "auto-backup-switch"
-                )
-                val chosenName = preferences.autoBackupUri.substringAfterLast('/')
-                    .ifBlank { stringResource(R.string.settings_auto_backup_none) }
-                SettingsActionRow(
-                    icon = Icons.Rounded.FolderOpen,
-                    title = stringResource(R.string.settings_auto_backup_choose),
-                    subtitle = stringResource(R.string.settings_auto_backup_chosen, chosenName),
-                    onClick = onChooseAutoBackupLocation
-                )
-            },
             createUpdateCheckSettingsItem(context),
             )
 
+            // 分区按使用频率排序：外观与显示 → 提醒 → 学期与节次 → 数据安全 → 导入导出 → 诊断 → 版本。
             val sections = listOf(
-
                 SettingsSectionData(stringResource(R.string.settings_section_general), generalItems),
                 SettingsSectionData(stringResource(R.string.settings_section_reminder), reminderItems),
                 SettingsSectionData(stringResource(R.string.settings_section_semester), semesterItems),
-                SettingsSectionData(stringResource(R.string.settings_section_data), dataItems + backupItems + diagnosticsItems),
+                SettingsSectionData(stringResource(R.string.settings_section_backup), backupItems),
+                SettingsSectionData(stringResource(R.string.settings_section_import_export), importExportItems),
+                SettingsSectionData(stringResource(R.string.settings_section_diagnostics), diagnosticsItems),
+                SettingsSectionData(stringResource(R.string.settings_section_data), dataItems),
             )
 
             val renderedSections: List<Pair<SettingsSectionData, List<SettingsItem>>> = if (!isSearching) {
@@ -1122,11 +1184,11 @@ private fun PreferenceSwitchRow(
         modifier = Modifier.fillMaxWidth()
             .pressScale(interaction)
             .clickable(interactionSource = interaction, indication = null) { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp)
+            Text(title, fontSize = 15.sp)
             Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(

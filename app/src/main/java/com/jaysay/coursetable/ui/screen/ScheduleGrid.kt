@@ -515,12 +515,12 @@ private fun CourseCard(
         label = "courseCardBorder"
     )
     // 填充停止点是渲染与对比度测试共享的单一来源（ui.theme/courseCardFillStops）：
-    // 浅色为单段实色，深色为顶部高光、中段基色、底部压暗的三段式渐变。
+    // 浅深模式统一为三段式毛玻璃渐变——顶部更实、中段基色、底部压暗。
     val cardFillStops = remember(background, dark, hasCustomBackground) {
         courseCardFillStops(background, dark, hasCustomBackground)
     }
     val cardFill = remember(dark, cardFillStops) {
-        if (dark) Brush.verticalGradient(colorStops = cardFillStops.toTypedArray()) else null
+        Brush.verticalGradient(colorStops = cardFillStops.toTypedArray())
     }
     val contentPadding = when (viewMode) {
         ScheduleViewMode.WEEK -> PaddingValues(4.dp, 5.dp, 3.dp, 4.dp)
@@ -555,10 +555,7 @@ private fun CourseCard(
                 clip = false
             )
             .clip(shape)
-            .then(
-                if (cardFill != null) Modifier.background(cardFill, shape)
-                else Modifier.background(cardFillStops.first().second, shape)
-            )
+            .background(cardFill, shape)
             .border(
                 if (isCurrent) 1.6.dp else 0.75.dp,
                 borderColor,

@@ -151,13 +151,22 @@ class CourseColorTest {
         }
     }
 
-    /** 浅色卡片为单段实色填充，透明度与渲染保持一致。 */
+    /** 浅色卡片同为三段式毛玻璃渐变：顶部更实、中段基色（透明度与文档一致）、底部压暗。 */
     @Test
-    fun lightCardUsesSingleFillStopWithDocumentedAlpha() {
-        coursePalette(false).forEach { card ->
+    fun lightCardUsesThreeStopFrostedGradient() {
+        coursePalette(false).forEachIndexed { index, card ->
             val stops = courseCardFillStops(card, dark = false, hasCustomBackground = false)
-            assertEquals(1, stops.size)
-            assertEquals(card.copy(alpha = courseCardBackgroundAlpha(card, false)), stops[0].second)
+            assertEquals("浅色卡片应为三段式毛玻璃渐变", 3, stops.size)
+            assertEquals(
+                "卡片 #$index 中段应保持基色与既定透明度",
+                card.copy(alpha = courseCardBackgroundAlpha(card, false)),
+                stops[1].second
+            )
+            assertTrue(
+                "卡片 #$index 顶部应比中段更实（玻璃上沿）",
+                stops[0].second.alpha >= stops[1].second.alpha
+            )
+            assertTrue("卡片 #$index 底部压暗不应亮于中段", stops[2].second.luminance() <= stops[1].second.luminance() + 0.001f)
         }
     }
 

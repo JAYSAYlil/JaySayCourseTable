@@ -76,7 +76,7 @@ import kotlin.math.max
  * 仍由 CourseTableScreen / DayViewController 单一来源持有，这里不做任何同步。
  */
 
-/** 日视图星期选择条：周内快速切换，今日带圆点强调。 */
+/** 日视图星期选择条：周内快速切换；选中态为内缩胶囊，今日圆点固定在文字下方，不挤动基线。 */
 @Composable
 internal fun DayChipRow(
     focusedDay: Int,
@@ -84,7 +84,7 @@ internal fun DayChipRow(
     highlightToday: Boolean,
     onFocusedDayChange: (Int) -> Unit
 ) {
-    Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp, vertical = 2.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 8.dp, vertical = 3.dp)) {
         for (day in 1..7) {
             val selected = day == focusedDay
             val isToday = highlightToday && day == todayDow
@@ -96,34 +96,33 @@ internal fun DayChipRow(
             val dayChipDescription = stringResource(R.string.course_view_day_desc, TimeUtils.getDayName(day))
             val chipInteraction = remember { MutableInteractionSource() }
             Box(
-                modifier = Modifier.weight(1f).fillMaxHeight().clip(AppShapes.small)
+                modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 2.dp)
+                    .clip(RoundedCornerShape(percent = 50))
                     .pressScale(chipInteraction, 0.94f)
                     .background(chipColor)
                     .clickable(interactionSource = chipInteraction, indication = null) { onFocusedDayChange(day) }
                     .semantics { contentDescription = dayChipDescription },
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        TimeUtils.getDayName(day).replace("周", ""),
-                        fontWeight = when {
-                            selected -> FontWeight.Bold
-                            isToday -> FontWeight.SemiBold
-                            else -> FontWeight.Normal
-                        },
-                        color = when {
-                            selected -> MaterialTheme.colorScheme.primary
-                            isToday -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                    if (isToday) {
-                        Spacer(Modifier.height(3.dp))
-                        Box(
-                            Modifier.size(5.dp).clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
+                Text(
+                    TimeUtils.getDayName(day).replace("周", ""),
+                    fontWeight = when {
+                        selected -> FontWeight.Bold
+                        isToday -> FontWeight.SemiBold
+                        else -> FontWeight.Normal
+                    },
+                    color = when {
+                        selected -> MaterialTheme.colorScheme.primary
+                        isToday -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
+                )
+                if (isToday) {
+                    Box(
+                        Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp)
+                            .size(4.dp).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
                 }
             }
         }

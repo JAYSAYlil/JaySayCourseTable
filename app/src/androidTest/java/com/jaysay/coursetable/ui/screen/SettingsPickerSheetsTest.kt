@@ -94,6 +94,20 @@ class SettingsPickerSheetsTest {
     }
 
     @Test
+    fun periodTimesCollapseByDefaultAndExpandFromHeader() {
+        setSettingsContent()
+
+        // 默认折叠：只显示“共 N 节”摘要行，不渲染任何时间条目。
+        composeRule.onNodeWithText("节次时间设置").performScrollTo()
+        composeRule.onNodeWithText("共 12 节 · 08:00 ~ 22:00").assertExists()
+        composeRule.onNodeWithText("08:00").assertDoesNotExist()
+        // 点击折叠头部展开后，节次时间行与操作按钮可见。
+        composeRule.onNodeWithTag("period-times-header").performClick()
+        composeRule.onNodeWithText("08:00").performScrollTo().assertExists()
+        composeRule.onNodeWithText("添加节次").assertExists()
+    }
+
+    @Test
     fun lightThemeKeepsAllElevatedSurfaceRolesWhite() {
         var surfaces = emptyList<Color>()
         composeRule.setContent {

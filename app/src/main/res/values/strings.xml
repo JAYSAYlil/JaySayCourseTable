@@ -411,6 +411,10 @@
     <string name="month_course_summary">"%1$d 门课"</string>
 
     <string name="settings_section_data">"数据与版本"</string>
+    <string name="settings_section_import_export">"导入与导出"</string>
+    <string name="settings_periods_summary">"共 %1$d 节 · %2$s ~ %3$s"</string>
+    <string name="settings_periods_show">"展开节次时间"</string>
+    <string name="settings_periods_hide">"收起节次时间"</string>
     <string name="settings_check_update">"检查更新"</string>
     <string name="settings_check_update_subtitle">"手动访问 GitHub 查询新版本，应用不会自动联网"</string>
     <string name="settings_update_latest">"已是最新版本（%1$s）"</string>
@@ -424,17 +428,17 @@
     <string name="settings_auto_backup_none">"未选择位置"</string>
     <string name="settings_auto_backup_done_toast">"已自动备份"</string>
     <string name="service_status_title">提醒、备份与小组件状态</string>
+    <string name="service_reminder_label">"上课提醒"</string>
+    <string name="service_widget_label">"桌面小组件"</string>
     <string name="service_no_receipt">暂无成功记录</string>
     <string name="service_last_success">最近成功：%1$s</string>
     <string name="service_failed">最近一次操作失败。%1$s</string>
     <string name="service_fix_reminder">修复提醒权限</string>
-    <string name="service_backup">启动自动备份 · %1$s</string>
     <string name="service_enabled">已开启</string>
     <string name="service_disabled">未开启</string>
-    <string name="service_backup_location">选择或更换备份位置</string>
-    <string name="service_widget_present">桌面小组件已添加</string>
+    <string name="service_change_location">"更换位置"</string>
     <string name="service_widget_absent">尚未添加桌面小组件</string>
-    <string name="service_refresh_widget">立即刷新小组件</string>
+    <string name="service_refresh_widget">刷新小组件</string>
     <string name="service_reminder_off">全局提醒未开启；单课自定义提醒仍按课程设置执行。</string>
     <string name="service_reminder_blocked">提醒有权限或通知渠道限制，请处理后发送测试通知。</string>
     <string name="service_reminder_ready">提醒权限检查通过；实际送达可使用下方“发送测试通知”验证。</string>
