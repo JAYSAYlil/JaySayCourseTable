@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -59,6 +61,14 @@ object HeroRegistry {
     /** 最近一次飞行的实时进度（0..1）与系列键，供新请求从中断点续接。 */
     internal var lastProgress: Float = 0f
     internal var lastFlightKey: String? = null
+    internal var lastRect: Rect? = null
+    internal var lastRectVelocity: Rect = Rect.Zero
+    internal var lastProgressVelocity: Float = 0f
+
+    internal fun seedRect(request: HeroRequest): Rect =
+        if (lastFlightKey == request.key && lastProgress > 0f && lastProgress < 1f) {
+            lastRect ?: request.fromCard
+        } else if (request.forward) request.fromCard else request.toHeader ?: request.fromCard
 
     class HeroRequest(
         val key: String,
@@ -128,6 +138,14 @@ fun HeroOverlay() {
     // 从中断点续接：正向中途返回、快速进出、旋转重建都从当前可见进度继续，
     // 而不是先消失再从端点重新起飞。
     val progress = remember(request) { Animatable(HeroRegistry.seedProgress(request)) }
+    // Geometry has its own continuous trajectory: changing a header/card bound must not
+    // reinterpret the same percentage on a different line segment and teleport the overlay.
+    val rect = remember(request) { Animatable(HeroRegistry.seedRect(request), Rect.VectorConverter) }
+    val continuing = remember(request) {
+        HeroRegistry.lastFlightKey == request.key && HeroRegistry.lastProgress > 0f && HeroRegistry.lastProgress < 1f
+    }
+    val rectVelocity = remember(request) { if (continuing) HeroRegistry.lastRectVelocity else Rect.Zero }
+    val progressVelocity = remember(request) { if (continuing) HeroRegistry.lastProgressVelocity else 0f }
 
     LaunchedEffect(request) {
         if (request.forward) {
@@ -143,33 +161,41 @@ fun HeroOverlay() {
         }
         // 实时记录飞行进度：下一次请求（返回、再次点击、旋转重建）从这里续接。
         HeroRegistry.lastFlightKey = request.key
-        val progressTracker = launch {
-            snapshotFlow { progress.value }.collect { HeroRegistry.lastProgress = it }
+        coroutineScope {
+            launch {
+                rect.animateTo(
+                    if (request.forward) request.toHeader ?: request.fromCard else request.fromCard,
+                    animationSpec = spring(dampingRatio = 1f, stiffness = 380f),
+                    initialVelocity = rectVelocity
+                ) {
+                    HeroRegistry.lastRect = value
+                    HeroRegistry.lastRectVelocity = velocity
+                }
+            }
+            progress.animateTo(
+                targetValue = if (request.forward) 1f else 0f,
+                animationSpec = spring(dampingRatio = 1f, stiffness = 380f),
+                initialVelocity = progressVelocity
+            ) {
+                HeroRegistry.lastProgress = value
+                HeroRegistry.lastProgressVelocity = velocity
+            }
         }
-        progress.animateTo(
-            targetValue = if (request.forward) 1f else 0f,
-            // 临界阻尼弹簧：无过冲、可中断，与全应用动效体系一致。
-            animationSpec = spring(dampingRatio = 1f, stiffness = 380f)
-        )
-        progressTracker.cancel()
         HeroRegistry.lastProgress = progress.value
-        HeroRegistry.request = null
+        if (HeroRegistry.request === request) HeroRegistry.request = null
     }
 
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val target = request.toHeader ?: return@Canvas
-        val p = progress.value
+        if (request.toHeader == null) return@Canvas
+        val p = progress.value.coerceIn(0f, 1f)
         if (p <= 0f || p >= 1f) return@Canvas
-        val left = lerp(request.fromCard.left, target.left, p)
-        val top = lerp(request.fromCard.top, target.top, p)
-        val right = lerp(request.fromCard.right, target.right, p)
-        val bottom = lerp(request.fromCard.bottom, target.bottom, p)
+        val bounds = rect.value
         val radius = lerp(HERO_RADIUS_START.toPx(), HERO_RADIUS_END.toPx(), p)
         val alpha = lerp(HERO_ALPHA_START, HERO_ALPHA_END, p) * edgeFade(p)
         drawRoundRect(
             color = request.color.copy(alpha = alpha),
-            topLeft = Offset(left, top),
-            size = Size(right - left, bottom - top),
+            topLeft = bounds.topLeft,
+            size = Size(bounds.width.coerceAtLeast(0f), bounds.height.coerceAtLeast(0f)),
             cornerRadius = CornerRadius(radius, radius)
         )
     }

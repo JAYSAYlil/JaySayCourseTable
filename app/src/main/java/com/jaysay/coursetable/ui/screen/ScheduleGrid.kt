@@ -364,6 +364,7 @@ internal fun TableGrid(
                             dark = dark,
                             columnWidth = columnWidth,
                             compactInfo = weekCardCompactInfo,
+                            timeRange = listOfNotNull(periodTimes.getOrNull(start - 1)?.start, periodTimes.getOrNull(end - 1)?.end).joinToString("–"),
                             onClick = { onCourseClick(course) }
                         )
                     }
@@ -437,6 +438,7 @@ private fun CourseCard(
     dark: Boolean,
     columnWidth: Dp,
     compactInfo: Boolean,
+    timeRange: String,
     onClick: () -> Unit
 ) {
     // 在卡片作用域内读取分钟状态：只有状态发生变化的卡片才随分钟刷新重组。
@@ -503,7 +505,9 @@ private fun CourseCard(
     val (titleColor, subColor) = remember(background, dark, hasCustomBackground, enhancedContrast) {
         courseCardTextColors(background, dark, hasCustomBackground, enhancedContrast)
     }
-    val baseBorder = courseCardBorderColor(background, dark, enhancedContrast)
+    val baseBorder = remember(background, dark, enhancedContrast) {
+        courseCardBorderColor(background, dark, enhancedContrast)
+    }
     // 当前正在上的课：描边平滑过渡到品牌色并加重阴影，形成呼吸感高亮。
     val borderColor by animateColorAsState(
         targetValue = if (isCurrent) MaterialTheme.colorScheme.primary else baseBorder,
@@ -515,10 +519,8 @@ private fun CourseCard(
     val cardFillStops = remember(background, dark, hasCustomBackground) {
         courseCardFillStops(background, dark, hasCustomBackground)
     }
-    val cardFill = if (dark) {
-        Brush.verticalGradient(colorStops = cardFillStops.toTypedArray())
-    } else {
-        null
+    val cardFill = remember(dark, cardFillStops) {
+        if (dark) Brush.verticalGradient(colorStops = cardFillStops.toTypedArray()) else null
     }
     val contentPadding = when (viewMode) {
         ScheduleViewMode.WEEK -> PaddingValues(4.dp, 5.dp, 3.dp, 4.dp)
@@ -582,6 +584,14 @@ private fun CourseCard(
                 color = titleColor,
                 lineHeight = titleSize * 1.24f
             )
+            if (viewMode == ScheduleViewMode.DAY) {
+                Text(timeRange, modifier = Modifier.fillMaxWidth(), fontSize = 11.sp, lineHeight = 14.sp, color = subColor, maxLines = 1)
+                if (course.classroom.isNotBlank()) {
+                    Text(course.classroom, modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, lineHeight = 18.sp,
+                        fontWeight = FontWeight.SemiBold, color = titleColor,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
             if (showTeacher && course.teacher.isNotBlank()) {
                 Text(
                     course.teacher,
@@ -594,7 +604,7 @@ private fun CourseCard(
                     lineHeight = subSize * 1.3f
                 )
             }
-            if (course.classroom.isNotBlank()) {
+            if (course.classroom.isNotBlank() && viewMode != ScheduleViewMode.DAY) {
                 Text(
                     course.classroom,
                     modifier = Modifier.fillMaxWidth(),

@@ -2,6 +2,7 @@ package com.jaysay.coursetable.data.backup
 
 import android.content.Context
 import android.net.Uri
+import com.jaysay.coursetable.data.diagnostics.ServiceStatusStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -17,6 +18,6 @@ object AutoBackup {
                 val stream = context.contentResolver.openOutputStream(uri, "wt")
                     ?: error("备份位置不可写")
                 stream.use { it.write(content.toByteArray(Charsets.UTF_8)) }
-            }
+            }.also { ServiceStatusStore.record(context, "backup", it.isSuccess) }
         }
 }

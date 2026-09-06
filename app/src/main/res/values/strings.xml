@@ -403,10 +403,11 @@
     <string name="settings_section_general">"通用"</string>
     <string name="month_header_title">"%1$d 年 %2$d 月"</string>
     <string name="month_course_count">"本月共 %1$d 节课"</string>
+    <string name="month_course_count_short">"%1$d 节课"</string>
     <string name="month_prev_month">"上一个月"</string>
     <string name="month_next_month">"下一个月"</string>
     <string name="month_no_courses">"本月该时间段无课程"</string>
-    <string name="month_more_courses">"+%1$d 节"</string>
+    <string name="month_more_courses">"+%1$d 项"</string>
     <string name="month_course_summary">"%1$d 门课"</string>
 
     <string name="settings_section_data">"数据与版本"</string>
@@ -422,4 +423,21 @@
     <string name="settings_auto_backup_chosen">"已选择：%1$s"</string>
     <string name="settings_auto_backup_none">"未选择位置"</string>
     <string name="settings_auto_backup_done_toast">"已自动备份"</string>
+    <string name="service_status_title">提醒、备份与小组件状态</string>
+    <string name="service_no_receipt">暂无成功记录</string>
+    <string name="service_last_success">最近成功：%1$s</string>
+    <string name="service_failed">最近一次操作失败。%1$s</string>
+    <string name="service_fix_reminder">修复提醒权限</string>
+    <string name="service_backup">启动自动备份 · %1$s</string>
+    <string name="service_enabled">已开启</string>
+    <string name="service_disabled">未开启</string>
+    <string name="service_backup_location">选择或更换备份位置</string>
+    <string name="service_widget_present">桌面小组件已添加</string>
+    <string name="service_widget_absent">尚未添加桌面小组件</string>
+    <string name="service_refresh_widget">立即刷新小组件</string>
+    <string name="service_reminder_off">全局提醒未开启；单课自定义提醒仍按课程设置执行。</string>
+    <string name="service_reminder_blocked">提醒有权限或通知渠道限制，请处理后发送测试通知。</string>
+    <string name="service_reminder_ready">提醒权限检查通过；实际送达可使用下方“发送测试通知”验证。</string>
+    <string name="month_header_stacked">%1$d\n%2$d月</string>
+    <string name="month_course_count_compact">%1$d课</string>
 </resources>

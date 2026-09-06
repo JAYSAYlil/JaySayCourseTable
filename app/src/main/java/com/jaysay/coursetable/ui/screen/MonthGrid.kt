@@ -3,6 +3,8 @@ package com.jaysay.coursetable.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,6 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -112,11 +118,20 @@ fun MonthGrid(
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        // 小屏也要完整看到 5～6 行月份；大屏则把空余高度还给日期格，避免固定高度裁切。
-        val headerHeight = 23.dp
-        val rowHeight = ((maxHeight - headerHeight) / cells.size.coerceAtLeast(1)).coerceAtMost(106.dp)
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 6.dp)) {
+        val density = LocalDensity.current
+        val measurer = rememberTextMeasurer()
+        val dateHeight = measurer.measure("日期Ag", TextStyle(fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)).size.height.toFloat()
+        val detailHeight = measurer.measure("课程Ag", TextStyle(fontSize = 10.sp, lineHeight = 13.sp, fontWeight = FontWeight.Medium)).size.height.toFloat()
+        val contentWidth = with(density) { (((maxWidth - 42.dp) / 7) - 8.dp).toPx() }
+        val lunarWidth = measurer.measure("廿三", TextStyle(fontSize = 10.sp, lineHeight = 13.sp)).size.width
+        val namesFitWidth = with(density) { contentWidth >= 4 * 10.sp.toPx() }
+        val headerHeight = with(density) { detailHeight.toDp() } + 8.dp
+        // 大字体时允许竖向滚动，保住日期、特殊安排和课程计数，而不是裁掉最后几行。
+        val minimumRow = with(density) { (dateHeight + detailHeight * 2).toDp() } + 16.dp
+        val rowHeight = ((maxHeight - headerHeight) / cells.size.coerceAtLeast(1))
+            .coerceAtMost(106.dp).coerceAtLeast(minimumRow)
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("month-grid-scroll")) {
+            Row(modifier = Modifier.fillMaxWidth().height(headerHeight - 3.dp).padding(horizontal = 6.dp)) {
                 (1..7).forEach { day ->
                     Text(
                         text = TimeUtils.getDayName(day).replace("周", ""),
@@ -144,6 +159,10 @@ fun MonthGrid(
                             courseColors = courseColors,
                             dark = dark,
                             rowHeight = rowHeight,
+                            dateHeight = dateHeight,
+                            detailHeight = detailHeight,
+                            lunarFitsWidth = lunarWidth <= contentWidth,
+                            namesFitWidth = namesFitWidth,
                             onDayClick = onDayClick
                         )
                     }
@@ -205,6 +224,10 @@ private fun MonthDayCell(
     courseColors: Map<String, Color>,
     dark: Boolean,
     rowHeight: Dp,
+    dateHeight: Float,
+    detailHeight: Float,
+    lunarFitsWidth: Boolean,
+    namesFitWidth: Boolean,
     onDayClick: (date: java.time.LocalDate) -> Unit
 ) {
     val primary = MaterialTheme.colorScheme.primary
@@ -222,11 +245,19 @@ private fun MonthDayCell(
     // 月视图空间分配：日期格按高度分档展示。农历最先让位；
     // 极矮行（六行月份 + 大字体 + 小屏）改用“N 门课”计数，
     // 与头部“共 N 节课”的节数口径明确区分；停课/节假日状态任何档位都保留。
-    val showLunar = rowHeight >= 64.dp
-    val showCourseNames = rowHeight >= 52.dp
+    val density = LocalDensity.current
+    val measuredLayout = monthCellLayout(
+        with(density) { (rowHeight - 11.dp).toPx() }, dateHeight, detailHeight,
+        with(density) { 2.dp.toPx() }, statusText != null, cell.courses.size
+    )
+    val layout = measuredLayout.copy(
+        courseLines = if (namesFitWidth) measuredLayout.courseLines else 0,
+        summary = measuredLayout.summary || (!namesFitWidth && measuredLayout.courseLines > 0),
+        lunar = measuredLayout.lunar && lunarFitsWidth
+    )
     val cellDescription = buildString {
         append(cell.date)
-        if (showLunar) append("，${cell.lunarText}")
+        append("，${cell.lunarText}")
         cell.weekLabel?.let { append("，$it") }
         statusText?.let { append("，$it") }
         if (cell.courses.isNotEmpty()) append("，课程 ${cell.courses.joinToString("、") { it.courseName }}")
@@ -265,8 +296,8 @@ private fun MonthDayCell(
     ) {
         Text(
             text = cell.date.dayOfMonth.toString(),
-            fontSize = 11.sp,
-            lineHeight = 13.sp,
+            fontSize = 13.sp,
+            lineHeight = 16.sp,
             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium,
             color = when {
                 isToday -> primary
@@ -277,11 +308,11 @@ private fun MonthDayCell(
             textDecoration = if (cell.suspended) TextDecoration.LineThrough else null,
             maxLines = 1
         )
-        if (showLunar) {
+        if (layout.lunar) {
             Text(
                 text = cell.lunarText,
-                fontSize = 8.sp,
-                lineHeight = 10.sp,
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = if (cell.holidayName != null) primary.copy(alpha = 0.88f)
@@ -291,8 +322,8 @@ private fun MonthDayCell(
         statusText?.let { text ->
             Text(
                 text = text,
-                fontSize = 8.sp,
-                lineHeight = 9.sp,
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -304,8 +335,8 @@ private fun MonthDayCell(
                 }
             )
         }
-        if (showCourseNames) {
-            cell.courses.take(2).forEach { course ->
+        if (layout.courseLines > 0) {
+            cell.courses.take(layout.courseLines).forEach { course ->
                 val color = courseColors[course.courseName] ?: primary
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -317,8 +348,8 @@ private fun MonthDayCell(
                     )
                     Text(
                         text = course.courseName,
-                        fontSize = 8.sp,
-                        lineHeight = 10.sp,
+                        fontSize = 10.sp,
+                        lineHeight = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         // 文字位于中性单元格背景上，用主题前景色而不是课程圆点底色派生；
@@ -330,18 +361,18 @@ private fun MonthDayCell(
             if (cell.courses.size > 2) {
                 Text(
                     text = stringResource(R.string.month_more_courses, cell.courses.size - 2),
-                    fontSize = 8.sp,
-                    lineHeight = 10.sp,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        } else if (cell.courses.isNotEmpty()) {
+        } else if (layout.summary) {
             Text(
-                text = stringResource(R.string.month_course_summary, cell.courses.distinctBy { it.courseName }.size),
-                fontSize = 8.sp,
-                lineHeight = 10.sp,
+                text = stringResource(R.string.month_course_count_compact, cell.courses.distinctBy { it.courseName }.size),
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (cell.inMonth) 0.72f else 0.45f),
                 maxLines = 1,

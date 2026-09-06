@@ -1,51 +1,42 @@
-# Macrobenchmark 性能测量模块（脚手架，待接入）
+# Macrobenchmark 性能测量
 
-状态：**脚手架已就绪，尚未接入构建**。当前环境无法访问 Google Maven（2026-09-05 验证），
-无法下载 `androidx.benchmark` 依赖并编译验证，因此本模块刻意**不加入**
-`settings.gradle.kts`，避免破坏可构建性。网络可用后按下方步骤接入。
+v3.4.13 已通过参数接入并独立编译。正常 Release / CI 不需要下载基准依赖。
 
-## 接入步骤（网络可用 + 真机）
+## 构建与运行
 
-1. 根目录 `settings.gradle.kts` 追加：
+使用项目要求的 JDK 17、Android SDK 35，并连接允许 USB 调试的真机：
 
-   ```kotlin
-   include(":benchmarks:macrobenchmark")
-   ```
+```powershell
+.\gradlew.bat -PenableBenchmarks=true :app:assembleBenchmark :benchmarks:macrobenchmark:assembleBenchmark
+.\gradlew.bat -PenableBenchmarks=true :benchmarks:macrobenchmark:connectedBenchmarkAndroidTest
+```
 
-2. 根目录 `build.gradle.kts`（或 Version Catalog）声明插件
-   `androidx.benchmark.macro.junit4`（版本 ≥ 1.3.x），本模块 `build.gradle.kts`
-   已按该插件编写。
+首次构建需能访问 Google Maven。无需修改 settings 或额外声明 Benchmark 插件；模块使用 com.android.test 与 AndroidX Macrobenchmark 库。
 
-3. 连接真机（开发者选项 + USB 调试），然后：
+应用包名为 `com.jaysay.coursetable.benchmark`，与正式应用独立。只有 benchmark 变体包含虚构课程准备入口，入口会覆盖该测试包的数据并关闭提醒；正式 Release 不包含它。测试应用开启 R8、关闭 debuggable，允许 shell profiling；测试驱动 APK 使用调试构建。
 
-   ```powershell
-   .\gradlew :app:assembleBenchmark
-   .\gradlew :benchmarks:macrobenchmark:connectedCheck
-   ```
+## 场景
 
-   `app` 已新增 `benchmark` 变体（R8 开启、debuggable=false，同 Release 配置），
-   不改动正式签名设置；CI 不会组装该变体。
-
-4. 结果输出在 `benchmarks/macrobenchmark/build/outputs/connected_android_test_additional_output/`。
-
-## 本模块测量的场景
-
-| 场景 | 指标 | 对应要求 |
+| 测试方法 | 数据与操作 | 指标 |
 | --- | --- | --- |
-| `StartupBenchmark` cold/demand | timeToInitialDisplayMs | 冷启动 |
-| `PagingBenchmark` 周视图连续翻页 | frameDurationCpuMs / frameOverrunMs | 连续日/周翻页 |
-| `DetailRoundtripBenchmark` 详情往返 | frameDurationCpuMs | 详情打开/返回中断续接 |
+| coldStart | 42 条虚构课程，冷启动 | timeToInitialDisplayMs |
+| largeTableFirstDisplay | 2000 条虚构课程，冷启动 | timeToInitialDisplayMs |
+| weekPaging | 42 条课程，周视图往返滑动 | frameDurationCpuMs / frameOverrunMs |
+| dayPaging | 42 条课程，日视图往返滑动 | frameDurationCpuMs / frameOverrunMs |
+| detailRoundtrip | 点击课程，等待详情出现，再返回；每轮 3 次 | frameDurationCpuMs / frameOverrunMs |
 
-## 记录规范（每次测量必须完整填写，禁止只记数字）
+每个场景 3 次预热、5 次测量迭代，CompilationMode.Partial、BaselineProfileMode.Disable。数据准备在 setupBlock 中完成，不计入被测操作。详情测试先确认“编辑”按钮，再执行返回，避免把主页空转误当详情测量。
 
-- 设备型号 / 系统版本 / 刷新率（含是否开启强制 GPU 渲染）
-- 构建类型（benchmark）、代码提交哈希、数据量（课程条数、课表数）
-- 采样方法（iterations、startup mode、编译状态 `CompilationMode.Partial`）
-- 优化前后各测一轮，对比时给出中位数与置信区间
+输出见 `macrobenchmark/build/outputs/connected_android_test_additional_output/` 和 `macrobenchmark/build/reports/androidTests/connected/`。
 
-## 诚实声明
+## 记录要求
 
-截至 2026-09-05：**未获得任何真实测量数值**（无可用真机 + 无网络下载依赖）。
-本文档不承诺任何提升百分比；Baseline Profile 是否值得引入，
-以首次真机测量结果判断（若 cold start P50 显著高于 500ms 或帧超时率高，
-优先为 `MainActivity`/网格热路径引入 Baseline Profile 后复测）。
+保留设备型号、系统、刷新率、构建版本及代码状态、数据量、编译模式、全部迭代 JSON 与 trace。性能比较必须在同一真机、相同设置下运行前后两个版本。此次尚未连接真机，不以模拟器结果推断手机帧率、功耗或提升比例。
+
+模拟器仅可用于验证场景能够运行；需显式传入 `-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.suppressErrors=EMULATOR`，这不会使其成为有效的真实性能对比。
+
+配置参考：[Android 官方 Macrobenchmark 指南](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)。
+
+## 本轮验证
+
+2026-09-06：独立模块编译通过；API 34 模拟器 coldStart 与 detailRoundtrip 两项实跑通过（各 3 次预热、5 次测量），0 失败、0 跳过。显式忽略 EMULATOR 限制，仅用于连通性检查；日/周翻页和 2000 条课程场景已实现但本轮未实跑，真实前后性能对比仍待真机。

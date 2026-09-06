@@ -80,6 +80,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -435,8 +436,15 @@ fun CourseTableScreen(
         }
 
         if (courses.isNotEmpty()) {
+            val navigationDensity = LocalDensity.current
+            val largeNavigationText = navigationDensity.fontScale > 1.3f
+            // Convert each actual line size separately: Android's nonlinear font scaling
+            // makes converting the sum as one large sp value underestimate small text.
+            val navigationHeight = if (largeNavigationText) with(navigationDensity) {
+                17.sp.toDp() * 2 + 13.sp.toDp()
+            } + 32.dp else 60.dp
             Row(
-                modifier = Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().height(navigationHeight).padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -486,19 +494,23 @@ fun CourseTableScreen(
                             if (viewMode == ScheduleViewMode.MONTH) {
                                 Text(
                                     text = stringResource(
-                                        R.string.month_header_title,
+                                        if (largeNavigationText) R.string.month_header_stacked else R.string.month_header_title,
                                         monthAnchorDate.year,
                                         monthAnchorDate.monthValue
                                     ),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
+                                    lineHeight = 17.sp,
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
+                                    maxLines = if (largeNavigationText) 2 else 1
                                 )
                                 Text(
-                                    text = stringResource(R.string.month_course_count, monthCourseCount),
+                                    text = stringResource(if (largeNavigationText) R.string.month_course_count_short else R.string.month_course_count, monthCourseCount),
+                                    modifier = Modifier.fillMaxWidth().testTag("month-course-count"),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 10.sp,
+                                    lineHeight = 13.sp,
                                     color = MaterialTheme.colorScheme.primary,
                                     maxLines = 1
                                 )

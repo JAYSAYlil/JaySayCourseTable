@@ -15,6 +15,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import com.jaysay.coursetable.MainActivity
 import com.jaysay.coursetable.R
+import com.jaysay.coursetable.data.diagnostics.ServiceStatusStore
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
@@ -36,6 +37,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
             try {
                 // 同上：小组件刷新路径不允许未预期异常崩溃进程。
                 runCatching { updateWidgets(context, appWidgetManager, appWidgetIds) }
+                    .onFailure { ServiceStatusStore.record(context, "widget", false) }
             } finally {
                 pendingResult.finish()
             }
@@ -184,6 +186,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
             }
         }
         scheduleNextRefresh(context, agenda)
+        ServiceStatusStore.record(context, "widget", true)
     }
 
     private fun bindCourseList(

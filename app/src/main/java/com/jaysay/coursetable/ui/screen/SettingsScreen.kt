@@ -185,6 +185,34 @@ fun SettingsScreen(
             )
 
             // ===== 分区数据（标题/副标题参与搜索匹配）=====
+            val statusTitle = stringResource(R.string.service_status_title)
+            if (!isSearching || statusTitle.contains(query) || listOf("备份", "提醒", "小组件", "状态").any { it.contains(query) }) {
+                val blocker = reminderBlockers.firstOrNull()
+                ServiceStatusCard(
+                    reminderText = when {
+                        !preferences.reminderEnabled -> stringResource(R.string.service_reminder_off)
+                        blocker != null -> stringResource(R.string.service_reminder_blocked)
+                        reminderPauseStatus != null -> reminderPauseStatus
+                        else -> stringResource(R.string.service_reminder_ready)
+                    },
+                    backupEnabled = preferences.autoBackupEnabled,
+                    widgetPresent = widgetPresent,
+                    fixReminder = when (blocker) {
+                        ReminderBlocker.NOTIFICATION_PERMISSION -> onRequestNotificationPermission
+                        ReminderBlocker.EXACT_ALARM -> onOpenExactAlarmSettings
+                        ReminderBlocker.CHANNEL_DISABLED -> onOpenChannelSettings
+                        null -> null
+                    },
+                    chooseBackup = onChooseAutoBackupLocation,
+                    refreshWidget = {
+                        val manager = android.appwidget.AppWidgetManager.getInstance(context)
+                        val component = android.content.ComponentName(context, com.jaysay.coursetable.widget.CourseWidgetProvider::class.java)
+                        context.sendBroadcast(android.content.Intent(context, com.jaysay.coursetable.widget.CourseWidgetProvider::class.java)
+                            .setAction(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, manager.getAppWidgetIds(component)))
+                    }
+                )
+            }
 
             // —— 通用：外观模式 + 课表背景 + 显示与无障碍 ——
             val generalItems = listOf(

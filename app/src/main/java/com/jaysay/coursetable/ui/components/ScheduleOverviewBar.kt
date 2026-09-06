@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,6 +90,7 @@ fun ScheduleOverviewBar(
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val compactActions = maxWidth < 430.dp
+        Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -133,7 +135,7 @@ fun ScheduleOverviewBar(
                     )
                     Icon(Icons.Rounded.ArrowDropDown, stringResource(R.string.overview_switch_table), tint = MaterialTheme.colorScheme.primary)
                 }
-                Text(
+                if (!compactActions) Text(
                     compactAgenda,
                     modifier = Modifier.fillMaxWidth().clickable { agendaVisible = true }
                         .semantics { contentDescription = agendaSummaryDescription }
@@ -152,11 +154,6 @@ fun ScheduleOverviewBar(
             }
             // 浏览其他日期时，紧凑宽度的“回到今天”也直接可达，不再依赖更多菜单；
             // 宽屏操作行本就常驻定位按钮，不重复添加。
-            if (compactActions && awayFromToday) {
-                IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp).testTag("locate-today-button")) {
-                    Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
-                }
-            }
             if (compactActions) {
                 Box {
                     IconButton(
@@ -223,6 +220,22 @@ fun ScheduleOverviewBar(
             }
         }
     }
+        if (compactActions && !searchVisible) {
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(compactAgenda,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).clip(AppShapes.small)
+                        .clickable { agendaVisible = true }.padding(vertical = 14.dp)
+                        .semantics { contentDescription = agendaSummaryDescription }.testTag("today-agenda-summary"),
+                    style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (awayFromToday) {
+                    IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp).testTag("locate-today-button")) {
+                        Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+        }
     }
 
     if (agendaVisible) {

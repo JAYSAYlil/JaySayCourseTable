@@ -12,8 +12,8 @@ android {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 132
-        versionName = "3.4.12"
+        versionCode = 133
+        versionName = "3.4.13"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     androidResources {
@@ -37,6 +37,8 @@ android {
         // 不参与常规构建与发布（assembleDebug/assembleRelease 不受影响），
         // 仅由 benchmarks/macrobenchmark 模块在真机测量时组装。
         create("benchmark") {
+            applicationIdSuffix = ".benchmark"
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             matchingFallbacks += listOf("release")

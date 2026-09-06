@@ -17,6 +17,7 @@ import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.parser.ExcelParser
 import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.PreferencesManager
+import com.jaysay.coursetable.data.preferences.ViewModeWriteGate
 import com.jaysay.coursetable.data.repository.CourseRepository
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.data.storage.DataCorruptionException
@@ -38,9 +39,14 @@ data class MainUiState(
     val currentWeek: Int = 1,
     val isLoading: Boolean = true,
     /** 非空时必须持续展示，且所有普通持久化入口处于只读保护。 */
-    val persistentDataError: String? = null
+    val persistentDataError: String? = null,
+    /** Optimistic presentation only; tables always contains the last confirmed data. */
+    val pendingViewModes: Map<Int, ScheduleViewMode> = emptyMap()
 ) {
-    val activeTable: TableData get() = tables.getOrElse(activeTableIndex) { TableData.placeholder() }
+    val activeTable: TableData get() {
+        val table = tables.getOrElse(activeTableIndex) { TableData.placeholder() }
+        return pendingViewModes[activeTableIndex]?.let { table.copy(viewMode = it) } ?: table
+    }
     val courses: List<Course> get() = activeTable.courses
     val isReadOnly: Boolean get() = persistentDataError != null
 }
@@ -48,10 +54,14 @@ data class MainUiState(
 /**
  * 统一管理课表状态和串行化磁盘写入，避免界面重建丢状态或连续操作互相覆盖。
  */
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+class MainViewModel @JvmOverloads constructor(
+    application: Application,
+    private val tableWriter: (suspend (List<TableData>) -> Unit)? = null
+) : AndroidViewModel(application) {
     private val repository = CourseRepository(application)
     private val preferencesManager = PreferencesManager(application)
     private val writeMutex = Mutex()
+    private val viewModeWrites = ViewModeWriteGate()
     private val writeProtection = WriteProtectionGate()
     private val importDraftStore = ImportDraftStore(application)
     private val importDraftWriteGate = ImportDraftWriteGate()
@@ -162,28 +172,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setScheduleViewMode(mode: ScheduleViewMode, onError: (Throwable) -> Unit = {}) {
         val targetIndex = state.activeTableIndex
-        val current = state.tables.getOrNull(targetIndex) ?: return
-        if (current.viewMode == mode) return
-        val previousMode = current.viewMode
-        state = state.copy(
-            tables = state.tables.toMutableList().also {
-                it[targetIndex] = current.copy(viewMode = mode)
-            }
-        )
+        if (state.tables.getOrNull(targetIndex) == null || state.activeTable.viewMode == mode) return
+        val request = viewModeWrites.begin(targetIndex)
+        state = state.copy(pendingViewModes = state.pendingViewModes + (targetIndex to mode))
         launchWrite({ error ->
-            val latest = state.tables.getOrNull(targetIndex)
-            // 只在展示状态仍停留在失败模式时回滚，避免覆盖用户随后的真实切换。
-            if (latest != null && latest.viewMode == mode) {
-                state = state.copy(
-                    tables = state.tables.toMutableList().also {
-                        it[targetIndex] = latest.copy(viewMode = previousMode)
-                    }
-                )
+            if (viewModeWrites.finish(targetIndex, request)) {
+                // Removing the preview reveals the last successful save, not an earlier failed preview.
+                state = state.copy(pendingViewModes = state.pendingViewModes - targetIndex)
+                onError(error)
             }
-            onError(error)
         }) {
-            mutateTable(targetIndex) { it.copy(viewMode = mode) } ?: return@launchWrite
+            if (!viewModeWrites.isCurrent(targetIndex, request)) return@launchWrite
+            val updated = mutateTable(targetIndex) { it.copy(viewMode = mode) } ?: return@launchWrite
+            state = state.copy(tables = updated)
+            if (viewModeWrites.finish(targetIndex, request)) {
+                state = state.copy(pendingViewModes = state.pendingViewModes - targetIndex)
+            }
         }
+    }
+
+    private fun invalidateViewModePreviews() {
+        viewModeWrites.invalidateAll()
+        state = state.copy(pendingViewModes = emptyMap())
     }
 
     fun updateCourses(
@@ -244,6 +254,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val preferences = state.preferences.copy(activeTableIndex = active)
         repository.saveAllTables(tables)
         preferencesManager.save(preferences)
+        invalidateViewModePreviews()
         state = state.copy(tables = tables, preferences = preferences, activeTableIndex = active)
         locateToday()
     }
@@ -317,6 +328,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val preferences = state.preferences.copy(activeTableIndex = active)
             preferencesManager.save(preferences)
             writeProtection.unlockAfterValidatedRestore()
+            invalidateViewModePreviews()
             state = state.copy(
                 tables = tables,
                 preferences = preferences,
@@ -355,6 +367,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val table = backup.tables[active]
         writeProtection.unlockAfterValidatedRestore()
+        invalidateViewModePreviews()
         state = state.copy(
             tables = backup.tables,
             preferences = preferences,
@@ -373,7 +386,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val updated = state.tables.toMutableList()
         if (index !in updated.indices) return null
         updated[index] = transform(updated[index])
-        repository.saveAllTables(updated)
+        if (tableWriter != null) tableWriter.invoke(updated) else repository.saveAllTables(updated)
         return updated
     }
 

@@ -23,3 +23,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "JaySayCourseTable"
 include(":app")
+// Benchmark-only dependencies do not affect offline release builds.
+if (providers.gradleProperty("enableBenchmarks").orNull == "true") {
+    include(":benchmarks:macrobenchmark")
+}

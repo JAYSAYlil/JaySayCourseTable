@@ -3,10 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// 脚手架：本模块尚未接入 settings.gradle.kts（详见同目录 README.md）。
-// 网络可用后需在 Version Catalog 中补齐版本号并验证编译。
+// Enabled by -PenableBenchmarks=true; uses an isolated benchmark application.
 android {
-    namespace = "com.jaysay.coursetable.benchmark"
+    namespace = "com.jaysay.coursetable.benchmark.test"
     compileSdk = 35
 
     defaultConfig {
@@ -24,16 +23,29 @@ android {
     }
 
     targetProjectPath = ":app"
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
     experimentalProperties["android.experimental.self-instrumenting"] = true
 }
 
 dependencies {
     implementation("androidx.test.ext:junit:1.2.1")
     implementation("androidx.benchmark:benchmark-macro-junit4:1.3.4")
+    implementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
+
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 androidComponents {
     beforeVariants(selector().all()) {
         it.enabled = it.buildType == "benchmark"
     }
+}
+
+// This configuration installs the target APK, not its library dependencies.
+// Avoid resolving irrelevant desktop KMP artifacts through the app dependency graph.
+configurations.matching { it.name.endsWith("TestedApks") }.configureEach {
+    isTransitive = false
 }

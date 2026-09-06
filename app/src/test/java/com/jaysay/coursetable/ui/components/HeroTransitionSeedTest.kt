@@ -16,6 +16,7 @@ class HeroTransitionSeedTest {
     fun resetFlightState() {
         HeroRegistry.lastProgress = 0f
         HeroRegistry.lastFlightKey = null
+        HeroRegistry.lastRect = null
     }
 
     private fun request(key: String, forward: Boolean) = HeroRegistry.HeroRequest(
@@ -73,5 +74,15 @@ class HeroTransitionSeedTest {
     fun firstFlightStartsAtZero() {
         val seed = HeroRegistry.seedProgress(request("高数-1-2", forward = true))
         assertEquals(0f, seed, 0.0001f)
+    }
+
+    @Test fun changedEndpointsDoNotMoveTheVisibleRectangleAtInterruption() {
+        HeroRegistry.lastFlightKey = "course"
+        HeroRegistry.lastProgress = 0.4f
+        val visible = Rect(20f, 110f, 230f, 370f)
+        HeroRegistry.lastRect = visible
+        val returning = HeroRegistry.HeroRequest("course", Color.White,
+            Rect(0f, 500f, 100f, 600f), Rect(0f, 10f, 300f, 90f), false)
+        assertEquals(visible, HeroRegistry.seedRect(returning))
     }
 }
