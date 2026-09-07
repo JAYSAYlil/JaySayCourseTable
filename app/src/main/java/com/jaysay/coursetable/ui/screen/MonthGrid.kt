@@ -45,7 +45,6 @@ import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleDateException
 import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.ui.theme.AppShapes
-import com.jaysay.coursetable.ui.theme.buildResolvedCourseColorMap
 import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.util.ChineseCalendarUtils
 import com.jaysay.coursetable.util.TimeUtils
@@ -87,6 +86,7 @@ private data class MonthDayData(
 fun MonthGrid(
     modifier: Modifier = Modifier,
     courses: List<Course>,
+    courseColors: Map<String, Color>,
     monthStart: LocalDate,
     totalWeeks: Int,
     semesterStart: String,
@@ -99,9 +99,6 @@ fun MonthGrid(
     // 生命周期感知的“今天”：跨午夜、回到前台或时区变化后自动校准今日高亮，
     // 不驱动月份锚点或翻页位置。
     val today = rememberToday().value
-    // 与周视图同源的课程配色映射（含自定义颜色），一次性构建，
-    // 不再对每门课程逐个调用 resolveCourseColor 重建整表映射。
-    val courseColors = remember(courses, dark) { buildResolvedCourseColorMap(courses, dark) }
     val cells = remember(
         courses, monthStart, totalWeeks, semesterStart, excludedWeekSet, dateExceptions, weekLabels, today
     ) {
@@ -124,7 +121,6 @@ fun MonthGrid(
         val detailHeight = measurer.measure("课程Ag", TextStyle(fontSize = 10.sp, lineHeight = 13.sp, fontWeight = FontWeight.Medium)).size.height.toFloat()
         val contentWidth = with(density) { (((maxWidth - 42.dp) / 7) - 8.dp).toPx() }
         val lunarWidth = measurer.measure("廿三", TextStyle(fontSize = 10.sp, lineHeight = 13.sp)).size.width
-        val namesFitWidth = with(density) { contentWidth >= 4 * 10.sp.toPx() }
         val headerHeight = with(density) { detailHeight.toDp() } + 8.dp
         // 大字体时允许竖向滚动，保住日期、特殊安排和课程计数，而不是裁掉最后几行。
         val minimumRow = with(density) { (dateHeight + detailHeight * 2).toDp() } + 16.dp
@@ -162,7 +158,6 @@ fun MonthGrid(
                             dateHeight = dateHeight,
                             detailHeight = detailHeight,
                             lunarFitsWidth = lunarWidth <= contentWidth,
-                            namesFitWidth = namesFitWidth,
                             onDayClick = onDayClick
                         )
                     }
@@ -188,6 +183,7 @@ private fun buildMonthCells(
     val lastDay = anchor.withDayOfMonth(anchor.lengthOfMonth())
     val dayOffset = java.time.temporal.ChronoUnit.DAYS.between(gridStart, lastDay).toInt()
     val rowCount = ((dayOffset + 1 + 6) / 7).coerceIn(5, 6)
+    val coursesByDay = courses.groupBy(Course::dayOfWeek)
     return (0 until rowCount).map { row ->
         (0 until 7).map { col ->
             val date = gridStart.plusDays((row * 7 + col).toLong())
@@ -210,7 +206,8 @@ private fun buildMonthCells(
                 cancelledCount = status.cancelledCount,
                 makeupCount = status.makeupCount,
                 courses = ScheduleDateResolver.coursesOn(
-                    courses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+                    coursesByDay[date.dayOfWeek.value].orEmpty(),
+                    semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
                 ).map { it.course }
             )
         }
@@ -227,7 +224,6 @@ private fun MonthDayCell(
     dateHeight: Float,
     detailHeight: Float,
     lunarFitsWidth: Boolean,
-    namesFitWidth: Boolean,
     onDayClick: (date: java.time.LocalDate) -> Unit
 ) {
     val primary = MaterialTheme.colorScheme.primary
@@ -250,11 +246,9 @@ private fun MonthDayCell(
         with(density) { (rowHeight - 11.dp).toPx() }, dateHeight, detailHeight,
         with(density) { 2.dp.toPx() }, statusText != null, cell.courses.size
     )
-    val layout = measuredLayout.copy(
-        courseLines = if (namesFitWidth) measuredLayout.courseLines else 0,
-        summary = measuredLayout.summary || (!namesFitWidth && measuredLayout.courseLines > 0),
-        lunar = measuredLayout.lunar && lunarFitsWidth
-    )
+    // 课程名始终优先显示，列宽不足时由 TextOverflow.Ellipsis 截断；
+    // 不再因为窄列直接退化成只有“共 N 节”。
+    val layout = measuredLayout.copy(lunar = measuredLayout.lunar && lunarFitsWidth)
     val cellDescription = buildString {
         append(cell.date)
         append("，${cell.lunarText}")
@@ -337,7 +331,7 @@ private fun MonthDayCell(
         }
         if (layout.courseLines > 0) {
             cell.courses.take(layout.courseLines).forEach { course ->
-                val color = courseColors[course.courseName] ?: primary
+                val color = courseColors[course.uniqueKey] ?: courseColors[course.courseName] ?: primary
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -360,7 +354,7 @@ private fun MonthDayCell(
             }
             if (cell.courses.size > 2) {
                 Text(
-                    text = stringResource(R.string.month_more_courses, cell.courses.size - 2),
+                    text = stringResource(R.string.month_day_course_count, cell.courses.size),
                     fontSize = 10.sp,
                     lineHeight = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -370,7 +364,7 @@ private fun MonthDayCell(
             }
         } else if (layout.summary) {
             Text(
-                text = stringResource(R.string.month_course_count_compact, cell.courses.distinctBy { it.courseName }.size),
+                text = stringResource(R.string.month_day_course_count, cell.courses.size),
                 fontSize = 10.sp,
                 lineHeight = 13.sp,
                 fontWeight = FontWeight.Medium,

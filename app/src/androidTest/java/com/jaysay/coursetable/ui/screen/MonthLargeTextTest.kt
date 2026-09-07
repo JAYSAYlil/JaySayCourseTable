@@ -22,7 +22,7 @@ class MonthLargeTextTest {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, 2f)) {
                 JaySayTheme {
-                    MonthGrid(Modifier.width(320.dp).height(360.dp), emptyList(),
+                    MonthGrid(Modifier.width(320.dp).height(360.dp), emptyList(), emptyMap(),
                         LocalDate.of(2030, 9, 1), 20, "2030-08-26", emptySet(), emptyList(), emptyMap(), false,
                         onDayClick = { selected = it })
                 }

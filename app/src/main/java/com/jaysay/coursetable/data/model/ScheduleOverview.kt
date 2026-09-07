@@ -95,14 +95,23 @@ object TodayAgendaCalculator {
 
 /** 本地过滤只改变显示集合；空查询直接返回原列表实例。 */
 object CourseSearch {
+    private val whitespace = Regex("\\s+")
+
     fun filter(courses: List<Course>, query: String): List<Course> {
-        val terms = query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter(String::isNotBlank)
+        val terms = query.trim().lowercase(Locale.ROOT).split(whitespace).filter(String::isNotBlank)
         if (terms.isEmpty()) return courses
-        return courses.filter { course ->
-            val searchable = listOf(course.courseName, course.teacher, course.classroom)
-                .joinToString("\n")
-                .lowercase(Locale.ROOT)
-            terms.all(searchable::contains)
-        }
+        return courses.filter { course -> matches(course, terms) }
+    }
+
+    fun matches(course: Course, query: String): Boolean {
+        val terms = query.trim().lowercase(Locale.ROOT).split(whitespace).filter(String::isNotBlank)
+        return terms.isEmpty() || matches(course, terms)
+    }
+
+    private fun matches(course: Course, terms: List<String>): Boolean {
+        val name = course.courseName.lowercase(Locale.ROOT)
+        val teacher = course.teacher.lowercase(Locale.ROOT)
+        val classroom = course.classroom.lowercase(Locale.ROOT)
+        return terms.all { term -> term in name || term in teacher || term in classroom }
     }
 }

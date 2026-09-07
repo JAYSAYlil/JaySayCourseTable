@@ -877,7 +877,8 @@ class MainActivity : ComponentActivity() {
                                         weekLabels = activeTable.weekLabels,
                                         customBackground = customBackground,
                                         customBackgroundOverlayEnabled = state.preferences.customBackgroundOverlayEnabled,
-                                        weekCardCompactInfo = state.preferences.weekCardCompactInfo,
+                                        // 课程卡片信息层级固定，移除重复的“精简卡片”开关。
+                                        weekCardCompactInfo = false,
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,

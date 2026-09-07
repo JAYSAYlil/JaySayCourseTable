@@ -43,8 +43,18 @@ object AcademicCalendarStatusResolver {
         weekLabels: Map<Int, String>
     ): AcademicCalendarDayStatus {
         val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
-        val items = exceptions.filter { it.date == date.toString() }
-        val dayOff = items.firstOrNull { it.type == ScheduleExceptionType.DAY_OFF }
+        val dateKey = date.toString()
+        var dayOff: ScheduleDateException? = null
+        var cancelledCount = 0
+        var makeupCount = 0
+        exceptions.forEach { item ->
+            if (item.date != dateKey) return@forEach
+            when (item.type) {
+                ScheduleExceptionType.DAY_OFF -> if (dayOff == null) dayOff = item
+                ScheduleExceptionType.COURSE_CANCELLED -> cancelledCount += 1
+                ScheduleExceptionType.MAKEUP -> makeupCount += 1
+            }
+        }
         return AcademicCalendarDayStatus(
             date = date,
             week = week,
@@ -52,8 +62,8 @@ object AcademicCalendarStatusResolver {
             suspendedWeek = week != null && week in excludedWeeks,
             dayOff = dayOff != null,
             dayOffTitle = dayOff?.title?.trim()?.takeIf(String::isNotEmpty),
-            cancelledCount = items.count { it.type == ScheduleExceptionType.COURSE_CANCELLED },
-            makeupCount = items.count { it.type == ScheduleExceptionType.MAKEUP }
+            cancelledCount = cancelledCount,
+            makeupCount = makeupCount
         )
     }
 
@@ -69,14 +79,24 @@ object AcademicCalendarStatusResolver {
         val dates = if (start != null && week in 1..totalWeeks) {
             (0L..6L).map { start.plusDays((week - 1L) * 7L + it).toString() }.toSet()
         } else emptySet()
-        val items = exceptions.filter { it.date in dates }
+        var dayOffCount = 0
+        var cancelledCount = 0
+        var makeupCount = 0
+        exceptions.forEach { item ->
+            if (item.date !in dates) return@forEach
+            when (item.type) {
+                ScheduleExceptionType.DAY_OFF -> dayOffCount += 1
+                ScheduleExceptionType.COURSE_CANCELLED -> cancelledCount += 1
+                ScheduleExceptionType.MAKEUP -> makeupCount += 1
+            }
+        }
         return AcademicCalendarWeekStatus(
             week = week,
             label = weekLabels[week]?.trim()?.takeIf(String::isNotEmpty),
             suspended = week in excludedWeeks,
-            dayOffCount = items.count { it.type == ScheduleExceptionType.DAY_OFF },
-            cancelledCount = items.count { it.type == ScheduleExceptionType.COURSE_CANCELLED },
-            makeupCount = items.count { it.type == ScheduleExceptionType.MAKEUP }
+            dayOffCount = dayOffCount,
+            cancelledCount = cancelledCount,
+            makeupCount = makeupCount
         )
     }
 }

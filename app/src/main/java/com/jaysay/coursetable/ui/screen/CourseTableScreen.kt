@@ -275,6 +275,9 @@ fun CourseTableScreen(
     }
         ?: currentWeek
     val displayedCourses = remember(courses, searchQuery) { CourseSearch.filter(courses, searchQuery) }
+    val displayedCoursesByDay = remember(displayedCourses) {
+        displayedCourses.groupBy(Course::dayOfWeek)
+    }
 
     var viewMenuExpanded by remember { mutableStateOf(false) }
     val visibleDays = remember(viewMode, focusedDay) {
@@ -303,13 +306,14 @@ fun CourseTableScreen(
     // cancellations, suspended weeks and makeup classes stay in sync in every view.
     val calendarWeek = if (viewMode == ScheduleViewMode.DAY) displayedWeek else currentWeek
     val weekCourses = remember(
-        displayedCourses, calendarWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions
+        displayedCoursesByDay, calendarWeek, semesterStart, totalWeeks, excludedWeekSet, dateExceptions
     ) {
         val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
         if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
             val date = start.plusDays((calendarWeek - 1L) * 7L + dayOffset)
             ScheduleDateResolver.coursesOn(
-                displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+                displayedCoursesByDay[date.dayOfWeek.value].orEmpty(),
+                semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
             ).map { it.course }
         }
     }
@@ -798,8 +802,8 @@ fun CourseTableScreen(
                 // 月视图同样保持“一次手势一页”，避免快速甩动越过月份后
                 // 外部锚点回写与 Pager 产生竞态。
                 pagerSnapDistance = PagerSnapDistance.atMost(1),
-                snapAnimationSpec = spring(dampingRatio = 1f, stiffness = 300f),
-                decayAnimationSpec = exponentialDecay(frictionMultiplier = 12f)
+                snapAnimationSpec = spring(dampingRatio = 1f, stiffness = 520f),
+                decayAnimationSpec = exponentialDecay(frictionMultiplier = 8f)
             )
             HorizontalPager(
                 state = monthPagerState,
@@ -813,6 +817,7 @@ fun CourseTableScreen(
                 MonthGrid(
                     modifier = Modifier.fillMaxSize().testTag("month-grid"),
                     courses = displayedCourses,
+                    courseColors = colorMap,
                     monthStart = pageMonthStart,
                     totalWeeks = totalWeeks,
                     semesterStart = semesterStart,
@@ -865,6 +870,7 @@ fun CourseTableScreen(
             WeekPagerSection(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 displayedCourses = displayedCourses,
+                displayedCoursesByDay = displayedCoursesByDay,
                 colorMap = colorMap,
                 visibleDays = visibleDays,
                 timeWidth = timeWidth,
@@ -902,6 +908,7 @@ fun CourseTableScreen(
 private fun WeekPagerSection(
     modifier: Modifier,
     displayedCourses: List<Course>,
+    displayedCoursesByDay: Map<Int, List<Course>>,
     colorMap: Map<String, Color>,
     visibleDays: List<Int>,
     timeWidth: Dp,
@@ -960,7 +967,7 @@ private fun WeekPagerSection(
         state = pagerState,
         modifier = modifier.testTag("week-swipe-area"),
         key = { it + 1 },
-        beyondViewportPageCount = 0
+        beyondViewportPageCount = 1
     ) { pageIndex ->
         val displayedWeek = pageIndex + 1
         val displayedStatus = remember(
@@ -971,16 +978,22 @@ private fun WeekPagerSection(
             )
         }
         val resolvedCourses = remember(
-            displayedCourses, displayedWeek, semesterStart, totalWeeks,
+            displayedCoursesByDay, displayedWeek, semesterStart, totalWeeks,
             excludedWeekSet, dateExceptions, searchQuery
         ) {
             val start = TimeUtils.semesterWeekStartOrNull(semesterStart)
             if (start == null) emptyList() else (0L..6L).flatMap { dayOffset ->
                 val date = start.plusDays((displayedWeek - 1L) * 7L + dayOffset)
                 ScheduleDateResolver.coursesOn(
-                    displayedCourses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
-                ).filter { CourseSearch.filter(listOf(it.course), searchQuery).isNotEmpty() }
-                    .map { resolved -> resolved.course.copy(dayOfWeek = dayOffset.toInt() + 1) }
+                    displayedCoursesByDay[date.dayOfWeek.value].orEmpty(),
+                    semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
+                ).filter { resolved ->
+                    !resolved.isMakeup || CourseSearch.matches(resolved.course, searchQuery)
+                }.map { resolved ->
+                    val targetDay = dayOffset.toInt() + 1
+                    resolved.course.takeIf { it.dayOfWeek == targetDay }
+                        ?: resolved.course.copy(dayOfWeek = targetDay)
+                }
             }
         }
         when {
@@ -1030,7 +1043,10 @@ private fun WeekPagerSection(
             else -> {
                 Column(
                     modifier = Modifier.fillMaxSize().verticalScroll(scrollState)
-                        .testTag("schedule-scroll")
+                        .testTag(
+                            if (pageIndex == pagerState.settledPage) "schedule-scroll"
+                            else "schedule-scroll-$displayedWeek"
+                        )
                 ) {
                     TableGrid(
                         courses = resolvedCourses,

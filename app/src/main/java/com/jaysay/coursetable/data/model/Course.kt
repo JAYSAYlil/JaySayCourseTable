@@ -25,7 +25,8 @@ data class Course(
     val courseCategory: String,
     val isOnline: Boolean,
     val assessmentMethod: String,
-    val customColor: Int? = null,  // 自定义颜色ARGB值
+    /** 预设调色板索引；null 表示按课程首次出现顺序自动配色。 */
+    val customColor: Int? = null,
     val notes: String = "",        // 备注信息
     /**
      * 同一次课在不同周次拆分后的稳定系列标识。
@@ -40,27 +41,26 @@ data class Course(
     val endReminderEnabled: Boolean = false
 ) {
     /** 不包含周次和用户自定义字段的稳定身份，用于重复导入时合并周次。 */
-    val importIdentityKey: String
-        get() = listOf(
-            courseId.ifBlank { courseName.trim() },
-            classNumber.trim(), dayOfWeek.toString(), startPeriod.toString(), endPeriod.toString(),
-            teacher.trim(), classroom.trim()
-        ).joinToString("|") { it.lowercase() }
+    val importIdentityKey: String = listOf(
+        courseId.ifBlank { courseName.trim() },
+        classNumber.trim(), dayOfWeek.toString(), startPeriod.toString(), endPeriod.toString(),
+        teacher.trim(), classroom.trim()
+    ).joinToString("|") { it.lowercase() }
 
-    val uniqueKey: String
-        get() = "$courseId-$classNumber-$dayOfWeek-$startPeriod-$endPeriod-${weeks.joinToString(",")}"
+    /** 渲染和配色会高频读取，随不可变课程实例一次计算即可。 */
+    val uniqueKey: String =
+        "$courseId-$classNumber-$dayOfWeek-$startPeriod-$endPeriod-${weeks.joinToString(",")}"
 
-    /** 用于“应用到全部周”等跨拆分记录操作，不随周次和用户编辑变化。 */
-    val seriesKey: String
-        get() = seriesId.ifBlank { CourseSeriesIds.idForSeed(legacySeriesSlotKey) }
-
-    internal val legacySeriesFamilyKey: String
-        get() = listOf(courseId.ifBlank { courseName.trim() }, classNumber.trim(), courseName.trim())
+    internal val legacySeriesFamilyKey: String =
+        listOf(courseId.ifBlank { courseName.trim() }, classNumber.trim(), courseName.trim())
             .joinToString("|") { it.lowercase() }
 
-    internal val legacySeriesSlotKey: String
-        get() = listOf(legacySeriesFamilyKey, dayOfWeek.toString(), startPeriod.toString(), endPeriod.toString())
+    internal val legacySeriesSlotKey: String =
+        listOf(legacySeriesFamilyKey, dayOfWeek.toString(), startPeriod.toString(), endPeriod.toString())
             .joinToString("|")
+
+    /** 用于“应用到全部周”等跨拆分记录操作，不随周次和用户编辑变化。 */
+    val seriesKey: String = seriesId.ifBlank { CourseSeriesIds.idForSeed(legacySeriesSlotKey) }
 
     val periodSpan: Int
         get() = endPeriod - startPeriod + 1

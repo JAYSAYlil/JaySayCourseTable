@@ -191,36 +191,6 @@ fun SettingsScreen(
                     .testTag("settings-search-field")
             )
 
-            // ===== 分区数据（标题/副标题参与搜索匹配）=====
-            val statusTitle = stringResource(R.string.service_status_title)
-            if (!isSearching || statusTitle.contains(query) || listOf("备份", "提醒", "小组件", "状态").any { it.contains(query) }) {
-                val blocker = reminderBlockers.firstOrNull()
-                ServiceStatusCard(
-                    reminderText = when {
-                        !preferences.reminderEnabled -> stringResource(R.string.service_reminder_off)
-                        blocker != null -> stringResource(R.string.service_reminder_blocked)
-                        reminderPauseStatus != null -> reminderPauseStatus
-                        else -> stringResource(R.string.service_reminder_ready)
-                    },
-                    backupEnabled = preferences.autoBackupEnabled,
-                    widgetPresent = widgetPresent,
-                    fixReminder = when (blocker) {
-                        ReminderBlocker.NOTIFICATION_PERMISSION -> onRequestNotificationPermission
-                        ReminderBlocker.EXACT_ALARM -> onOpenExactAlarmSettings
-                        ReminderBlocker.CHANNEL_DISABLED -> onOpenChannelSettings
-                        null -> null
-                    },
-                    chooseBackup = onChooseAutoBackupLocation,
-                    refreshWidget = {
-                        val manager = android.appwidget.AppWidgetManager.getInstance(context)
-                        val component = android.content.ComponentName(context, com.jaysay.coursetable.widget.CourseWidgetProvider::class.java)
-                        context.sendBroadcast(android.content.Intent(context, com.jaysay.coursetable.widget.CourseWidgetProvider::class.java)
-                            .setAction(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE)
-                            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, manager.getAppWidgetIds(component)))
-                    }
-                )
-            }
-
             // —— 通用：外观模式 + 课表背景 + 显示与无障碍 ——
             val generalItems = listOf(
                 SettingsItem(
@@ -266,9 +236,7 @@ fun SettingsScreen(
                         stringResource(R.string.settings_change_image),
                         stringResource(R.string.settings_restore_default),
                         stringResource(R.string.settings_background_default),
-                        stringResource(R.string.settings_background_custom_enabled),
-                        stringResource(R.string.settings_background_hint),
-                        stringResource(R.string.settings_background_privacy)
+                        stringResource(R.string.settings_background_custom_enabled)
                     )
                 ) {
                     SettingsGroupHeader(stringResource(R.string.settings_section_background))
@@ -310,16 +278,10 @@ fun SettingsScreen(
                                 color = if (customBackground != null) Color.White else MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                stringResource(R.string.settings_background_hint),
-                                color = if (customBackground != null) Color.White.copy(alpha = 0.86f)
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp
-                            )
                         }
                     }
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Button(
@@ -339,22 +301,15 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    Text(
-                        stringResource(R.string.settings_background_privacy),
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
-                    )
                 },
                 SettingsItem(
                     keywords = listOf(
-                        stringResource(R.string.settings_background_overlay),
-                        stringResource(R.string.settings_background_overlay_subtitle)
+                        stringResource(R.string.settings_background_overlay)
                     )
                 ) {
                     PreferenceSwitchRow(
                         title = stringResource(R.string.settings_background_overlay),
-                        subtitle = stringResource(R.string.settings_background_overlay_subtitle),
+                        subtitle = null,
                         checked = preferences.customBackgroundOverlayEnabled,
                         onCheckedChange = { save(preferences.copy(customBackgroundOverlayEnabled = it)) },
                         switchTestTag = "background-readability-overlay-switch"
@@ -363,23 +318,15 @@ fun SettingsScreen(
                 SettingsItem(
                     keywords = listOf(
                         stringResource(R.string.settings_section_display),
-                        stringResource(R.string.settings_high_contrast),
-                        stringResource(R.string.settings_high_contrast_subtitle)
+                        stringResource(R.string.settings_high_contrast)
                     )
                 ) {
                     SettingsGroupHeader(stringResource(R.string.settings_section_display))
                     PreferenceSwitchRow(
                         title = stringResource(R.string.settings_high_contrast),
-                        subtitle = stringResource(R.string.settings_high_contrast_subtitle),
+                        subtitle = null,
                         checked = preferences.highContrast,
                         onCheckedChange = { save(preferences.copy(highContrast = it)) }
-                    )
-                    PreferenceSwitchRow(
-                        title = stringResource(R.string.settings_week_card_compact),
-                        subtitle = stringResource(R.string.settings_week_card_compact_subtitle),
-                        checked = preferences.weekCardCompactInfo,
-                        onCheckedChange = { save(preferences.copy(weekCardCompactInfo = it)) },
-                        switchTestTag = "week-card-compact-switch"
                     )
                 },
             )
@@ -389,7 +336,6 @@ fun SettingsScreen(
                 SettingsItem(
                     keywords = listOf(
                         stringResource(R.string.settings_reminder_enable),
-                        stringResource(R.string.settings_reminder_enable_subtitle),
                         stringResource(R.string.settings_reminder_notif_permission)
                     )
                 ) {
@@ -401,11 +347,6 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(stringResource(R.string.settings_reminder_enable), fontSize = 15.sp)
-                            Text(
-                                stringResource(R.string.settings_reminder_enable_subtitle),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                         Switch(
                             checked = preferences.reminderEnabled,
@@ -503,11 +444,12 @@ fun SettingsScreen(
                 SettingsItem(
                     keywords = listOf(stringResource(R.string.settings_reminder_advance))
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(stringResource(R.string.settings_reminder_advance), fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        SettingsGroupHeader(stringResource(R.string.settings_reminder_advance))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                         listOf(5, 10, 15, 30).forEach { minutes ->
                             val selected = preferences.reminderMinutes == minutes
                             val chipInteraction = remember { MutableInteractionSource() }
@@ -519,7 +461,8 @@ fun SettingsScreen(
                             )
                             Box(
                                 modifier = Modifier
-                                    .padding(start = 6.dp)
+                                    .weight(1f)
+                                    .height(40.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(chipColor)
                                     .pressScale(chipInteraction)
@@ -529,18 +472,22 @@ fun SettingsScreen(
                                         enabled = readOnlyMessage == null
                                     ) {
                                         save(preferences.copy(reminderMinutes = minutes))
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     stringResource(R.string.settings_reminder_minutes, minutes),
+                                    modifier = Modifier.fillMaxWidth(),
                                     fontSize = 12.sp,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (selected) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             }
+                        }
                         }
                     }
                 },
@@ -663,7 +610,6 @@ fun SettingsScreen(
                                 // （TimeUtils.semesterWeekStartOrNull），保存侧不再改写，
                                 // 重新打开选择器时忠实还原用户当时选择的那一天。
                                 saveTable(table.copy(semesterStart = picked.toString()))
-                                showDatePicker = false
                             }
                         )
                     }
@@ -858,7 +804,6 @@ fun SettingsScreen(
                                             val np = table.periods.toMutableList()
                                             np[idx] = PeriodTime(newTime, period.end)
                                             saveTable(table.copy(periods = np))
-                                            showStartPicker = false
                                         },
                                         initialHour = startH,
                                         initialMinute = startM,
@@ -875,7 +820,6 @@ fun SettingsScreen(
                                             val np = table.periods.toMutableList()
                                             np[idx] = PeriodTime(period.start, newTime)
                                             saveTable(table.copy(periods = np))
-                                            showEndPicker = false
                                         },
                                         initialHour = endH,
                                         initialMinute = endM,
@@ -935,13 +879,12 @@ fun SettingsScreen(
             val backupItems = listOf(
             SettingsItem(
                 keywords = listOf(
-                    stringResource(R.string.settings_auto_backup),
-                    stringResource(R.string.settings_auto_backup_subtitle)
+                    stringResource(R.string.settings_auto_backup)
                 )
             ) {
                 PreferenceSwitchRow(
                     title = stringResource(R.string.settings_auto_backup),
-                    subtitle = stringResource(R.string.settings_auto_backup_subtitle),
+                    subtitle = null,
                     checked = preferences.autoBackupEnabled,
                     onCheckedChange = { enabled ->
                         if (enabled && preferences.autoBackupUri.isBlank()) {
@@ -1174,7 +1117,7 @@ fun SettingsScreen(
 @Composable
 private fun PreferenceSwitchRow(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     switchTestTag: String? = null
@@ -1189,7 +1132,9 @@ private fun PreferenceSwitchRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp)
-            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!subtitle.isNullOrBlank()) {
+                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         Switch(
             checked = checked,

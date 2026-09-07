@@ -58,9 +58,9 @@ fun coursePalette(dark: Boolean): List<Color> = if (dark) DarkCourseColors else 
 fun courseCardBackgroundAlpha(background: Color, hasCustomBackground: Boolean): Float {
     val isDarkCourseCard = background.luminance() < 0.35f
     return when {
-        !hasCustomBackground && isDarkCourseCard -> 0.90f
-        !hasCustomBackground -> 0.76f
-        isDarkCourseCard -> 0.93f
+        !hasCustomBackground && isDarkCourseCard -> 0.94f
+        !hasCustomBackground -> 0.82f
+        isDarkCourseCard -> 0.96f
         else -> 0.74f
     }
 }
@@ -80,33 +80,25 @@ private val LightCardTextAnchor = Color(0xFF171A19)
 /** 深色渐变高光的亮度上限：纯白文字在该亮度上仍能保持约 4.7:1。 */
 private const val COURSE_HIGHLIGHT_MAX_LUMINANCE = 0.16f
 
-/** 浅色渐变的顶部增密与底部压暗幅度：毛玻璃质感来自上实下透的柔和落差。 */
-private const val LIGHT_GRADIENT_TOP_DENSIFY = 0.14f
-private const val LIGHT_GRADIENT_SHADE = 0.10f
-
 /**
  * 卡片填充的停止点（含各自的最终透明度），是课程卡片实际绘制的唯一来源；
  * 对比度测试复用同一函数合成真实渲染背景，避免测试与渲染各算一套。
- * 浅深模式统一为三段式毛玻璃渐变：顶部柔光高光、中段基色、底部压暗；
+ * 浅色保持 3.4.12 的单色半透明玻璃；只有深色卡片使用更明显的三段式渐变。
  * 高光强度按基色自适应，使其合成亮度不超过 [COURSE_HIGHLIGHT_MAX_LUMINANCE]，
  * 让文字在任何高光位置都满足对比度要求。
  */
 fun courseCardFillStops(background: Color, dark: Boolean, hasCustomBackground: Boolean): List<Pair<Float, Color>> {
     val alpha = courseCardBackgroundAlpha(background, hasCustomBackground)
     return if (!dark) {
-        listOf(
-            0f to background.copy(alpha = (alpha + LIGHT_GRADIENT_TOP_DENSIFY).coerceAtMost(0.96f)),
-            0.42f to background.copy(alpha = alpha),
-            1f to lerp(background, Color.Black, LIGHT_GRADIENT_SHADE).copy(alpha = alpha)
-        )
+        listOf(0f to background.copy(alpha = alpha))
     } else {
         val bgLuminance = background.luminance()
         val highlightLerp = if (bgLuminance >= COURSE_HIGHLIGHT_MAX_LUMINANCE) 0f
         else ((COURSE_HIGHLIGHT_MAX_LUMINANCE - bgLuminance) / (1f - bgLuminance)).coerceAtMost(0.30f)
         listOf(
             0f to lerp(background, Color.White, highlightLerp).copy(alpha = 0.98f),
-            0.42f to background.copy(alpha = alpha),
-            1f to lerp(background, Color.Black, 0.26f).copy(alpha = alpha)
+            0.38f to background.copy(alpha = alpha),
+            1f to lerp(background, Color.Black, 0.34f).copy(alpha = alpha)
         )
     }
 }
@@ -211,7 +203,7 @@ fun buildCourseColorMap(courses: List<Course>, dark: Boolean): Map<String, Color
 /**
  * 解析单条课程卡片的最终颜色：用户选择的预设色优先，
  * 否则按课程名在整表首次出现顺序取调色板颜色。
- * 旧版保存过的 ARGB 自定义值不再使用，安全回退为自动配色。
+ * 旧版保存过的 ARGB 自定义值安全回退为自动配色。
  */
 fun resolveCourseColor(courses: List<Course>, course: Course, dark: Boolean): Color {
     val palette = if (dark) DarkCourseColors else CourseColors
@@ -232,15 +224,18 @@ fun buildResolvedCourseColorMap(courses: List<Course>, dark: Boolean): Map<Strin
     val palette = if (dark) DarkCourseColors else CourseColors
     val baseMap = buildCourseColorMap(courses, dark)
     return buildMap {
-        courses.distinctBy { it.courseName }.forEach { course ->
+        // 同名课程也要保留各自的自定义色；网格优先使用 uniqueKey，
+        // 课程名键仅作为旧调用方和详情页的兼容回退。
+        courses.forEach { course ->
             val customColor = course.customColor
-            put(
-                course.courseName,
-                when {
-                    customColor != null && customColor in palette.indices -> palette[customColor]
-                    else -> baseMap[course.courseName] ?: palette.first()
-                }
-            )
+            val resolved = when {
+                customColor != null && customColor in palette.indices -> palette[customColor]
+                else -> baseMap[course.courseName] ?: palette.first()
+            }
+            put(course.uniqueKey, resolved)
+        }
+        courses.sortedBy { it.customColor == null }.distinctBy { it.courseName }.forEach { course ->
+            put(course.courseName, get(course.uniqueKey) ?: baseMap[course.courseName] ?: palette.first())
         }
     }
 }

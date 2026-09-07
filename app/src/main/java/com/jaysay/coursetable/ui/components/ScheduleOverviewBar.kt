@@ -15,6 +15,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddCircleOutline
@@ -64,6 +70,7 @@ import com.jaysay.coursetable.data.model.AgendaCourseSlot
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
 import com.jaysay.coursetable.ui.theme.AppShapes
+import com.jaysay.coursetable.ui.theme.Motion
 import com.jaysay.coursetable.util.TimeUtils
 
 @Composable
@@ -90,11 +97,11 @@ fun ScheduleOverviewBar(
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val compactActions = maxWidth < 430.dp
-        // 顶栏功能键统一 44dp 触控尺寸与节奏：44dp 容器 + 24dp 图标自带 10dp 视觉边距，
-        // 行尾 padding 6dp 恰好落在 16dp 视觉边距上，两行左右边缘完全对齐。
+        val narrowWindow = maxWidth < 360.dp
+        // 顶栏沿用 3.4.12 的 48dp 触控节奏；行尾 4dp padding 与左侧 16dp 视觉边距对齐。
         Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 2.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
         if (searchVisible) {
@@ -127,8 +134,9 @@ fun ScheduleOverviewBar(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         tableName,
+                        // 标题按内容占位，箭头始终紧贴课表名称，避免与右侧按钮连成一片。
                         modifier = Modifier.weight(1f, fill = false),
-                        fontSize = 21.sp,
+                        fontSize = if (narrowWindow) 20.sp else 23.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = (-0.4).sp,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -137,30 +145,39 @@ fun ScheduleOverviewBar(
                     )
                     Icon(Icons.Rounded.ArrowDropDown, stringResource(R.string.overview_switch_table), tint = MaterialTheme.colorScheme.primary)
                 }
-                if (!compactActions) Text(
+                Text(
                     compactAgenda,
                     modifier = Modifier.fillMaxWidth().clickable { agendaVisible = true }
                         .semantics { contentDescription = agendaSummaryDescription }
                         .testTag("today-agenda-summary"),
-                    fontSize = 11.sp,
+                    fontSize = if (narrowWindow) 10.sp else 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = { searchVisible = true }, modifier = Modifier.size(44.dp).testTag("course-search-button")) {
+            IconButton(onClick = { searchVisible = true }, modifier = Modifier.size(48.dp).testTag("course-search-button")) {
                 Icon(Icons.Rounded.Search, stringResource(R.string.overview_search_course), tint = MaterialTheme.colorScheme.primary)
             }
-            IconButton(onClick = onAddCourseClick, enabled = writesEnabled, modifier = Modifier.size(44.dp).testTag("add-course-button")) {
+            IconButton(onClick = onAddCourseClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("add-course-button")) {
                 Icon(Icons.Rounded.AddCircleOutline, stringResource(R.string.overview_add_course), tint = MaterialTheme.colorScheme.primary)
             }
             // 浏览其他日期时，紧凑宽度的“回到今天”也直接可达，不再依赖更多菜单；
             // 宽屏操作行本就常驻定位按钮，不重复添加。
             if (compactActions) {
+                AnimatedVisibility(
+                    visible = awayFromToday,
+                    enter = fadeIn(tween(160, easing = Motion.standard)) + expandHorizontally(expandFrom = Alignment.End),
+                    exit = fadeOut(tween(110, easing = Motion.exit)) + shrinkHorizontally(shrinkTowards = Alignment.End)
+                ) {
+                    IconButton(onClick = onLocateToday, modifier = Modifier.size(48.dp).testTag("locate-today-button")) {
+                        Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
                 Box {
                     IconButton(
                         onClick = { moreActionsVisible = true },
-                        modifier = Modifier.size(44.dp).testTag("more-actions-button")
+                        modifier = Modifier.size(48.dp).testTag("more-actions-button")
                     ) {
                         Icon(Icons.Rounded.MoreVert, stringResource(R.string.overview_more_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -176,14 +193,7 @@ fun ScheduleOverviewBar(
                             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
                         )
                     ) {
-                        if (!awayFromToday) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.overview_locate_today)) },
-                                leadingIcon = { Icon(Icons.Rounded.MyLocation, null) },
-                                onClick = { moreActionsVisible = false; onLocateToday() },
-                                modifier = Modifier.testTag("locate-today-menu-item")
-                            )
-                        }
+                        // 当前周保持安静；离开今天时定位按钮已经在操作行出现。
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.overview_agenda_list)) },
                             leadingIcon = { Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, null) },
@@ -204,49 +214,24 @@ fun ScheduleOverviewBar(
                     }
                 }
             } else {
-                IconButton(onClick = onAgendaClick, modifier = Modifier.size(44.dp)) {
+                IconButton(onClick = onAgendaClick, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, stringResource(R.string.overview_agenda_list), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(
                     onClick = onLocateToday,
-                    modifier = Modifier.size(44.dp).testTag("locate-today-button")
+                    modifier = Modifier.size(48.dp).testTag("locate-today-button")
                 ) {
                     Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(44.dp).testTag("import-course-button")) {
+                IconButton(onClick = onImportClick, enabled = writesEnabled, modifier = Modifier.size(48.dp).testTag("import-course-button")) {
                     Icon(Icons.Rounded.FileOpen, stringResource(R.string.overview_import_table), tint = MaterialTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onSettingsClick, modifier = Modifier.size(44.dp)) {
+                IconButton(onClick = onSettingsClick, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Rounded.Settings, stringResource(R.string.overview_settings), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
-        if (compactActions && !searchVisible) {
-            // 摘要行与标题行同一起始边距、同一 44dp 高度：文字垂直居中，
-            // “回到今天”按钮与上方功能键同列对齐，出现/消失不带动文字跳动。
-            Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, bottom = 4.dp).heightIn(min = 44.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(AppShapes.small)
-                        .clickable { agendaVisible = true }
-                        .semantics { contentDescription = agendaSummaryDescription }
-                        .testTag("today-agenda-summary"),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(compactAgenda,
-                        style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (awayFromToday) {
-                    IconButton(onClick = onLocateToday, modifier = Modifier.size(44.dp).testTag("locate-today-button")) {
-                        Icon(Icons.Rounded.MyLocation, stringResource(R.string.overview_locate_today), tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
         }
     }
 

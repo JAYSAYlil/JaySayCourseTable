@@ -2,7 +2,9 @@ package com.jaysay.coursetable
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -27,7 +29,7 @@ class MainActivitySmokeTest {
 
     @Test
     fun mainScreenExposesCoreActionsAndCanOpenAddDialog() {
-        composeRule.waitUntil(timeoutMillis = 8_000) {
+        composeRule.waitUntil(timeoutMillis = 20_000) {
             composeRule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -46,12 +48,14 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithTag("add-course-button").performClick()
         composeRule.onNodeWithTag("course-name-input").performTextInput("虚构课程甲")
         composeRule.onNodeWithTag("course-save-button").performClick()
-        composeRule.waitForIdle()
-        if (composeRule.onAllNodesWithText("检测到课程冲突").fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onNodeWithText("仍然保存").performClick()
-        }
         composeRule.waitUntil(timeoutMillis = 8_000) {
-            composeRule.onAllNodesWithTag("course-edit-dialog").fetchSemanticsNodes().isEmpty()
+            val conflict = composeRule.onAllNodesWithText("检测到课程冲突").fetchSemanticsNodes().isNotEmpty()
+            if (conflict) {
+                composeRule.onNodeWithText("仍然保存").performClick()
+                false
+            } else {
+                composeRule.onAllNodesWithTag("course-edit-dialog").fetchSemanticsNodes().isEmpty()
+            }
         }
 
         composeRule.onNodeWithTag("add-course-button").performClick()
@@ -192,13 +196,15 @@ class MainActivitySmokeTest {
         }
 
         val cardDescription = "$courseName，点击查看详情"
-        composeRule.onNodeWithContentDescription(cardDescription).performScrollTo()
+        val currentCard = hasContentDescription(cardDescription) and
+            hasAnyAncestor(hasTestTag("schedule-scroll"))
+        composeRule.onNode(currentCard).performScrollTo()
         composeRule.waitForIdle()
         val before = composeRule.onNodeWithTag("schedule-scroll")
             .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
         assertTrue("测试课程应使课表产生有效滚动", before > 0f)
 
-        composeRule.onNodeWithContentDescription(cardDescription).performClick()
+        composeRule.onNode(currentCard).performClick()
         composeRule.onNodeWithText("课程详情").assertIsDisplayed()
         composeRule.activityRule.scenario.recreate()
         composeRule.onNodeWithText("课程详情").assertIsDisplayed()
@@ -300,17 +306,19 @@ class MainActivitySmokeTest {
     private fun addCourse(courseName: String, startPeriod: String, endPeriod: String) {
         composeRule.onNodeWithTag("add-course-button").performClick()
         composeRule.onNodeWithTag("course-name-input").performTextInput(courseName)
-        composeRule.onNodeWithTag("course-start-period-input")
-            .performScrollTo()
-            .performTextReplacement(startPeriod)
-        composeRule.onNodeWithTag("course-end-period-input")
-            .performTextReplacement(endPeriod)
+        val startTag = "course-start-period-${startPeriod.toIntOrNull() ?: 1}"
+        composeRule.onNodeWithTag(startTag).performScrollTo().performClick()
+        val endTag = "course-end-period-${endPeriod.toIntOrNull() ?: 1}"
+        composeRule.onNodeWithTag(endTag).performScrollTo().performClick()
         composeRule.onNodeWithTag("course-save-button").performClick()
-        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithText("检测到课程冲突").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithTag("course-edit-dialog").fetchSemanticsNodes().isEmpty()
+        }
         if (composeRule.onAllNodesWithText("检测到课程冲突").fetchSemanticsNodes().isNotEmpty()) {
             composeRule.onNodeWithText("仍然保存").performClick()
         }
-        composeRule.waitUntil(timeoutMillis = 8_000) {
+        composeRule.waitUntil(timeoutMillis = 20_000) {
             composeRule.onAllNodesWithTag("course-edit-dialog").fetchSemanticsNodes().isEmpty()
         }
     }

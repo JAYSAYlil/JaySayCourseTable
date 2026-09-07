@@ -36,11 +36,11 @@ class RevisionVisualTest {
     @Test fun dayDark() = render(ScheduleViewMode.DAY, true)
     @Test fun monthLight() = render(ScheduleViewMode.MONTH, false)
     @Test fun monthLargeFont() = render(ScheduleViewMode.MONTH, false, 2f)
-    @Test fun settingsStatus() {
+    @Test fun settingsStatusBoardRemoved() {
         rule.setContent { JaySayTheme(themeMode = ThemeMode.LIGHT) {
             SettingsScreen(preferences = AppPreferences(), onUpdatePrefs = {}, onExportBackup = {}, onImportBackup = {}, onBack = {})
         } }
-        rule.onNodeWithTag("service-status-card").assertIsDisplayed()
+        rule.onNodeWithTag("service-status-card").assertDoesNotExist()
         capture("settings")
     }
     private fun render(mode: ScheduleViewMode, dark: Boolean, font: Float = 1f) {

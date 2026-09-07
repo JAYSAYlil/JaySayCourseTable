@@ -30,22 +30,32 @@ object ScheduleDateResolver {
     ): List<ResolvedDateCourse> {
         val start = TimeUtils.semesterWeekStartOrNull(semesterStart) ?: return emptyList()
         val dayOffset = ChronoUnit.DAYS.between(start, date)
+        val dateKey = date.toString()
         val week = TimeUtils.semesterWeekOrNull(semesterStart, totalWeeks, date)
-            ?: return makeupOnly(exceptions, date)
+            ?: return makeupOnly(exceptions, date, dateKey)
         val scheduleDay = (dayOffset % 7 + 1).toInt()
-        val dayExceptions = exceptions.filter { it.date == date.toString() }
-        val isDayOff = dayExceptions.any { it.type == ScheduleExceptionType.DAY_OFF }
-        val cancelledSeries = dayExceptions.asSequence()
-            .filter { it.type == ScheduleExceptionType.COURSE_CANCELLED }
-            .mapNotNull(ScheduleDateException::courseSeriesKey)
-            .toSet()
+        var isDayOff = false
+        val cancelledSeries = mutableSetOf<String>()
+        val makeup = mutableListOf<ResolvedDateCourse>()
+        exceptions.forEach { item ->
+            if (item.date != dateKey) return@forEach
+            when (item.type) {
+                ScheduleExceptionType.DAY_OFF -> isDayOff = true
+                ScheduleExceptionType.COURSE_CANCELLED -> item.courseSeriesKey?.let(cancelledSeries::add)
+                ScheduleExceptionType.MAKEUP -> item.makeupCourse?.let {
+                    makeup += ResolvedDateCourse(it, 0, date, true)
+                }
+            }
+        }
         val regular = if (isDayOff || week in excludedWeeks) emptyList() else courses.asSequence()
             .filter { week in it.weeks && it.dayOfWeek == scheduleDay && it.seriesKey !in cancelledSeries }
             .map { ResolvedDateCourse(it, week, date, false) }
             .toList()
-        return (regular + makeupOnly(dayExceptions, date)).sortedWith(
-            compareBy<ResolvedDateCourse> { it.course.startPeriod }.thenBy { it.course.endPeriod }
-        )
+        val resolved = ArrayList<ResolvedDateCourse>(regular.size + makeup.size)
+        resolved.addAll(regular)
+        resolved.addAll(makeup)
+        resolved.sortWith(compareBy<ResolvedDateCourse> { it.course.startPeriod }.thenBy { it.course.endPeriod })
+        return resolved
     }
 
     fun normalize(
@@ -66,9 +76,13 @@ object ScheduleDateResolver {
         }
     }.distinctBy(ScheduleDateException::id).sortedBy(ScheduleDateException::date).take(maxItems).toList()
 
-    private fun makeupOnly(exceptions: List<ScheduleDateException>, date: LocalDate): List<ResolvedDateCourse> =
+    private fun makeupOnly(
+        exceptions: List<ScheduleDateException>,
+        date: LocalDate,
+        dateKey: String = date.toString()
+    ): List<ResolvedDateCourse> =
         exceptions.asSequence()
-            .filter { it.date == date.toString() && it.type == ScheduleExceptionType.MAKEUP }
+            .filter { it.date == dateKey && it.type == ScheduleExceptionType.MAKEUP }
             .mapNotNull { it.makeupCourse }
             .map { ResolvedDateCourse(it, 0, date, true) }
             .toList()

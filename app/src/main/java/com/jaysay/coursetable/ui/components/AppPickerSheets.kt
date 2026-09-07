@@ -44,6 +44,7 @@ import com.jaysay.coursetable.ui.theme.AppSpacing
 import com.jaysay.coursetable.ui.theme.Motion
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -65,7 +66,7 @@ fun AppDatePickerSheet(
     var visibleMonth by remember(initialDate) { mutableStateOf(YearMonth.from(initialDate)) }
     var transitionDirection by remember { mutableIntStateOf(1) }
 
-    AppPickerSheet(tag = "semester-date-picker-sheet", onDismiss = onDismiss) {
+    AppPickerSheet(tag = "semester-date-picker-sheet", onDismiss = onDismiss) { requestDismiss ->
         PickerTitle(title)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(
@@ -129,7 +130,10 @@ fun AppDatePickerSheet(
                 }
             }
         )
-        PickerActions(confirmLabel, cancelLabel, onDismiss) { onConfirm(selectedDate) }
+        PickerActions(confirmLabel, cancelLabel, requestDismiss) {
+            onConfirm(selectedDate)
+            requestDismiss()
+        }
     }
 }
 
@@ -237,7 +241,7 @@ fun AppTimePickerSheet(
     var hour by remember(initialHour) { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
     var minute by remember(initialMinute) { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
 
-    AppPickerSheet(tag = "period-time-picker-sheet", onDismiss = onDismiss) {
+    AppPickerSheet(tag = "period-time-picker-sheet", onDismiss = onDismiss) { requestDismiss ->
         PickerTitle(title)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.lg),
@@ -260,7 +264,10 @@ fun AppTimePickerSheet(
                 modifier = Modifier.weight(1f).testTag("time-picker-minute-wheel")
             )
         }
-        PickerActions(confirmLabel, cancelLabel, onDismiss) { onConfirm(hour, minute) }
+        PickerActions(confirmLabel, cancelLabel, requestDismiss) {
+            onConfirm(hour, minute)
+            requestDismiss()
+        }
     }
 }
 
@@ -332,11 +339,22 @@ private fun NumberWheel(
 private fun AppPickerSheet(
     tag: String,
     onDismiss: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.(requestDismiss: () -> Unit) -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var dismissRequested by remember { mutableStateOf(false) }
+    fun requestDismiss() {
+        if (dismissRequested) return
+        dismissRequested = true
+        scope.launch {
+            sheetState.hide()
+            onDismiss()
+        }
+    }
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        onDismissRequest = ::requestDismiss,
+        sheetState = sheetState,
         shape = AppShapes.sheet,
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -350,7 +368,7 @@ private fun AppPickerSheet(
                 .navigationBarsPadding()
                 .padding(horizontal = AppSpacing.screenH)
                 .padding(bottom = AppSpacing.xl),
-            content = content
+            content = { content(::requestDismiss) }
         )
     }
 }

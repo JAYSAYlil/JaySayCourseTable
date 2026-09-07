@@ -133,25 +133,30 @@ internal fun currentCourseProgressPosition(
     periodTimes: List<PeriodTime>,
     dayCourses: List<Course>
 ): Pair<Int, Float>? {
-    val activePeriod = periodTimes.mapIndexedNotNull { index, period ->
+    var activeIndex = -1
+    var activeStart = 0
+    var activeEnd = 0
+    for ((index, period) in periodTimes.withIndex()) {
         val start = TimeUtils.parseMinuteOfDay(period.start)
         val end = TimeUtils.parseMinuteOfDay(period.end)
         if (start != null && end != null && end > start && currentMinute in start until end) {
-            Triple(index, start, end)
-        } else {
-            null
+            activeIndex = index
+            activeStart = start
+            activeEnd = end
+            break
         }
-    }.firstOrNull() ?: return null
+    }
+    if (activeIndex < 0) return null
 
-    val periodNumber = activePeriod.first + 1
+    val periodNumber = activeIndex + 1
     val hasCourseNow = dayCourses.any { course ->
         periodNumber in course.startPeriod.coerceAtLeast(1)..course.endPeriod.coerceAtLeast(course.startPeriod)
     }
     if (!hasCourseNow) return null
 
-    val fraction = ((currentMinute - activePeriod.second).toFloat() /
-        (activePeriod.third - activePeriod.second)).coerceIn(0f, 1f)
-    return activePeriod.first to fraction
+    val fraction = ((currentMinute - activeStart).toFloat() /
+        (activeEnd - activeStart)).coerceIn(0f, 1f)
+    return activeIndex to fraction
 }
 
 @Composable
@@ -183,8 +188,10 @@ internal fun TableGrid(
     val sectionText = if (dark) DarkPrimaryDark.copy(alpha = 0.72f) else PrimaryDark.copy(alpha = 0.72f)
     val isTodayVisible = currentWeek == todayWeek
     val totalHeight = remember(periodTimes, cellHeight) { cellHeight * periodTimes.size + 20.dp * sections.size }
-    val byDay = remember(courses, visibleDays) {
-        visibleDays.associateWith { day -> courses.filter { it.dayOfWeek == day }.sortedBy { it.startPeriod } }
+    val byDay = remember(courses) {
+        courses.groupBy(Course::dayOfWeek).mapValues { (_, dayCourses) ->
+            dayCourses.sortedBy(Course::startPeriod)
+        }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -345,7 +352,7 @@ internal fun TableGrid(
                         val y = periodOffset(start, sections, cellHeight)
                         val bottom = periodOffset(end, sections, cellHeight) + cellHeight
                         // colorMap 已是“应用自定义预设色后的最终色”，与月视图/详情同源。
-                        val cardColor = colorMap[course.courseName]
+                        val cardColor = colorMap[course.uniqueKey] ?: colorMap[course.courseName]
                             ?: (if (dark) DarkCourseColors else CourseColors).first()
                         val startMinute = periodTimes.getOrNull(start - 1)?.start?.let(TimeUtils::parseMinuteOfDay)
                         val endMinute = periodTimes.getOrNull(end - 1)?.end?.let(TimeUtils::parseMinuteOfDay)
@@ -515,12 +522,17 @@ private fun CourseCard(
         label = "courseCardBorder"
     )
     // 填充停止点是渲染与对比度测试共享的单一来源（ui.theme/courseCardFillStops）：
-    // 浅深模式统一为三段式毛玻璃渐变——顶部更实、中段基色、底部压暗。
+    // 浅色保持平面透明玻璃，深色使用顶部高光、中段基色、底部压暗的三段渐变。
     val cardFillStops = remember(background, dark, hasCustomBackground) {
         courseCardFillStops(background, dark, hasCustomBackground)
     }
     val cardFill = remember(dark, cardFillStops) {
-        Brush.verticalGradient(colorStops = cardFillStops.toTypedArray())
+        // Compose 的渐变至少需要两个停止点；浅色模式是 3.4.12 的纯透明玻璃，
+        // 复制同色端点以保留单色视觉，不引入肉眼可见的渐变。
+        val stops = if (cardFillStops.size == 1) {
+            listOf(0f to cardFillStops.single().second, 1f to cardFillStops.single().second)
+        } else cardFillStops
+        Brush.verticalGradient(colorStops = stops.toTypedArray())
     }
     val contentPadding = when (viewMode) {
         ScheduleViewMode.WEEK -> PaddingValues(4.dp, 5.dp, 3.dp, 4.dp)

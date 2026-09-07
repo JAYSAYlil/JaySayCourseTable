@@ -33,9 +33,9 @@ class ScheduleOverviewBarTest {
         composeRule.onNodeWithContentDescription("设置").assertDoesNotExist()
 
         composeRule.onNodeWithContentDescription("更多操作").performClick()
-        composeRule.onNodeWithTag("locate-today-menu-item").assertExists()
+        composeRule.onNodeWithTag("locate-today-menu-item").assertDoesNotExist()
         composeRule.onNodeWithTag("import-course-menu-item").assertExists()
-        composeRule.onNodeWithText("定位到今天").assertExists()
+        composeRule.onNodeWithText("定位到今天").assertDoesNotExist()
         composeRule.onNodeWithText("导入课表").assertExists()
         composeRule.onNodeWithText("设置").assertExists()
     }

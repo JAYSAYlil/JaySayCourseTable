@@ -29,7 +29,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.jaysay.coursetable.R
@@ -216,6 +219,33 @@ private data class CourseEditorForm(
     }
 }
 
+@Composable
+private fun RequiredLabel(text: String) {
+    Text(
+        buildAnnotatedString {
+            append(text)
+            append(" ")
+            withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) { append("*") }
+        },
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+/** 选择类控件统一使用一行、居中的文本，避免不同语言或数字宽度造成视觉漂移。 */
+@Composable
+private fun SelectorChipLabel(text: String) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            maxLines = 1,
+            softWrap = false,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Clip
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseEditDialog(
@@ -247,7 +277,8 @@ fun CourseEditDialog(
 
         Dialog(onDismissRequest = onDismiss) {
             Surface(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f).testTag("course-edit-dialog"),
+                modifier = Modifier.fillMaxWidth(0.96f).widthIn(max = 560.dp).fillMaxHeight(0.92f)
+                    .testTag("course-edit-dialog"),
                 shape = AppShapes.sheet,
                 color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(
@@ -288,7 +319,7 @@ fun CourseEditDialog(
                     ) {
                         // 课程名称
                         OutlinedTextField(value = form.name, onValueChange = { form = form.copy(name = it); errorMsg = null },
-                            label = { Text(stringResource(R.string.edit_label_course_name)) }, singleLine = true,
+                            label = { RequiredLabel(stringResource(R.string.edit_label_course_name)) }, singleLine = true,
                             shape = AppShapes.input,
                             modifier = Modifier.fillMaxWidth().testTag("course-name-input"))
 
@@ -309,7 +340,7 @@ fun CourseEditDialog(
                             for (d in 1..7) {
                                 val sel = d == form.day
                                 Box(
-                                    modifier = Modifier.weight(1f).height(48.dp)
+                                    modifier = Modifier.weight(1f).height(40.dp)
                                         .clip(AppShapes.small)
                                         .background(
                                             if (sel) MaterialTheme.colorScheme.primary
@@ -328,29 +359,47 @@ fun CourseEditDialog(
                             }
                         }
 
-                        // 节次
-                        Text(stringResource(R.string.edit_label_period), style = MaterialTheme.typography.labelMedium,
+                        // 节次：与星期一样使用点击选择，避免短输入框与正文控件上下不齐。
+                        RequiredLabel(stringResource(R.string.edit_label_period))
+                        Text("开始第 ${form.startPeriod} 节", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.edit_period_prefix), style = MaterialTheme.typography.bodyMedium)
-                            OutlinedTextField(value = form.startText, onValueChange = { v ->
-                                val f = v.filter { it.isDigit() }.take(2)
-                                form = form.copy(startText = f)
-                                f.toIntOrNull()?.let { form = form.copy(startPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1))) }
-                                errorMsg = null
-                            }, modifier = Modifier.width(60.dp).testTag("course-start-period-input"), singleLine = true,
-                                shape = AppShapes.input,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            Text(stringResource(R.string.edit_period_range), style = MaterialTheme.typography.bodyMedium)
-                            OutlinedTextField(value = form.endText, onValueChange = { v ->
-                                val f = v.filter { it.isDigit() }.take(2)
-                                form = form.copy(endText = f)
-                                f.toIntOrNull()?.let { form = form.copy(endPeriod = it.coerceIn(1, maxPeriods.coerceAtLeast(1))) }
-                                errorMsg = null
-                            }, modifier = Modifier.width(60.dp).testTag("course-end-period-input"), singleLine = true,
-                                shape = AppShapes.input,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            Text(stringResource(R.string.edit_period_suffix), style = MaterialTheme.typography.bodyMedium)
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            (1..maxPeriods.coerceAtLeast(1)).forEach { period ->
+                                FilterChip(modifier = Modifier.width(48.dp).height(40.dp).testTag("course-start-period-$period"), selected = period == form.startPeriod, onClick = {
+                                    val adjustedEnd = maxOf(form.endPeriod, period)
+                                    form = form.copy(
+                                        startPeriod = period,
+                                        startText = period.toString(),
+                                        endPeriod = adjustedEnd,
+                                        endText = adjustedEnd.toString()
+                                    )
+                                    errorMsg = null
+                                }, label = {
+                                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Text(period.toString(), maxLines = 1, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    }
+                                })
+                            }
+                        }
+                        Text("结束第 ${form.endPeriod} 节", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            (1..maxPeriods.coerceAtLeast(1)).forEach { period ->
+                                FilterChip(modifier = Modifier.width(48.dp).height(40.dp).testTag("course-end-period-$period"), selected = period == form.endPeriod, onClick = {
+                                    val adjustedStart = minOf(form.startPeriod, period)
+                                    form = form.copy(
+                                        startPeriod = adjustedStart,
+                                        startText = adjustedStart.toString(),
+                                        endPeriod = period,
+                                        endText = period.toString()
+                                    )
+                                    errorMsg = null
+                                }, label = {
+                                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Text(period.toString(), maxLines = 1, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    }
+                                })
+                            }
                         }
                         if (form.endPeriod < form.startPeriod) {
                             Text(stringResource(R.string.edit_error_end_before_start),
@@ -358,27 +407,53 @@ fun CourseEditDialog(
                                 color = MaterialTheme.colorScheme.error)
                         }
 
-                        // 周次
-                        OutlinedTextField(value = form.weekStr, onValueChange = { form = form.copy(weekStr = it) },
-                            label = { Text(stringResource(R.string.edit_label_weeks)) }, singleLine = true,
-                            shape = AppShapes.input,
-                            modifier = Modifier.fillMaxWidth())
+                        // 周次：使用全选/单双周和具体周次的同一组芯片，不再要求记忆输入格式。
+                        val selectedWeeks = remember(form.weekStr, totalWeeks) {
+                            val parsed = TimeUtils.parseWeeks(form.weekStr).toSet()
+                            if (parsed.isEmpty() && form.weekStr.isBlank()) (1..totalWeeks).toSet() else parsed
+                        }
+                        fun selectWeeks(weeks: Set<Int>) {
+                            form = form.copy(weekStr = if (weeks.size >= totalWeeks) "1-$totalWeeks" else TimeUtils.formatWeeks(weeks.sorted()))
+                        }
+                        Text(stringResource(R.string.edit_label_weeks), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks.size == totalWeeks, onClick = { selectWeeks((1..totalWeeks).toSet()) }, label = { SelectorChipLabel("全学期") })
+                            FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks == (1..totalWeeks step 2).toSet(), onClick = { selectWeeks((1..totalWeeks step 2).toSet()) }, label = { SelectorChipLabel("单周") })
+                            FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks == (2..totalWeeks step 2).toSet(), onClick = { selectWeeks((2..totalWeeks step 2).toSet()) }, label = { SelectorChipLabel("双周") })
+                        }
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            (1..totalWeeks).forEach { week ->
+                                FilterChip(modifier = Modifier.width(48.dp).height(40.dp), selected = week in selectedWeeks, onClick = {
+                                    val next = selectedWeeks.toMutableSet().apply { if (!remove(week)) add(week) }
+                                    selectWeeks(next)
+                                // 数字周次与节次采用同一视觉规则；避免窄芯片中“周”字被裁切。
+                                }, label = { SelectorChipLabel(week.toString()) })
+                            }
+                        }
 
                         // 学分
                         OutlinedTextField(value = form.creditsStr, onValueChange = { form = form.copy(creditsStr = it) },
                             label = { Text(stringResource(R.string.edit_label_credits)) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             shape = AppShapes.input,
-                            modifier = Modifier.width(120.dp))
+                            modifier = Modifier.fillMaxWidth())
 
                         // 课程性质 + 线上
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically) {
                             OutlinedTextField(value = form.courseType, onValueChange = { form = form.copy(courseType = it) },
                                 label = { Text(stringResource(R.string.edit_label_course_type)) }, singleLine = true,
                                 shape = AppShapes.input, modifier = Modifier.weight(1f))
-                            Text(stringResource(R.string.edit_label_online), style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = form.isOnline, onCheckedChange = { form = form.copy(isOnline = it) })
+                            Row(
+                                modifier = Modifier.weight(1f).height(56.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(stringResource(R.string.edit_label_online), style = MaterialTheme.typography.bodyMedium)
+                                Spacer(Modifier.width(8.dp))
+                                Switch(checked = form.isOnline, onCheckedChange = { form = form.copy(isOnline = it) })
+                            }
                         }
 
                         // 课程类别 + 考核方式
@@ -452,9 +527,10 @@ fun CourseEditDialog(
                                 CourseReminderMode.DISABLED to stringResource(R.string.edit_reminder_disabled)
                             ).forEach { (mode, label) ->
                                 FilterChip(
+                                    modifier = Modifier.width(96.dp).height(40.dp),
                                     selected = form.reminderMode == mode,
                                     onClick = { form = form.copy(reminderModeName = mode.name) },
-                                    label = { Text(label) }
+                                    label = { SelectorChipLabel(label) }
                                 )
                             }
                         }
@@ -467,15 +543,17 @@ fun CourseEditDialog(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 FilterChip(
+                                    modifier = Modifier.width(96.dp).height(40.dp),
                                     selected = form.reminderMinutesOverride == null,
                                     onClick = { form = form.copy(reminderMinutesOverrideValue = CourseEditorForm.NO_OVERRIDE) },
-                                    label = { Text(stringResource(R.string.edit_reminder_inherit)) }
+                                    label = { SelectorChipLabel(stringResource(R.string.edit_reminder_inherit)) }
                                 )
                                 listOf(5, 10, 15, 30).forEach { minutes ->
                                     FilterChip(
+                                        modifier = Modifier.width(72.dp).height(40.dp),
                                         selected = form.reminderMinutesOverride == minutes,
                                         onClick = { form = form.copy(reminderMinutesOverrideValue = minutes) },
-                                        label = { Text(stringResource(R.string.edit_reminder_minutes, minutes)) }
+                                        label = { SelectorChipLabel(stringResource(R.string.edit_reminder_minutes, minutes)) }
                                     )
                                 }
                             }
