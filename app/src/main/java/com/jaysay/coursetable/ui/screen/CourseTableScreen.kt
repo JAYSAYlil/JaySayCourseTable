@@ -22,10 +22,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -400,8 +399,10 @@ fun CourseTableScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Transparent)
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                // Freeform windows expose captionBar rather than statusBars. Use the
+                // complete drawing-safe region, including cutouts and side navigation.
+                // Keep wallpaper outside this padding so it still fills the window.
+                .safeDrawingPadding()
                 .testTag("course-table-screen")
         ) {
         TodayOverviewSection(
