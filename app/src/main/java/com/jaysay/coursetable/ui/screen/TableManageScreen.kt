@@ -9,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,21 +42,55 @@ fun TableManageScreen(
     pendingDeleteIndex?.let { index ->
         val table = tables.getOrNull(index)
         if (table != null) {
-            AlertDialog(
+            // 与课程详情的删除确认保持同一材质：底部抽屉 + AppShapes.sheet + 整宽操作按钮。
+            ModalBottomSheet(
                 onDismissRequest = { pendingDeleteIndex = null },
-                icon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                title = { Text(stringResource(R.string.table_delete_dialog_title)) },
-                text = { Text(stringResource(R.string.table_delete_dialog_message, table.name, table.courses.size)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        pendingDeleteIndex = null
-                        onDelete(index)
-                    }) { Text(stringResource(R.string.table_delete_confirm), color = MaterialTheme.colorScheme.error) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pendingDeleteIndex = null }) { Text(stringResource(R.string.table_cancel)) }
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                shape = AppShapes.sheet,
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.DeleteOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        stringResource(R.string.table_delete_dialog_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        stringResource(R.string.table_delete_dialog_message, table.name, table.courses.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Button(
+                        onClick = {
+                            pendingDeleteIndex = null
+                            onDelete(index)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = AppShapes.small,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Text(stringResource(R.string.table_delete_confirm))
+                    }
+                    TextButton(
+                        onClick = { pendingDeleteIndex = null },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.table_cancel))
+                    }
                 }
-            )
+            }
         }
     }
 

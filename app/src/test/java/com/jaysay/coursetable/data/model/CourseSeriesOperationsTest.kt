@@ -63,6 +63,134 @@ class CourseSeriesOperationsTest {
         assertEquals(listOf(selected, unrelated, laterAddition), restored)
     }
 
+    @Test
+    fun sameCourseNameAcrossWeekRangesSharesOneSeriesEvenWithDifferentCourseIds() {
+        // 同一门课在不同周次可能带不同课程号/教师/教室，必须仍然算同一门课。
+        val migrated = CourseSeriesIds.ensure(
+            listOf(
+                course(id = "A-1", weeks = (1..8).toList(), seriesId = "first"),
+                course(id = "A-2", weeks = (9..16).toList(), seriesId = "second")
+            )
+        )
+
+        assertEquals(migrated[0].seriesKey, migrated[1].seriesKey)
+    }
+
+    @Test
+    fun differentCourseNamesAtTheSameSlotStaySeparate() {
+        val migrated = CourseSeriesIds.ensure(
+            listOf(
+                course(name = "课程甲", weeks = listOf(1), seriesId = "a"),
+                course(name = "课程乙", weeks = listOf(1), seriesId = "b")
+            )
+        )
+
+        assertNotEquals(migrated[0].seriesKey, migrated[1].seriesKey)
+    }
+
+    @Test
+    fun unchangedWeeksOnlyRewriteTheEditedWeek() {
+        val series = CourseSeriesIds.ensure(listOf(course(weeks = (1..4).toList(), seriesId = "s")))
+        val edited = series[0].copy(classroom = "新教室")
+
+        val result = CourseSeriesOperations.replaceCurrentWeekInstance(
+            series, "s", week = 2, edited = edited,
+            selectedWeeks = setOf(1, 2, 3, 4), existingWeeks = setOf(1, 2, 3, 4)
+        )
+
+        assertEquals(2, result.size)
+        val current = result.single { 2 in it.weeks }
+        assertEquals(listOf(2), current.weeks)
+        assertEquals("新教室", current.classroom)
+        val others = result.single { 2 !in it.weeks }
+        assertEquals(listOf(1, 3, 4), others.weeks)
+        assertEquals("教室", others.classroom)
+    }
+
+    @Test
+    fun movingTheEditedWeekKeepsTheTargetWeekOriginalInstanceAndCarriesTheEdit() {
+        // 用户场景：这门课排在第 1-4 周周四 3-4 节；把第 1 周这一次调到第 2 周 9-10 节。
+        val series = CourseSeriesIds.ensure(
+            listOf(course(weeks = (1..4).toList(), seriesId = "s").copy(startPeriod = 3, endPeriod = 4))
+        )
+        val edited = series[0].copy(startPeriod = 9, endPeriod = 10)
+
+        val result = CourseSeriesOperations.replaceCurrentWeekInstance(
+            series, "s", week = 1, edited = edited,
+            selectedWeeks = setOf(2), existingWeeks = setOf(1, 2, 3, 4)
+        )
+
+        assertEquals(2, result.size)
+        // 第 2 周原本那一节（3-4 节）必须保留，且仍在第 2-4 周
+        val original = result.first { it.startPeriod == 3 }
+        assertEquals(listOf(2, 3, 4), original.weeks)
+        // 被调过来的这一次课落在第 2 周 9-10 节
+        val moved = result.first { it.startPeriod == 9 }
+        assertEquals(listOf(2), moved.weeks)
+        assertEquals(10, moved.endPeriod)
+        assertTrue("第 1 周不再有这门课", result.none { 1 in it.weeks })
+    }
+
+    @Test
+    fun applyingFromThisWeekOnwardOnlyRewritesThatWeekAndLater() {
+        // 第 1-6 周周一 1-2 节；从第 4 周起改到周六 3-4 节 → 第 1-3 周保持原样，第 4-6 周用新值
+        val series = CourseSeriesIds.ensure(listOf(course(weeks = (1..6).toList(), seriesId = "s")))
+        val edited = series[0].copy(dayOfWeek = 6, startPeriod = 3, endPeriod = 4)
+
+        val result = CourseSeriesOperations.replaceFromWeekOnward(
+            series, "s", week = 4, edited = edited, selectedWeeks = setOf(1, 2, 3, 4, 5, 6)
+        )
+
+        val earlier = result.single { it.weeks.any { current -> current < 4 } }
+        assertEquals(listOf(1, 2, 3), earlier.weeks)
+        assertEquals(1, earlier.dayOfWeek)
+        val onward = result.single { it.weeks.all { current -> current >= 4 } }
+        assertEquals(listOf(4, 5, 6), onward.weeks)
+        assertEquals(6, onward.dayOfWeek)
+        assertEquals(3, onward.startPeriod)
+    }
+
+    @Test
+    fun applyingFromThisWeekOnwardKeepsUncheckedLaterWeeksOut() {
+        // 在第 4 周取消勾选第 6 周 → 第 6 周不再排这门课，第 1-3 周仍然保留
+        val series = CourseSeriesIds.ensure(listOf(course(weeks = (1..6).toList(), seriesId = "s")))
+
+        val result = CourseSeriesOperations.replaceFromWeekOnward(
+            series, "s", week = 4, edited = series[0].copy(dayOfWeek = 6), selectedWeeks = setOf(1, 2, 3, 4, 5)
+        )
+
+        assertEquals(listOf(1, 2, 3), result.single { it.weeks.any { current -> current < 4 } }.weeks)
+        assertEquals(listOf(4, 5), result.single { it.weeks.all { current -> current >= 4 } }.weeks)
+    }
+
+    @Test
+    fun editingTheOnlyWeekNeverRemovesTheCourse() {
+        val series = CourseSeriesIds.ensure(listOf(course(weeks = listOf(2), seriesId = "s")))
+
+        val result = CourseSeriesOperations.replaceCurrentWeekInstance(
+            series, "s", week = 2, edited = series[0].copy(classroom = "新教室"),
+            selectedWeeks = setOf(2), existingWeeks = setOf(2)
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(listOf(2), result.single().weeks)
+        assertEquals("新教室", result.single().classroom)
+    }
+
+    @Test
+    fun movingTheOnlyWeekAlsoKeepsTheCourse() {
+        val series = CourseSeriesIds.ensure(listOf(course(weeks = listOf(1), seriesId = "s")))
+
+        val result = CourseSeriesOperations.replaceCurrentWeekInstance(
+            series, "s", week = 1, edited = series[0].copy(startPeriod = 9, endPeriod = 10),
+            selectedWeeks = setOf(2), existingWeeks = setOf(1)
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(listOf(2), result.single().weeks)
+        assertEquals(9, result.single().startPeriod)
+    }
+
     private fun course(
         id: String = "C001",
         name: String = "课程",

@@ -43,6 +43,15 @@ import com.jaysay.coursetable.util.TimeUtils
 import java.util.UUID
 
 /**
+ * 课程编辑的保存范围：
+ * - [CURRENT_WEEK] 只改被编辑的这一周（默认）；
+ * - [FROM_CURRENT_WEEK] 改被编辑的这一周以及其后的所有周次；
+ * - [ALL_WEEKS] 整门课程的全部周次一起改。
+ * 三者互斥：界面上的两个开关打开一个，另一个自动关闭。
+ */
+enum class CourseEditScope { CURRENT_WEEK, FROM_CURRENT_WEEK, ALL_WEEKS }
+
+/**
  * 课程编辑表单的完整快照。整个表单只占一个 rememberSaveable 槽位，
  * Activity 重建（旋转/进程回收）后已填写的所有字段原样恢复；
  * reminderMode 存枚举名，reminderMinutesOverride 用 -1 表示“跟随全局”。
@@ -71,13 +80,17 @@ private data class CourseEditorForm(
     val reminderModeName: String,
     val reminderMinutesOverrideValue: Int,
     val endReminderEnabled: Boolean,
-    val applyToAll: Boolean
+    val scopeName: String
 ) {
     val reminderMode: CourseReminderMode
         get() = runCatching { CourseReminderMode.valueOf(reminderModeName) }
             .getOrDefault(CourseReminderMode.INHERIT)
     val reminderMinutesOverride: Int?
         get() = reminderMinutesOverrideValue.takeIf { it >= 0 }
+
+    /** 保存范围：默认只改被编辑的这一周（见 [CourseEditScope]）。 */
+    val scope: CourseEditScope
+        get() = runCatching { CourseEditScope.valueOf(scopeName) }.getOrDefault(CourseEditScope.CURRENT_WEEK)
 
     companion object {
         const val NO_OVERRIDE = -1
@@ -116,7 +129,7 @@ private data class CourseEditorForm(
                 reminderModeName = (course?.reminderMode ?: CourseReminderMode.INHERIT).name,
                 reminderMinutesOverrideValue = course?.reminderMinutesOverride ?: NO_OVERRIDE,
                 endReminderEnabled = course?.endReminderEnabled ?: false,
-                applyToAll = false
+                scopeName = CourseEditScope.CURRENT_WEEK.name
             )
         }
 
@@ -143,7 +156,7 @@ private data class CourseEditorForm(
         private const val KEY_REMINDER_MODE = "reminderMode"
         private const val KEY_REMINDER_MINUTES = "reminderMinutes"
         private const val KEY_END_REMINDER = "endReminder"
-        private const val KEY_APPLY_TO_ALL = "applyToAll"
+        private const val KEY_SCOPE = "scope"
 
         private const val FALLBACK_START_PERIOD = 1
         private const val FALLBACK_END_PERIOD = 2
@@ -179,7 +192,7 @@ private data class CourseEditorForm(
                     KEY_REMINDER_MODE to form.reminderModeName,
                     KEY_REMINDER_MINUTES to form.reminderMinutesOverrideValue,
                     KEY_END_REMINDER to form.endReminderEnabled,
-                    KEY_APPLY_TO_ALL to form.applyToAll
+                    KEY_SCOPE to form.scopeName
                 )
             },
             restore = { saved ->
@@ -212,7 +225,7 @@ private data class CourseEditorForm(
                     reminderMinutesOverrideValue = (saved[KEY_REMINDER_MINUTES] as? Number)?.toInt()
                         ?: NO_OVERRIDE,
                     endReminderEnabled = saved[KEY_END_REMINDER] as? Boolean ?: false,
-                    applyToAll = saved[KEY_APPLY_TO_ALL] as? Boolean ?: false
+                    scopeName = saved[KEY_SCOPE] as? String ?: CourseEditScope.CURRENT_WEEK.name
                 )
             }
         )
@@ -255,7 +268,7 @@ fun CourseEditDialog(
     maxPeriods: Int = 30,
     initialDay: Int = 1,
     initialStartPeriod: Int = 1,
-    onSave: (Course, applyToAll: Boolean) -> Unit,
+    onSave: (Course, CourseEditScope) -> Unit,
     onDelete: ((applyToAll: Boolean) -> Unit)?,
     onDismiss: () -> Unit
 ) {
@@ -274,6 +287,10 @@ fun CourseEditDialog(
         var form by rememberSaveable(stateSaver = CourseEditorForm.saver) {
             mutableStateOf(CourseEditorForm.from(course, initialDay, initialStartPeriod, maxPeriods, totalWeeks))
         }
+        val selectedWeeks = remember(form.weekStr) { TimeUtils.parseWeeks(form.weekStr).toSet() }
+        // 周次是否被改动过：只用于提示本次保存的实际作用范围，
+        // 保存范围始终由用户自己的“应用到全部周”开关决定，界面不得代为放大。
+        val weeksChanged = course != null && selectedWeeks != course.weeks.toSet()
 
         Dialog(onDismissRequest = onDismiss) {
             Surface(
@@ -408,15 +425,22 @@ fun CourseEditDialog(
                         }
 
                         // 周次：使用全选/单双周和具体周次的同一组芯片，不再要求记忆输入格式。
-                        val selectedWeeks = remember(form.weekStr, totalWeeks) {
-                            val parsed = TimeUtils.parseWeeks(form.weekStr).toSet()
-                            if (parsed.isEmpty() && form.weekStr.isBlank()) (1..totalWeeks).toSet() else parsed
-                        }
                         fun selectWeeks(weeks: Set<Int>) {
                             form = form.copy(weekStr = if (weeks.size >= totalWeeks) "1-$totalWeeks" else TimeUtils.formatWeeks(weeks.sorted()))
+                            errorMsg = null
                         }
-                        Text(stringResource(R.string.edit_label_weeks), style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // 周次同时承担两件事：这门课排在哪几周（芯片选中态）＋ 当前正在编辑的是哪一周。
+                        // 关闭“应用到全部周”时，这一次课的周次就是“这一次课”自己的排课：
+                        // 不动周次＝只改这一周；把周次改成别的周＝把这一次课整体挪过去。
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(stringResource(R.string.edit_label_weeks), style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (!isNew) {
+                                Text(stringResource(R.string.edit_weeks_editing_week, currentWeek),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks.size == totalWeeks, onClick = { selectWeeks((1..totalWeeks).toSet()) }, label = { SelectorChipLabel("全学期") })
                             FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks == (1..totalWeeks step 2).toSet(), onClick = { selectWeeks((1..totalWeeks step 2).toSet()) }, label = { SelectorChipLabel("单周") })
@@ -424,7 +448,7 @@ fun CourseEditDialog(
                         }
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             (1..totalWeeks).forEach { week ->
-                                FilterChip(modifier = Modifier.width(48.dp).height(40.dp), selected = week in selectedWeeks, onClick = {
+                                FilterChip(modifier = Modifier.width(48.dp).height(40.dp).testTag("course-week-$week"), selected = week in selectedWeeks, onClick = {
                                     val next = selectedWeeks.toMutableSet().apply { if (!remove(week)) add(week) }
                                     selectWeeks(next)
                                 // 数字周次与节次采用同一视觉规则；避免窄芯片中“周”字被裁切。
@@ -572,15 +596,40 @@ fun CourseEditDialog(
                             }
                         }
 
-                        // 应用到全部周（仅编辑模式）
+                        // 保存范围（仅编辑模式）：默认“只改这一周”，可扩到本周及以后或整门课程。
+                        // 两个开关共用同一个 scope，因此天然互斥——打开一个另一个会自动关闭。
                         if (!isNew) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(stringResource(R.string.edit_apply_to_all), style = MaterialTheme.typography.bodyMedium)
-                                Switch(checked = form.applyToAll, onCheckedChange = { form = form.copy(applyToAll = it) })
+                                Text(stringResource(R.string.edit_apply_to_all),
+                                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Switch(checked = form.scope == CourseEditScope.ALL_WEEKS,
+                                    modifier = Modifier.testTag("course-apply-to-all"),
+                                    onCheckedChange = { checked ->
+                                        form = form.copy(
+                                            scopeName = if (checked) CourseEditScope.ALL_WEEKS.name
+                                            else CourseEditScope.CURRENT_WEEK.name
+                                        )
+                                    })
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(stringResource(R.string.edit_apply_from_this_week),
+                                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Switch(checked = form.scope == CourseEditScope.FROM_CURRENT_WEEK,
+                                    modifier = Modifier.testTag("course-apply-from-week"),
+                                    onCheckedChange = { checked ->
+                                        form = form.copy(
+                                            scopeName = if (checked) CourseEditScope.FROM_CURRENT_WEEK.name
+                                            else CourseEditScope.CURRENT_WEEK.name
+                                        )
+                                    })
                             }
                         }
 
@@ -603,7 +652,7 @@ fun CourseEditDialog(
                                 contentPadding = PaddingValues(horizontal = 6.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error)) {
-                                Text(if (form.applyToAll) stringResource(R.string.edit_delete_all) else stringResource(R.string.edit_delete_week), maxLines = 1)
+                                Text(if (form.scope == CourseEditScope.ALL_WEEKS) stringResource(R.string.edit_delete_all) else stringResource(R.string.edit_delete_week), maxLines = 1)
                             }
                         }
                         OutlinedButton(
@@ -618,9 +667,9 @@ fun CourseEditDialog(
                             // 校验
                             if (form.name.isBlank()) { errorMsg = errNameRequired; return@Button }
                             if (form.endPeriod < form.startPeriod) { errorMsg = errEndBeforeStart; return@Button }
-                            // 解析周次；空白表示整学期，错误或越界输入必须明确提示。
+                            // Empty selection is an unfinished edit, never an implicit whole semester.
                             val parsedWeeks = TimeUtils.parseWeeks(form.weekStr)
-                            if (form.weekStr.isNotBlank() && parsedWeeks.isEmpty()) {
+                            if (parsedWeeks.isEmpty()) {
                                 errorMsg = errWeeksInvalid
                                 return@Button
                             }
@@ -628,7 +677,7 @@ fun CourseEditDialog(
                                 errorMsg = errWeeksRange
                                 return@Button
                             }
-                            val weeks = parsedWeeks.ifEmpty { (1..totalWeeks).toList() }
+                            val weeks = parsedWeeks
                             // 只存预设颜色索引，深浅模式可使用同一索引稳定切换。
                             val selColor = form.colorIndex.takeIf { it in CourseColors.indices }
                             onSave(Course(
@@ -647,7 +696,7 @@ fun CourseEditDialog(
                                 reminderMode = form.reminderMode,
                                 reminderMinutesOverride = form.reminderMinutesOverride,
                                 endReminderEnabled = form.endReminderEnabled
-                            ), form.applyToAll)
+                            ), form.scope)
                         }, modifier = Modifier.weight(1f).height(44.dp).testTag("course-save-button"), shape = AppShapes.small, contentPadding = PaddingValues(horizontal = 6.dp)) {
                             Text(stringResource(R.string.edit_save), fontWeight = FontWeight.Bold, maxLines = 1)
                         }
@@ -663,14 +712,14 @@ fun CourseEditDialog(
                 title = { Text(stringResource(R.string.edit_delete_confirm_title)) },
                 text = {
                     Text(
-                        if (form.applyToAll) stringResource(R.string.edit_delete_all_weeks_message, form.name)
+                        if (form.scope == CourseEditScope.ALL_WEEKS) stringResource(R.string.edit_delete_all_weeks_message, form.name)
                         else stringResource(R.string.edit_delete_week_message, currentWeek, form.name)
                     )
                 },
                 confirmButton = {
                     TextButton(onClick = {
                         showDeleteConfirm = false
-                        onDelete(form.applyToAll)
+                        onDelete(form.scope == CourseEditScope.ALL_WEEKS)
                     }) { Text(stringResource(R.string.edit_delete_confirm), color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {

@@ -27,15 +27,14 @@ class RealDeviceImportTest {
     @Test
     fun parsesRealSchoolXlsxFromDevicePath() {
         val dir = File(context.getExternalFilesDir(null), "testdata")
-        val names = listOf("大三上课表.xlsx", "大二上课表.xlsx", "大二下课表.xlsx")
-        val missing = names.filterNot { File(dir, it).isFile }
-        if (missing.size == names.size) return // 未推送测试数据时跳过
+        // 不写死任何真实文件名：扫描推送目录里的全部分表文件。
+        val files = dir.listFiles { file -> file.isFile && file.extension.equals("xlsx", ignoreCase = true) }
+            ?.sortedBy { it.name } ?: emptyList()
+        if (files.isEmpty()) return // 未推送测试数据时跳过
 
-        for (name in names) {
-            val file = File(dir, name)
-            if (!file.isFile) continue
+        for (file in files) {
             val result = ExcelParser.parse(context, Uri.fromFile(file))
-            assertTrue("$name errors=${result.errors}", result.courses.isNotEmpty())
+            assertTrue("${file.name} errors=${result.errors}", result.courses.isNotEmpty())
         }
     }
 

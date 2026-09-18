@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.data.parser
 
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.inputStream
 import org.junit.Test
@@ -10,13 +11,23 @@ import org.junit.Test
  * 仅本机运行（依赖用户目录），不作为常规回归；仓库不提交用户数据。
  */
 class RealSchoolFileDiagnosticTest {
-    private val root = Paths.get("C:\\Users\\15987\\Desktop\\课表重构项目")
+    /** 工作区根目录（源码仓库的上一级）；不写死任何本机路径与文件名。 */
+    private val root: Path =
+        Paths.get(System.getProperty("user.dir")).parent?.parent ?: Paths.get(System.getProperty("user.dir"))
+
+    private fun localSamples(): List<Path> {
+        if (!Files.isDirectory(root)) return emptyList()
+        return Files.list(root).use { stream ->
+            stream.filter { Files.isRegularFile(it) && it.fileName.toString().endsWith(".xlsx", ignoreCase = true) }
+                .sorted()
+                .toList()
+        }
+    }
 
     @Test
     fun dumpRealSchoolFiles() {
-        val files = listOf("大三上课表.xlsx", "大二上课表.xlsx", "大二下课表.xlsx", "导入模板.xlsx")
-        for (name in files) {
-            val path = root.resolve(name)
+        for (path in localSamples()) {
+            val name = path.fileName.toString()
             if (!Files.exists(path)) continue
             val result = path.inputStream().use(ExcelParser::parse)
             println("===== $name =====")
@@ -29,7 +40,7 @@ class RealSchoolFileDiagnosticTest {
 
     @Test
     fun dumpRawGridOfRealFile() {
-        val path = root.resolve("大三上课表.xlsx")
+        val path = localSamples().firstOrNull() ?: return
         if (!Files.exists(path)) return
         val grid = path.inputStream().use { MinimalXlsxReader.read(it) }
         println("lastRowNum=${grid.lastRowNum}")

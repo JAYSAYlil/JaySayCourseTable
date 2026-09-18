@@ -146,6 +146,7 @@
     <string name="dialog_toast_check_format">"请检查格式"</string>
     <string name="dialog_toast_column_index_invalid">"课程、星期、节次和周次列号必须大于 0"</string>
     <string name="dialog_toast_no_course_parsed_prefix">"未解析到课程："</string>
+    <string name="edit_apply_from_this_week">"应用到本周及以后周次"</string>
     <string name="edit_apply_to_all">"应用到全部周"</string>
     <string name="edit_button_cancel">"取消"</string>
     <string name="edit_close">"关闭"</string>
@@ -158,8 +159,9 @@
     <string name="edit_end_reminder_desc">"课程结束时发送一条本地通知"</string>
     <string name="edit_error_end_before_start">"结束节次不能小于开始节次"</string>
     <string name="edit_error_name_required">"课程名称不能为空"</string>
-    <string name="edit_error_weeks_invalid">"无法识别周次，请输入如 1-16周 或 1-15周(单)"</string>
+    <string name="edit_error_weeks_invalid">"请至少选择一个上课周次"</string>
     <string name="edit_error_weeks_range">"周次必须在 1-%1$s 之间"</string>
+    <string name="edit_weeks_editing_week">"课程当前所在：第 %1$d 周"</string>
     <string name="edit_label_advance_minutes">"提前时间"</string>
     <string name="edit_label_assessment">"考核方式"</string>
     <string name="edit_label_class_number">"课序号"</string>

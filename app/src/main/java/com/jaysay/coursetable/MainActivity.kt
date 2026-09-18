@@ -64,6 +64,7 @@ import com.jaysay.coursetable.data.reminder.ReminderSuppression
 import com.jaysay.coursetable.data.transfer.ImportExportCoordinator
 import com.jaysay.coursetable.ui.screen.CourseDetailScreen
 import com.jaysay.coursetable.ui.screen.CourseEditDialog
+import com.jaysay.coursetable.ui.screen.CourseEditScope
 import com.jaysay.coursetable.ui.screen.CourseTableScreen
 import com.jaysay.coursetable.ui.screen.AgendaScreen
 import com.jaysay.coursetable.ui.screen.CalendarExceptionScreen
@@ -205,13 +206,19 @@ class MainActivity : ComponentActivity() {
             fun currentScreen(): Screen = Screen.entries.getOrNull(currentScreenOrdinal) ?: Screen.MAIN
             // 详情页使用跨编辑稳定的 seriesKey 保存恢复依据，并记录从主课表还是日程列表进入。
             var selectedCourseSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
+            // 同一系列会因“仅当前周”编辑拆成多条记录，所以还要记住点中的是哪一条；
+            // 否则详情页永远显示系列里的第一条，表现为“其他周都显示成第 N 周那条”。
+            var selectedCourseOccurrenceKey by rememberSaveable { mutableStateOf<String?>(null) }
             var detailOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
             var calendarOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.SETTINGS.ordinal) }
             var selectedCourse by remember { mutableStateOf<Course?>(null) }
             var showAddDialog by rememberSaveable { mutableStateOf(false) }
             var showEditDialog by rememberSaveable { mutableStateOf(false) }
-            // 编辑目标只按 seriesKey 持久化；课程本体从当前课表恢复，旋转后弹窗不再出现“开关在、内容丢”。
+            // 编辑目标按 seriesKey + 具体记录持久化；课程本体从当前课表恢复，旋转后弹窗不再出现“开关在、内容丢”。
             var editingSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
+            var editingOccurrenceKey by rememberSaveable { mutableStateOf<String?>(null) }
+            // 本次编辑作用在“哪一周的那次课”上；从日程列表进入时可能不是当前周。
+            var editingAnchorWeek by rememberSaveable { mutableIntStateOf(0) }
             // 新增弹窗的星期/节次预设；0 表示未预设（day 有效范围 1-7，period 1-30）
             var addCoursePresetDay by rememberSaveable { mutableIntStateOf(0) }
             var addCoursePresetPeriod by rememberSaveable { mutableIntStateOf(0) }
@@ -247,29 +254,54 @@ class MainActivity : ComponentActivity() {
                 val closeCourseDetail: () -> Unit = {
                     selectedCourse = null
                     selectedCourseSeriesKey = null
+                    selectedCourseOccurrenceKey = null
                     currentScreenOrdinal = detailOrigin().ordinal
                 }
                 val openCourseDetail: (Course, Screen) -> Unit = { course, origin ->
                     selectedCourse = course
                     selectedCourseSeriesKey = course.seriesKey
+                    selectedCourseOccurrenceKey = course.uniqueKey
                     detailOriginOrdinal = origin.ordinal
                     currentScreenOrdinal = Screen.COURSE_DETAIL.ordinal
                 }
+                // 一次课真正生效的周：优先当前周；从日程列表等入口进入时用该记录自身的周兜底。
+                fun occurrenceWeek(course: Course?): Int = when {
+                    course == null -> state.currentWeek
+                    state.currentWeek in course.weeks -> state.currentWeek
+                    else -> course.weeks.firstOrNull() ?: state.currentWeek
+                }
 
-                // 数据就绪后按稳定系列标识还原/刷新详情；课程已不存在则回到真实来源页。
-                LaunchedEffect(state.isLoading, state.courses, selectedCourseSeriesKey, currentScreenOrdinal) {
+                // 数据就绪后按“系列 + 具体记录”还原/刷新详情；课程已不存在则回到真实来源页。
+                // 一个系列可能有多条记录（“仅当前周”编辑会拆周），必须优先命中当初点中的那一条。
+                LaunchedEffect(
+                    state.isLoading,
+                    state.courses,
+                    selectedCourseSeriesKey,
+                    selectedCourseOccurrenceKey,
+                    currentScreenOrdinal
+                ) {
                     if (state.isLoading) return@LaunchedEffect
                     val seriesKey = selectedCourseSeriesKey
                     if (seriesKey != null) {
-                        selectedCourse = state.courses.firstOrNull { it.seriesKey == seriesKey }
-                        if (selectedCourse == null) closeCourseDetail()
+                        val records = state.courses.filter { it.seriesKey == seriesKey }
+                        val resolved = records.firstOrNull { it.uniqueKey == selectedCourseOccurrenceKey }
+                            ?: records.firstOrNull { state.currentWeek in it.weeks }
+                            ?: records.firstOrNull()
+                        selectedCourse = resolved
+                        if (resolved == null) closeCourseDetail() else selectedCourseOccurrenceKey = resolved.uniqueKey
                     } else if (currentScreen() == Screen.COURSE_DETAIL) {
                         closeCourseDetail()
                     }
                 }
 
                 val editTarget = if (showEditDialog) {
-                    editingSeriesKey?.let { key -> state.courses.firstOrNull { it.seriesKey == key } }
+                    editingSeriesKey?.let { key ->
+                        val records = state.courses.filter { it.seriesKey == key }
+                        records.firstOrNull { it.uniqueKey == editingOccurrenceKey }
+                            ?: records.firstOrNull { editingAnchorWeek in it.weeks }
+                            ?: records.firstOrNull { state.currentWeek in it.weeks }
+                            ?: records.firstOrNull()
+                    }
                 } else null
 
                 // 持久化的编辑目标在数据变化后已不存在（如恢复备份、删除课程）时，自动收起编辑弹窗。
@@ -422,13 +454,16 @@ class MainActivity : ComponentActivity() {
                 }
 
                 pendingDeleteSeriesKey?.let { deletingKey ->
-                    state.courses.firstOrNull { it.seriesKey == deletingKey }?.let { deleting ->
+                    // 拆周后的系列有多条记录：删除必须以详情页正在显示的那一条为准。
+                    val deleting = selectedCourse?.takeIf { it.seriesKey == deletingKey }
+                        ?: state.courses.firstOrNull { it.seriesKey == deletingKey }
+                    deleting?.let {
                     DetailDeleteConfirmDialog(
                         courseName = deleting.courseName,
-                        week = state.currentWeek,
+                        week = occurrenceWeek(deleting),
                         onConfirm = {
                             val previous = state.courses
-                            val week = state.currentWeek
+                            val week = occurrenceWeek(deleting)
                             val seriesKey = deleting.seriesKey
                             val after = CourseSeriesOperations.deleteWeek(previous, seriesKey, week)
                             pendingDeleteSeriesKey = null
@@ -497,13 +532,14 @@ class MainActivity : ComponentActivity() {
                     )
                     CourseEditDialog(course = editorCourse, totalWeeks = activeTable.totalWeeks,
                         currentWeek = state.currentWeek, maxPeriods = activeTable.periods.size,
-                        onSave = { updated, applyToAll ->
-                            val week = state.currentWeek
-                            val candidate = updated.copy(
-                                weeks = if (applyToAll) updated.weeks else listOf(week),
-                                seriesId = oldSeriesKey
-                            )
-                            val comparisonCourses = if (applyToAll) {
+                        onSave = { updated, scope ->
+                            // 作用周：从日程列表进入编辑时，当前周可能不在这门课的周次里。
+                            val week = if (editingAnchorWeek > 0) editingAnchorWeek else state.currentWeek
+                            val candidate = updated.copy(seriesId = oldSeriesKey)
+                            // 编辑器里“周次”这一项的原始值：用来判断用户是否真的改过周次。
+                            val existingSeriesWeeks = state.courses.filter { it.seriesKey == oldSeriesKey }
+                                .flatMap(Course::weeks).toSet()
+                            val comparisonCourses = if (scope == CourseEditScope.ALL_WEEKS) {
                                 state.courses.filter { it.seriesKey != oldSeriesKey }
                             } else {
                                 state.courses.mapNotNull { course ->
@@ -512,19 +548,36 @@ class MainActivity : ComponentActivity() {
                             }
                             val saveAction = {
                                 model.updateCourses({ courses ->
-                                    if (applyToAll) {
-                                        CourseSeriesOperations.replaceAll(courses, oldSeriesKey, candidate)
-                                    } else {
-                                        CourseSeriesOperations.replaceWeek(courses, oldSeriesKey, week, candidate)
+                                    when (scope) {
+                                        CourseEditScope.ALL_WEEKS ->
+                                            CourseSeriesOperations.replaceAll(courses, oldSeriesKey, candidate)
+                                        CourseEditScope.FROM_CURRENT_WEEK ->
+                                            CourseSeriesOperations.replaceFromWeekOnward(
+                                                courses, oldSeriesKey, week, candidate, updated.weeks.toSet()
+                                            )
+                                        else ->
+                                        // 仅这一次课：周次没动就只改 [week] 这一周；用户改了周次就把这一次课
+                                        // 整体移到所选周次（位移），其他周次不受影响，也不会把课程改没。
+                                            CourseSeriesOperations.replaceCurrentWeekInstance(
+                                                courses, oldSeriesKey, week, candidate,
+                                                updated.weeks.toSet(), existingSeriesWeeks
+                                            )
                                     }
                                 }, onComplete = {
                                     showEditDialog = false; editingSeriesKey = null
                                 }, onError = ::showSaveError)
                             }
-                            runAfterConflictCheck(candidate, comparisonCourses, saveAction)
+                            // 冲突检测只看这次真正生效的范围：仅当前周时就是这一周。
+                            val conflictCandidate = when (scope) {
+                                CourseEditScope.ALL_WEEKS -> candidate
+                                CourseEditScope.FROM_CURRENT_WEEK ->
+                                    candidate.copy(weeks = updated.weeks.filter { it >= week })
+                                else -> candidate.copy(weeks = listOf(week))
+                            }
+                            runAfterConflictCheck(conflictCandidate, comparisonCourses, saveAction)
                         },
                         onDelete = { applyToAll ->
-                            val week = state.currentWeek
+                            val week = if (editingAnchorWeek > 0) editingAnchorWeek else state.currentWeek
                             val deletedName = selected.courseName
                             val previous = state.courses
                             val after = if (applyToAll) {
@@ -801,10 +854,7 @@ class MainActivity : ComponentActivity() {
                                     totalWeeks = activeTable.totalWeeks,
                                     excludedWeeks = activeTable.excludedWeeks,
                                     dateExceptions = activeTable.dateExceptions,
-                                    onCourseClick = { course ->
-                                        val selected = state.courses.firstOrNull { it.seriesKey == course.seriesKey } ?: course
-                                        openCourseDetail(selected, Screen.AGENDA)
-                                    },
+                                    onCourseClick = { course -> openCourseDetail(course, Screen.AGENDA) },
                                     modifier = Modifier.padding(padding)
                                 )
                             }
@@ -835,6 +885,8 @@ class MainActivity : ComponentActivity() {
                                     onClose = closeCourseDetail,
                                     onEdit = { editing ->
                                         editingSeriesKey = editing.seriesKey
+                                        editingOccurrenceKey = editing.uniqueKey
+                                        editingAnchorWeek = occurrenceWeek(editing)
                                         showEditDialog = true
                                     },
                                     onDelete = { pendingDeleteSeriesKey = course.seriesKey }

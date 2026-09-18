@@ -23,8 +23,8 @@ class WidgetPresentationTest {
 
     @Test
     fun widgetTableNameTrimsAndHidesWhenBlank() {
-        assertEquals("大三上课表", WidgetCalendarPresentation.tableNameLabel("大三上课表"))
-        assertEquals("大三上课表", WidgetCalendarPresentation.tableNameLabel("  大三上课表 "))
+        assertEquals("示例课表", WidgetCalendarPresentation.tableNameLabel("示例课表"))
+        assertEquals("示例课表", WidgetCalendarPresentation.tableNameLabel("  示例课表 "))
         assertEquals("", WidgetCalendarPresentation.tableNameLabel("   "))
         assertEquals("", WidgetCalendarPresentation.tableNameLabel(null))
     }

@@ -40,20 +40,22 @@ data class Course(
     /** 是否在课程结束时再发一条本地通知。 */
     val endReminderEnabled: Boolean = false
 ) {
-    /** 不包含周次和用户自定义字段的稳定身份，用于重复导入时合并周次。 */
+    /**
+     * 不包含周次和用户自定义字段的稳定身份，用于重复导入时合并周次。
+     * 同一门课在不同周次可能带不同的课程号/班号/教师/教室，因此按“课名 + 上课时段”确认是同一门课。
+     */
     val importIdentityKey: String = listOf(
-        courseId.ifBlank { courseName.trim() },
-        classNumber.trim(), dayOfWeek.toString(), startPeriod.toString(), endPeriod.toString(),
-        teacher.trim(), classroom.trim()
+        courseName.trim().ifBlank { courseId.trim() },
+        dayOfWeek.toString(), startPeriod.toString(), endPeriod.toString()
     ).joinToString("|") { it.lowercase() }
 
     /** 渲染和配色会高频读取，随不可变课程实例一次计算即可。 */
     val uniqueKey: String =
         "$courseId-$classNumber-$dayOfWeek-$startPeriod-$endPeriod-${weeks.joinToString(",")}"
 
+    /** 系列（同一门课）按课名归组：同一门课在不同周次/不同课程号下仍属于同一门课。 */
     internal val legacySeriesFamilyKey: String =
-        listOf(courseId.ifBlank { courseName.trim() }, classNumber.trim(), courseName.trim())
-            .joinToString("|") { it.lowercase() }
+        courseName.trim().ifBlank { courseId.trim() }.lowercase()
 
     internal val legacySeriesSlotKey: String =
         listOf(legacySeriesFamilyKey, dayOfWeek.toString(), startPeriod.toString(), endPeriod.toString())
@@ -85,7 +87,24 @@ object CourseSeriesIds {
         "jaysay-course-series|$seed".toByteArray(StandardCharsets.UTF_8)
     ).toString()
 
+    /**
+     * 保证同一门课只有一个系列标识。
+     *
+     * 同一门课（课名 + 上课星期/节次相同）在不同周次、不同课程号、不同教师或教室下都必须属于同一门课，
+     * 否则“应用到全部周”只会改到其中一部分周次，用户看到的就是“同一门课在各周各自为政”。
+     * 该重整是幂等的：同一时段的第一条记录成为规范标识。
+     */
     fun ensure(courses: List<Course>): List<Course> {
+        val assigned = assignMissingSeriesIds(courses)
+        if (assigned.size < 2) return assigned
+        val canonicalBySlot = HashMap<String, String>(assigned.size)
+        return assigned.map { course ->
+            val canonical = canonicalBySlot.getOrPut(course.legacySeriesSlotKey) { course.seriesKey }
+            if (course.seriesId == canonical) course else course.copy(seriesId = canonical)
+        }
+    }
+
+    private fun assignMissingSeriesIds(courses: List<Course>): List<Course> {
         if (courses.none { it.seriesId.isBlank() }) return courses
 
         val legacyIndexes = courses.indices.filter { courses[it].seriesId.isBlank() }
@@ -162,21 +181,63 @@ object CourseSeriesOperations {
         return result
     }
 
-    fun replaceWeek(
+    /**
+     * “仅这一次课”的保存路径（“应用到全部周”关闭时使用）。
+     *
+     * - [selectedWeeks] 与课程现有周次相同（用户没有动周次）→ 这一次课仍然只落在 [week] 这一周，
+     *   其他周次的课程（周次与其它字段）完全不受影响。
+     * - 用户改了周次（例如把第 1 周的课改成第 2 周）→ 这一次课整体移动到所选周次，也就是“调课”：
+     *   只有它自己离开原来那一周；其它记录一律不动，所以目标周原本那一节仍然保留，
+     *   调过去的那一次课会与它并存（时间/节次不同，正是调课要看到的效果）。
+     */
+    fun replaceCurrentWeekInstance(
         courses: List<Course>,
         seriesKey: String,
         week: Int,
-        replacement: Course
+        edited: Course,
+        selectedWeeks: Set<Int>,
+        existingWeeks: Set<Int>
     ): List<Course> {
         val firstIndex = courses.indexOfFirst { it.seriesKey == seriesKey }
         if (firstIndex < 0) return courses
-        val result = deleteWeek(courses, seriesKey, week).toMutableList()
-        result.add(
-            firstIndex.coerceAtMost(result.size),
-            replacement.copy(weeks = listOf(week), seriesId = seriesKey)
-        )
-        return result
+        val targetWeeks = if (selectedWeeks.isEmpty() || selectedWeeks == existingWeeks) {
+            setOf(week)
+        } else {
+            selectedWeeks
+        }
+        // 这一次课只从“原来那一周”离开，且不接管目标周：其它记录（含目标周已有的同一门课）保持原样。
+        val others = courses.filter { it.seriesKey == seriesKey }.mapNotNull { it.withoutWeeks(setOf(week)) }
+        val result = others + edited.copy(weeks = targetWeeks.sorted(), seriesId = seriesKey)
+        val remaining = courses.filterNot { it.seriesKey == seriesKey }.toMutableList()
+        remaining.addAll(firstIndex.coerceAtMost(remaining.size), result)
+        return remaining
     }
+
+    /**
+     * “应用到本周及以后周次”的保存路径：只有 [week] 及之后的周次改用 [edited]，
+     * 早于 [week] 的周次保持各自原有信息（周次与字段都不动）。
+     */
+    fun replaceFromWeekOnward(
+        courses: List<Course>,
+        seriesKey: String,
+        week: Int,
+        edited: Course,
+        selectedWeeks: Set<Int>
+    ): List<Course> {
+        val firstIndex = courses.indexOfFirst { it.seriesKey == seriesKey }
+        if (firstIndex < 0) return courses
+        val records = courses.filter { it.seriesKey == seriesKey }
+        // 早于本周的周次各自保留；本周及以后的周次从这些记录里摘出来
+        val earlier = records.mapNotNull { it.withoutWeeks(it.weeks.filter { current -> current >= week }.toSet()) }
+        val onward = selectedWeeks.filter { it >= week }.sorted()
+        val result = earlier.toMutableList()
+        if (onward.isNotEmpty()) result.add(edited.copy(weeks = onward, seriesId = seriesKey))
+        if (result.isEmpty()) return courses
+        val remaining = courses.filterNot { it.seriesKey == seriesKey }.toMutableList()
+        remaining.addAll(firstIndex.coerceAtMost(remaining.size), result)
+        return remaining
+    }
+
 }
 
 /**

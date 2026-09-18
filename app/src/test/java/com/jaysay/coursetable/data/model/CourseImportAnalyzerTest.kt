@@ -28,6 +28,24 @@ class CourseImportAnalyzerTest {
     }
 
     @Test
+    fun sameCourseNameAcrossWeekRangesIsMergedIntoOneCourse() {
+        // 同一门课在不同周次分行导入（课程号也可能不同）时，必须按课名确认是同一门课。
+        val preview = CourseImportAnalyzer.analyze(
+            existing = emptyList(),
+            imported = listOf(
+                course(id = "SAMPLE-1", name = "示例课程", weeks = (1..8).toList()),
+                course(id = "SAMPLE-2", name = "示例课程", weeks = (9..16).toList())
+            )
+        )
+
+        assertEquals(
+            listOf(ImportItemStatus.NEW, ImportItemStatus.MERGE),
+            preview.items.map(ImportPreviewItem::status)
+        )
+        assertEquals((9..16).toList(), preview.items[1].course.weeks)
+    }
+
+    @Test
     fun detectsConflictWithExistingCourseOnlyWhenWeeksAndPeriodsOverlap() {
         val existing = course(id = "EXISTING", name = "现有课程", weeks = listOf(1, 2), start = 1, end = 2)
         val conflicting = course(id = "INCOMING", name = "导入课程", weeks = listOf(2, 3), start = 2, end = 3)

@@ -235,9 +235,19 @@ class MainActivitySmokeTest {
             composeRule.onNodeWithContentDescription("日程列表").performClick()
         }
         composeRule.onNodeWithText("日程列表").assertIsDisplayed()
-        composeRule.onAllNodes(hasContentDescription(courseName, substring = true))[0]
-            .performScrollTo()
-            .performClick()
+        // 日程列表滚动/动画未落定时点击会偶发落空（该用例历史上多次在整套运行中误报）：
+        // 滚动后确认详情确实打开，未打开则重试，而不是直接断言。
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            if (composeRule.onAllNodesWithText("课程详情").fetchSemanticsNodes().isNotEmpty()) {
+                return@waitUntil true
+            }
+            val cards = composeRule.onAllNodes(hasContentDescription(courseName, substring = true))
+            if (cards.fetchSemanticsNodes().isNotEmpty()) {
+                cards[0].performScrollTo()
+                cards[0].performClick()
+            }
+            composeRule.onAllNodesWithText("课程详情").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("课程详情").assertIsDisplayed()
 
         composeRule.onNodeWithContentDescription("编辑").performClick()
