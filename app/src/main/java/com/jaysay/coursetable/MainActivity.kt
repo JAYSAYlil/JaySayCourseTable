@@ -209,6 +209,8 @@ class MainActivity : ComponentActivity() {
             // 同一系列会因“仅当前周”编辑拆成多条记录，所以还要记住点中的是哪一条；
             // 否则详情页永远显示系列里的第一条，表现为“其他周都显示成第 N 周那条”。
             var selectedCourseOccurrenceKey by rememberSaveable { mutableStateOf<String?>(null) }
+            // 日程列表的某一项代表某个具体周次。保留它，避免编辑时错误采用应用当前周。
+            var selectedCourseOccurrenceWeek by rememberSaveable { mutableIntStateOf(0) }
             var detailOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
             var calendarOriginOrdinal by rememberSaveable { mutableIntStateOf(Screen.SETTINGS.ordinal) }
             var selectedCourse by remember { mutableStateOf<Course?>(null) }
@@ -255,12 +257,14 @@ class MainActivity : ComponentActivity() {
                     selectedCourse = null
                     selectedCourseSeriesKey = null
                     selectedCourseOccurrenceKey = null
+                    selectedCourseOccurrenceWeek = 0
                     currentScreenOrdinal = detailOrigin().ordinal
                 }
-                val openCourseDetail: (Course, Screen) -> Unit = { course, origin ->
+                val openCourseDetail: (Course, Screen, Int?) -> Unit = { course, origin, occurrenceWeek ->
                     selectedCourse = course
                     selectedCourseSeriesKey = course.seriesKey
                     selectedCourseOccurrenceKey = course.uniqueKey
+                    selectedCourseOccurrenceWeek = occurrenceWeek ?: 0
                     detailOriginOrdinal = origin.ordinal
                     currentScreenOrdinal = Screen.COURSE_DETAIL.ordinal
                 }
@@ -320,7 +324,7 @@ class MainActivity : ComponentActivity() {
                         model.selectTable(targetTable, ::showSaveError)
                     } else {
                         state.courses.firstOrNull { it.seriesKey == requestedSeries }?.let { course ->
-                            openCourseDetail(course, Screen.MAIN)
+                            openCourseDetail(course, Screen.MAIN, null)
                         }
                         requestedCourseSeries.value = null
                         requestedTableIndex.intValue = -1
@@ -854,7 +858,9 @@ class MainActivity : ComponentActivity() {
                                     totalWeeks = activeTable.totalWeeks,
                                     excludedWeeks = activeTable.excludedWeeks,
                                     dateExceptions = activeTable.dateExceptions,
-                                    onCourseClick = { course -> openCourseDetail(course, Screen.AGENDA) },
+                                    onCourseClick = { instance ->
+                                        openCourseDetail(instance.course, Screen.AGENDA, instance.week)
+                                    },
                                     modifier = Modifier.padding(padding)
                                 )
                             }
@@ -886,7 +892,9 @@ class MainActivity : ComponentActivity() {
                                     onEdit = { editing ->
                                         editingSeriesKey = editing.seriesKey
                                         editingOccurrenceKey = editing.uniqueKey
-                                        editingAnchorWeek = occurrenceWeek(editing)
+                                        editingAnchorWeek = selectedCourseOccurrenceWeek
+                                            .takeIf { it in editing.weeks }
+                                            ?: occurrenceWeek(editing)
                                         showEditDialog = true
                                     },
                                     onDelete = { pendingDeleteSeriesKey = course.seriesKey }
@@ -906,7 +914,7 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             )
                                         },
-                                        onCourseClick = { openCourseDetail(it, Screen.MAIN) },
+                                        onCourseClick = { openCourseDetail(it, Screen.MAIN, null) },
                                         onWeekChange = model::setWeek,
                                         onSettingsClick = { currentScreenOrdinal = Screen.SETTINGS.ordinal },
                                         onCalendarContextClick = {

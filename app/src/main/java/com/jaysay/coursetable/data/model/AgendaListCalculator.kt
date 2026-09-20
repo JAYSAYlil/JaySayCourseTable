@@ -34,10 +34,14 @@ data class AgendaDateGroup(
 /**
  * 日程列表的纯计算模型。
  *
- * 课程日期始终按“学期开始日 + (周次 - 1) * 7 + 星期序号 - 1”计算，而非假定开学日
- * 必然是周一；因此导入了非周一开学日期的课表也能得到与课表网格一致的日期。
+ * 开学日期经 TimeUtils 归一化到当周周一，与课表网格、提醒和日历导出保持一致。
  */
 object AgendaListCalculator {
+    private val dayOrder = compareBy<AgendaCourseInstance> { it.startMinute ?: Int.MAX_VALUE }
+        .thenBy { it.endMinute ?: Int.MAX_VALUE }
+        .thenBy { it.course.courseName }
+        .thenBy { it.course.courseId }
+
     fun calculate(
         courses: List<Course>,
         periods: List<PeriodTime>,
@@ -58,31 +62,22 @@ object AgendaListCalculator {
         val end = maxOf(lastRegularDate, lastExceptionDate ?: lastRegularDate)
         if (end < fromDate) return emptyList()
 
-        val instances = generateSequence(fromDate) { it.plusDays(1) }
-            .takeWhile { !it.isAfter(end) }
-            .flatMap { date ->
-                ScheduleDateResolver.coursesOn(courses, semesterStart, totalWeeks, excludedWeeks, exceptions, date)
-                    .asSequence()
+        val resolver = ScheduleDateResolver.prepare(courses, semesterStart, totalWeeks, excludedWeeks, exceptions)
+        val endOfCurrentWeek = fromDate.plusDays((7 - fromDate.dayOfWeek.value).toLong())
+        // Dates are already ordered. Sort each day instead of materializing, sorting,
+        // then grouping the entire semester's instances a second time.
+        return buildList {
+            var date = fromDate
+            while (date <= end) {
+                val dayCourses = resolver.coursesOn(date).asSequence()
                     .filter { it.course.uniqueKey in visibleCourseKeys }
                     .map { instanceFor(it.course, it.week, date, periods) }
+                    .sortedWith(dayOrder).toList()
+                if (dayCourses.isNotEmpty()) add(AgendaDateGroup(
+                    sectionFor(date, fromDate, endOfCurrentWeek), date, dayCourses.first().week, dayCourses
+                ))
+                date = date.plusDays(1)
             }
-            .sortedWith(
-                compareBy<AgendaCourseInstance> { it.date }
-                    .thenBy { it.startMinute ?: Int.MAX_VALUE }
-                    .thenBy { it.endMinute ?: Int.MAX_VALUE }
-                    .thenBy { it.course.courseName }
-                    .thenBy { it.course.courseId }
-            )
-            .toList()
-
-        val endOfCurrentWeek = fromDate.plusDays((7 - fromDate.dayOfWeek.value).toLong())
-        return instances.groupBy { it.date }.map { (date, dayCourses) ->
-            AgendaDateGroup(
-                section = sectionFor(date, fromDate, endOfCurrentWeek),
-                date = date,
-                week = dayCourses.first().week,
-                courses = dayCourses
-            )
         }
     }
 

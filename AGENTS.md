@@ -53,7 +53,7 @@ pwsh -File .\scripts\pre-release-audit.ps1 -AllowDirty
 - **学期/日期计算只走 `util/TimeUtils`** 的学期入口；旧 `semesterStart` 无论落在周几，读侧一律归一化为当周周一。
 - **校历展示语义只走 `data/model/AcademicCalendarStatus.kt`**（停课周、周标签、取消、补课）；课表与小组件必须共用同一解析结果，不要另写判断。
 - **课程配色按课程唯一键派生**，网格、月视图、详情页必须一致。
-- **编辑课程周次**时：周次一旦变更必须走“整组课程”保存路径；空选不得回退为全学期（新增课程默认全学期）。
+- **编辑课程周次**时：保持 v3.4.24 的三档 CourseEditScope（本次／本周及以后／全部周），不得因周次变化擅自升级保存范围。调课保留目标周原有课程；空选不得回退为全学期（新增课程默认全学期）。
 - 视图模式写入走 `data/preferences/ViewModeWriteGate.kt`，切换要即时生效、后台落盘。
 - “今天”的判断走 `util/TodayState.kt`（可注入时钟 + 回前台/系统广播校准），不要直接散用 `LocalDate.now()` 驱动 UI 状态。
 - 详情转场用 `ui/components/HeroTransition.kt` 的手动 overlay 方案，不要改回 `SharedTransitionLayout`。

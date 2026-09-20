@@ -55,7 +55,7 @@ import java.time.LocalDate
 @Composable
 fun AgendaScreen(
     courses: List<Course>,
-    onCourseClick: (Course) -> Unit,
+    onCourseClick: (AgendaCourseInstance) -> Unit,
     modifier: Modifier = Modifier,
     periodTimes: List<PeriodTime> = AppPreferences.defaultPeriods(),
     semesterStart: String = TimeUtils.currentWeekStartDate(),
@@ -138,7 +138,7 @@ private fun AgendaEmptyState(query: String, onClearSearch: () -> Unit) {
 @Composable
 private fun AgendaList(
     groups: List<AgendaDateGroup>,
-    onCourseClick: (Course) -> Unit,
+    onCourseClick: (AgendaCourseInstance) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val groupsBySection = remember(groups) { groups.groupBy { it.section } }
@@ -168,7 +168,7 @@ private fun AgendaList(
 }
 
 @Composable
-private fun AgendaDateCard(group: AgendaDateGroup, onCourseClick: (Course) -> Unit) {
+private fun AgendaDateCard(group: AgendaDateGroup, onCourseClick: (AgendaCourseInstance) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Surface(
             shape = AppShapes.small,
@@ -187,7 +187,8 @@ private fun AgendaDateCard(group: AgendaDateGroup, onCourseClick: (Course) -> Un
             )
         }
         group.courses.forEach { instance ->
-            AgendaCourseCard(instance = instance, onClick = { onCourseClick(instance.course) })
+            // 不能只传 Course：同一门课在日程中会出现多次，编辑范围必须从用户点中的这一周开始。
+            AgendaCourseCard(instance = instance, onClick = { onCourseClick(instance) })
         }
     }
 }

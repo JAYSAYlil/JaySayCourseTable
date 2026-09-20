@@ -20,6 +20,32 @@ data class ScheduleDateException(
 data class ResolvedDateCourse(val course: Course, val week: Int, val date: LocalDate, val isMakeup: Boolean)
 
 object ScheduleDateResolver {
+    /** Per-operation index: callers rebuild it when inputs change, never a global cache. */
+    class Prepared internal constructor(
+        courses: List<Course>,
+        private val semesterStart: String,
+        private val totalWeeks: Int,
+        excludedWeeks: Set<Int>,
+        exceptions: List<ScheduleDateException>
+    ) {
+        private val coursesByDay = courses.groupBy(Course::dayOfWeek)
+        private val exceptionsByDate = exceptions.groupBy(ScheduleDateException::date)
+        private val excludedWeeks = excludedWeeks.toSet()
+
+        fun coursesOn(date: LocalDate): List<ResolvedDateCourse> = ScheduleDateResolver.coursesOn(
+            coursesByDay[date.dayOfWeek.value].orEmpty(), semesterStart, totalWeeks,
+            excludedWeeks, exceptionsByDate[date.toString()].orEmpty(), date
+        )
+    }
+
+    fun prepare(
+        courses: List<Course>,
+        semesterStart: String,
+        totalWeeks: Int,
+        excludedWeeks: Set<Int>,
+        exceptions: List<ScheduleDateException>
+    ): Prepared = Prepared(courses, semesterStart, totalWeeks, excludedWeeks, exceptions)
+
     fun coursesOn(
         courses: List<Course>,
         semesterStart: String,

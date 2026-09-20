@@ -181,8 +181,13 @@ class RealScheduleRegressionTest {
         seedSingleRealCourse(record)
         toggleChip("course-start-period-9")
         toggleChip("course-end-period-10")
-        toggleChip("course-week-$source")
-        toggleChip("course-week-$target")
+        // 编辑器加载整条记录的周次；明确只选目标周，不能假定初始只选来源周。
+        record.weeks.forEach { week ->
+            rule.onNodeWithTag("course-week-$week").assertIsSelected()
+            if (week != target) toggleChip("course-week-$week")
+        }
+        if (target !in record.weeks) toggleChip("course-week-$target")
+        rule.onNodeWithTag("course-week-$target").assertIsSelected()
 
         val persisted = saveEditorAndReadPersisted()
         val moved = persisted.first { it.startPeriod == 9 }

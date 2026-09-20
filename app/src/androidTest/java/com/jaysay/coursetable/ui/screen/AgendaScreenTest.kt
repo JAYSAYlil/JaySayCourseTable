@@ -30,11 +30,15 @@ class AgendaScreenTest {
     @Test
     fun showsDateSectionsCourseDetailsAndInvokesCourseCallback() {
         var selected: String? = null
+        var selectedWeek: Int? = null
         composeRule.setContent {
             JaySayTheme {
                 AgendaScreen(
                     courses = courses(),
-                    onCourseClick = { selected = it.courseId },
+                    onCourseClick = {
+                        selected = it.course.courseId
+                        selectedWeek = it.week
+                    },
                     periodTimes = periods,
                     semesterStart = "2026-02-23",
                     totalWeeks = 2,
@@ -51,6 +55,7 @@ class AgendaScreenTest {
         composeRule.onNodeWithContentDescription("高等数学，2月23日，周一，08:00 - 09:40，第1-2节，教师王老师，教室A101，双击查看课程详情")
             .performClick()
         assertEquals("today", selected)
+        assertEquals(1, selectedWeek)
         composeRule.onNodeWithTag("agenda-list").performScrollToNode(hasText("后续"))
         composeRule.onNodeWithText("后续").assertExists()
     }

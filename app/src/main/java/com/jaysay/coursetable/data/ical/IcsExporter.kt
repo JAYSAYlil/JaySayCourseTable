@@ -38,11 +38,12 @@ object IcsExporter {
         val exportEnd = listOfNotNull(regularEnd, exceptionEnd).maxOrNull()
         val exportStart = listOfNotNull(semesterStart, exceptionDates.minOrNull()).minOrNull()
         if (exportStart != null && exportEnd != null) {
+            val resolver = ScheduleDateResolver.prepare(
+                table.courses, table.semesterStart, table.totalWeeks,
+                table.excludedWeeks.toSet(), table.dateExceptions
+            )
             generateSequence(exportStart) { it.plusDays(1) }.takeWhile { !it.isAfter(exportEnd) }.forEach { date ->
-                ScheduleDateResolver.coursesOn(
-                    table.courses, table.semesterStart, table.totalWeeks,
-                    table.excludedWeeks.toSet(), table.dateExceptions, date
-                ).forEach courseLoop@ { resolved ->
+                resolver.coursesOn(date).forEach courseLoop@ { resolved ->
                 val course = resolved.course
                 val start = table.periods.getOrNull(course.startPeriod - 1)?.start
                     ?.let(TimeUtils::parseMinuteOfDay) ?: return@courseLoop

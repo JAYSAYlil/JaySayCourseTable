@@ -37,9 +37,10 @@ object ReminderCalculator {
         exceptions: List<ScheduleDateException> = emptyList()
     ): List<CourseInstance> {
         val start = TimeUtils.semesterWeekStartOrNull(semesterStart) ?: return emptyList()
+        val resolver = ScheduleDateResolver.prepare(courses, semesterStart, Int.MAX_VALUE, excludedWeeks, exceptions)
         return (0L..6L).flatMap { dayOffset ->
             val date = start.plusDays((week - 1L) * 7L + dayOffset)
-            ScheduleDateResolver.coursesOn(courses, semesterStart, Int.MAX_VALUE, excludedWeeks, exceptions, date)
+            resolver.coursesOn(date)
         }.mapNotNull { resolved ->
                 val course = resolved.course
                 val startPeriod = periods.getOrNull(course.startPeriod - 1) ?: return@mapNotNull null
