@@ -580,28 +580,35 @@ class MainActivity : ComponentActivity() {
                             }
                             runAfterConflictCheck(conflictCandidate, comparisonCourses, saveAction)
                         },
-                        onDelete = { applyToAll ->
+                        onDelete = { scope ->
                             val week = if (editingAnchorWeek > 0) editingAnchorWeek else state.currentWeek
                             val deletedName = selected.courseName
                             val previous = state.courses
-                            val after = if (applyToAll) {
-                                CourseSeriesOperations.deleteAll(previous, oldSeriesKey)
-                            } else {
-                                CourseSeriesOperations.deleteWeek(previous, oldSeriesKey, week)
-                            }
-                            model.updateCourses({ courses ->
-                                if (applyToAll) {
-                                    CourseSeriesOperations.deleteAll(courses, oldSeriesKey)
-                                } else {
-                                    CourseSeriesOperations.deleteWeek(courses, oldSeriesKey, week)
+                            // 删除必须和保存用同一个范围：只删这一周／本周及以后／整门课程全部周次。
+                            val deleteOperation: (List<Course>) -> List<Course> = { courses ->
+                                when (scope) {
+                                    CourseEditScope.ALL_WEEKS ->
+                                        CourseSeriesOperations.deleteAll(courses, oldSeriesKey)
+                                    CourseEditScope.FROM_CURRENT_WEEK ->
+                                        CourseSeriesOperations.deleteFromWeekOnward(courses, oldSeriesKey, week)
+                                    CourseEditScope.CURRENT_WEEK ->
+                                        CourseSeriesOperations.deleteWeek(courses, oldSeriesKey, week)
                                 }
-                            }, onComplete = {
+                            }
+                            val after = deleteOperation(previous)
+                            model.updateCourses(deleteOperation, onComplete = {
                                 showEditDialog = false; editingSeriesKey = null
                                 if (currentScreen() == Screen.COURSE_DETAIL) closeCourseDetail()
                                 offerUndo(
                                     CourseSeriesUndo.capture(previous, after, oldSeriesKey),
-                                    if (applyToAll) getString(R.string.main_snackbar_deleted_all_weeks, deletedName)
-                                    else getString(R.string.main_snackbar_removed_from_week, week, deletedName)
+                                    when (scope) {
+                                        CourseEditScope.ALL_WEEKS ->
+                                            getString(R.string.main_snackbar_deleted_all_weeks, deletedName)
+                                        CourseEditScope.FROM_CURRENT_WEEK ->
+                                            getString(R.string.main_snackbar_removed_from_week_onward, week, deletedName)
+                                        CourseEditScope.CURRENT_WEEK ->
+                                            getString(R.string.main_snackbar_removed_from_week, week, deletedName)
+                                    }
                                 )
                             }, onError = ::showSaveError)
                         },

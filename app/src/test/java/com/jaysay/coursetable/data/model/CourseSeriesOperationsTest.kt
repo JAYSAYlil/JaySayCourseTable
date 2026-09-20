@@ -191,6 +191,64 @@ class CourseSeriesOperationsTest {
         assertEquals(9, result.single().startPeriod)
     }
 
+    @Test
+    fun deletingFromThisWeekOnwardKeepsOnlyEarlierWeeksOfThatSeries() {
+        // 第 1-8 周的课：从第 5 周起删除 → 只剩第 1-4 周，别的课程一根汗毛都不动。
+        val series = listOf(course(weeks = (1..8).toList(), seriesId = "s"))
+        val unrelated = course(id = "C002", name = "另一门课", weeks = (1..8).toList(), seriesId = "other")
+
+        val result = CourseSeriesOperations.deleteFromWeekOnward(series + unrelated, "s", week = 5)
+
+        assertEquals(listOf(1, 2, 3, 4), result.single { it.seriesKey == "s" }.weeks)
+        assertEquals((1..8).toList(), result.single { it.seriesKey == "other" }.weeks)
+    }
+
+    @Test
+    fun deletingFromThisWeekOnwardDropsSplitRecordsThatLoseEveryWeek() {
+        // 系列被拆成两条记录（第 1-9 周与第 10 周）：从第 9 周起删除 → 第二条整条消失，第一条只剩 1-8。
+        val split = listOf(
+            course(id = "C001", weeks = (1..9).toList(), seriesId = "split"),
+            course(id = "C002", weeks = listOf(10), seriesId = "split", day = 3)
+        )
+
+        val result = CourseSeriesOperations.deleteFromWeekOnward(split, "split", week = 9)
+
+        assertEquals(1, result.size)
+        assertEquals((1..8).toList(), result.single().weeks)
+    }
+
+    @Test
+    fun deletingFromThisWeekOnwardRemovesTheCourseWhenEveryWeekIsOnward() {
+        val series = listOf(course(weeks = listOf(6, 7), seriesId = "s"))
+
+        assertTrue(
+            "全部周次都在锚点之后时，这门课整体消失",
+            CourseSeriesOperations.deleteFromWeekOnward(series, "s", week = 6).isEmpty()
+        )
+    }
+
+    @Test
+    fun deletingCurrentWeekStillOnlyRemovesThatWeek() {
+        val series = listOf(course(weeks = (1..4).toList(), seriesId = "s"))
+
+        val result = CourseSeriesOperations.deleteWeek(series, "s", week = 2)
+
+        assertEquals(listOf(1, 3, 4), result.single().weeks)
+    }
+
+    @Test
+    fun targetedUndoRestoresFromWeekOnwardDeletion() {
+        val selected = course(weeks = (1..6).toList(), seriesId = "selected")
+        val before = listOf(
+            selected,
+            course(id = "C002", name = "另一门课", weeks = listOf(1), seriesId = "other")
+        )
+        val after = CourseSeriesOperations.deleteFromWeekOnward(before, "selected", week = 4)
+        val undo = CourseSeriesUndo.capture(before, after, "selected")
+
+        assertEquals(before, undo.restore(after))
+    }
+
     private fun course(
         id: String = "C001",
         name: String = "课程",

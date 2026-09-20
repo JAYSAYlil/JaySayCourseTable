@@ -169,9 +169,27 @@ object CourseSeriesOperations {
         courses.filterNot { it.seriesKey == seriesKey }
 
     fun deleteWeek(courses: List<Course>, seriesKey: String, week: Int): List<Course> =
-        courses.mapNotNull { course ->
-            if (course.seriesKey == seriesKey) course.withoutWeeks(setOf(week)) else course
+        deleteWeeksWhere(courses, seriesKey) { it == week }
+
+    /**
+     * “删除本周及以后”：只有 [week] 周及其之后的周次被移除，早于 [week] 的周次原样保留
+     * （与“应用到本周及以后周次”的保存范围对齐：怎么改，就怎么删）。
+     * 记录被摘空时整条移除，因此这门课全部落在 [week] 之后时会整体消失。
+     */
+    fun deleteFromWeekOnward(courses: List<Course>, seriesKey: String, week: Int): List<Course> =
+        deleteWeeksWhere(courses, seriesKey) { it >= week }
+
+    private fun deleteWeeksWhere(
+        courses: List<Course>,
+        seriesKey: String,
+        shouldRemove: (Int) -> Boolean
+    ): List<Course> = courses.mapNotNull { course ->
+        if (course.seriesKey == seriesKey) {
+            course.withoutWeeks(course.weeks.filter(shouldRemove).toSet())
+        } else {
+            course
         }
+    }
 
     fun replaceAll(courses: List<Course>, seriesKey: String, replacement: Course): List<Course> {
         val firstIndex = courses.indexOfFirst { it.seriesKey == seriesKey }

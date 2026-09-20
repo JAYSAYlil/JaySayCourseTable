@@ -269,7 +269,7 @@ fun CourseEditDialog(
     initialDay: Int = 1,
     initialStartPeriod: Int = 1,
     onSave: (Course, CourseEditScope) -> Unit,
-    onDelete: ((applyToAll: Boolean) -> Unit)?,
+    onDelete: ((scope: CourseEditScope) -> Unit)?,
     onDismiss: () -> Unit
 ) {
     val isNew = course == null
@@ -642,24 +642,32 @@ fun CourseEditDialog(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // 三个按钮统一宽高：等分剩余宽度、同高 44dp，删除按钮收窄水平内边距
-                        // 保证“删除全部”四字在窄屏弹窗内也完整显示。
+                        // 三个按钮同高 44dp：删除按钮文案随保存范围变化（删除本周／删除本周起／删除全部），
+                        // 因此它占更宽的一份，取消与保存保持等宽；文字超长时省略号收尾，不静默裁切。
                         if (!isNew && onDelete != null) {
                             OutlinedButton(
                                 onClick = { showDeleteConfirm = true },
-                                modifier = Modifier.weight(1f).height(44.dp),
+                                modifier = Modifier.weight(1.6f).height(44.dp).testTag("course-delete-button"),
                                 shape = AppShapes.small,
-                                contentPadding = PaddingValues(horizontal = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error)) {
-                                Text(if (form.scope == CourseEditScope.ALL_WEEKS) stringResource(R.string.edit_delete_all) else stringResource(R.string.edit_delete_week), maxLines = 1)
+                                Text(
+                                    when (form.scope) {
+                                        CourseEditScope.ALL_WEEKS -> stringResource(R.string.edit_delete_all)
+                                        CourseEditScope.FROM_CURRENT_WEEK -> stringResource(R.string.edit_delete_from_week)
+                                        CourseEditScope.CURRENT_WEEK -> stringResource(R.string.edit_delete_week)
+                                    },
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
                             }
                         }
                         OutlinedButton(
                             onClick = onDismiss,
-                            modifier = Modifier.weight(1f).height(44.dp),
+                            modifier = Modifier.weight(0.85f).height(44.dp),
                             shape = AppShapes.small,
-                            contentPadding = PaddingValues(horizontal = 6.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
                             Text(stringResource(R.string.edit_button_cancel), maxLines = 1)
                         }
@@ -697,7 +705,7 @@ fun CourseEditDialog(
                                 reminderMinutesOverride = form.reminderMinutesOverride,
                                 endReminderEnabled = form.endReminderEnabled
                             ), form.scope)
-                        }, modifier = Modifier.weight(1f).height(44.dp).testTag("course-save-button"), shape = AppShapes.small, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                        }, modifier = Modifier.weight(0.85f).height(44.dp).testTag("course-save-button"), shape = AppShapes.small, contentPadding = PaddingValues(horizontal = 4.dp)) {
                             Text(stringResource(R.string.edit_save), fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
@@ -712,14 +720,20 @@ fun CourseEditDialog(
                 title = { Text(stringResource(R.string.edit_delete_confirm_title)) },
                 text = {
                     Text(
-                        if (form.scope == CourseEditScope.ALL_WEEKS) stringResource(R.string.edit_delete_all_weeks_message, form.name)
-                        else stringResource(R.string.edit_delete_week_message, currentWeek, form.name)
+                        when (form.scope) {
+                            CourseEditScope.ALL_WEEKS ->
+                                stringResource(R.string.edit_delete_all_weeks_message, form.name)
+                            CourseEditScope.FROM_CURRENT_WEEK ->
+                                stringResource(R.string.edit_delete_from_week_message, currentWeek, form.name)
+                            CourseEditScope.CURRENT_WEEK ->
+                                stringResource(R.string.edit_delete_week_message, currentWeek, form.name)
+                        }
                     )
                 },
                 confirmButton = {
                     TextButton(onClick = {
                         showDeleteConfirm = false
-                        onDelete(form.scope == CourseEditScope.ALL_WEEKS)
+                        onDelete(form.scope)
                     }) { Text(stringResource(R.string.edit_delete_confirm), color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {

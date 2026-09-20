@@ -152,6 +152,8 @@
     <string name="edit_close">"关闭"</string>
     <string name="edit_delete_all">"删除全部"</string>
     <string name="edit_delete_all_weeks_message">"将删除“%1$s”的全部周次，删除后可在提示条中撤销。"</string>
+    <string name="edit_delete_from_week">"删除本周起"</string>
+    <string name="edit_delete_from_week_message">"将从第 %1$d 周起移除“%2$s”的后续周次，第 %1$d 周之前的周次不受影响。删除后可在提示条中撤销。"</string>
     <string name="edit_delete_confirm">"确认删除"</string>
     <string name="edit_delete_confirm_title">"确认删除课程？"</string>
     <string name="edit_delete_week">"删除本周"</string>
@@ -241,6 +243,7 @@
     <string name="main_snackbar_course_added">"已添加 %1$s"</string>
     <string name="main_snackbar_deleted_all_weeks">"已删除 %1$s 的全部周次"</string>
     <string name="main_snackbar_removed_from_week">"已从第 %1$d 周移除 %2$s"</string>
+    <string name="main_snackbar_removed_from_week_onward">"已从第 %1$d 周起移除 %2$s"</string>
     <string name="main_toast_background_set_failed">"背景图设置失败"</string>
     <string name="main_toast_backup_restored">"备份恢复成功"</string>
     <string name="main_toast_custom_background_applied">"已应用全屏自定义背景"</string>

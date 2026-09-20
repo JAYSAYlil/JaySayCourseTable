@@ -111,6 +111,27 @@ class CourseWeeksPersistenceTest {
     }
 
     @Test
+    fun deletingFromThisWeekOnwardOnlyRemovesLaterWeeksOnDisk() {
+        val seriesId = "weeks-delete-" + System.nanoTime()
+        val name = "范围删除" + System.nanoTime() % 100000
+        seedCourses(Course(seriesId, name, "", "", 0f, listOf(1, 2, 3, 4, 5), 1, 1, 2,
+            "", "", "", "", false, "", seriesId = seriesId))
+        rule.waitUntil(20_000) { rule.onAllNodesWithTag("course-table-screen").fetchSemanticsNodes().isNotEmpty() }
+        rule.runOnIdle { model().setWeek(3) }
+        openEditorFromCard(name)
+
+        // 打开“应用到本周及以后周次”后删除：第 1-2 周必须留下，第 3 周及以后消失。
+        rule.onNodeWithTag("course-apply-from-week").performScrollTo().performClick()
+        rule.onNodeWithTag("course-delete-button").performClick()
+        rule.onNodeWithText("确认删除").performClick()
+
+        rule.waitUntil(20_000) { persistedRecords(seriesId).none { record -> record.weeks.any { it >= 3 } } }
+        val records = persistedRecords(seriesId)
+        assertEquals("这门课不应被整段删除", 1, records.size)
+        assertEquals(listOf(1, 2), records.single().weeks)
+    }
+
+    @Test
     fun splitSeriesDetailShowsTheTappedWeekInsteadOfTheFirstRecord() {
         val seriesId = "weeks-split-${System.nanoTime()}"
         val name = "拆周定位${System.nanoTime() % 100000}"
