@@ -152,8 +152,9 @@
 
 ## 版本与安全基线
 
-- 当前开发分支：main；Git 基点 `a3d1010`（v3.4.18），v3.4.19–v3.4.23 的修改尚在工作区。
-- 当前公开发布：3.4.18 / versionCode 138（GitHub Release）；当前本地交付：3.4.23 / versionCode 143。
+- 当前开发分支：main；本地提交 `57ab02c`（v3.4.27，工作区干净）。v3.4.19 起的修改均已入库，公开历史可追溯。
+- 当前公开发布：3.4.27 / versionCode 147（GitHub Release，本轮发布）；上一公开版本 3.4.24 / versionCode 144。
+- 当前本地交付：3.4.27 / versionCode 147（签名 APK 与 SHA-256 见本地 `交付成品/`）。
 - 历史发布：v3.0.0、v3.1.0–v3.1.2、v3.2.0–v3.2.6、v3.3.2、v3.4.11、v3.4.12。
 - 数据格式未变化：tables/preferences 仍 schemaVersion 4，可从 v2.17.1 直接覆盖升级。
 
