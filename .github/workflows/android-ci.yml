@@ -70,7 +70,10 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          boot-timeout: 600000
+          # 参数名与单位都必须是 action 认得的写法：emulator-boot-timeout 以秒计。
+          # 之前写成 boot-timeout: 600000，action 直接忽略（日志里是 "Unexpected input(s) 'boot-timeout'"），
+          # 启动超时退回默认值，计划任务里的 API 34 作业就停在 "Timeout waiting for emulator to boot."。
+          emulator-boot-timeout: 900
           emulator-options: -no-snapshot -no-audio -gpu swiftshader_indirect
           script: ./gradlew --stacktrace :app:connectedDebugAndroidTest
 
@@ -96,4 +99,5 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
+          emulator-boot-timeout: 900
           script: ./gradlew --stacktrace :app:connectedDebugAndroidTest
