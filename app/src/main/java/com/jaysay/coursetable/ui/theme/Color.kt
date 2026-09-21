@@ -18,12 +18,12 @@ val Tertiary = Color(0xFF5E7C3B)
 val TertiaryLight = Color(0xFFE7F0D5)
 val TertiaryDark = Color(0xFF314A18)
 
-// Surface（浅色端页面统一纯白，层次交给卡片、描边与分隔线）
+// Neutral grouped pages with white content surfaces; no tinted elevation overlays.
 val Surface = Color(0xFFFFFFFF)
 val OnSurface = Color(0xFF191C1B)
 val OnSurfaceVariant = Color(0xFF636967)
 
-val Background = Color(0xFFFFFFFF)
+val Background = Color(0xFFF2F2F7)
 val Error = Color(0xFFDC2626)
 
 // 课程卡片调色板 — 每个色相只保留一个位置，避免相邻课程颜色过近。

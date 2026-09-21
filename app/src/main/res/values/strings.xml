@@ -450,4 +450,5 @@
     <string name="service_reminder_ready">提醒权限检查通过；实际送达可使用下方“发送测试通知”验证。</string>
     <string name="month_header_stacked">%1$d\n%2$d月</string>
     <string name="month_course_count_compact">%1$d课</string>
+    <string name="input_error_accessibility">输入内容有误，请检查。</string>
 </resources>

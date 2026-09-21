@@ -1,4 +1,5 @@
 package com.jaysay.coursetable.ui.screen
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -7,10 +8,14 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.offset
-import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.foundation.rememberScrollState
@@ -20,7 +25,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
@@ -39,7 +43,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import com.jaysay.coursetable.ui.components.HeroRegistry
 import com.jaysay.coursetable.util.TimeUtils
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CourseDetailScreen(
     course: Course,
@@ -56,6 +60,25 @@ fun CourseDetailScreen(
         ?: courseColorMap[course.courseName]
         ?: coursePalette(dark).first()
     val headerTextColors = remember(courseColor, dark) { courseCardTextColors(courseColor, dark) }
+    val density = LocalDensity.current
+    val currentOnClose by rememberUpdatedState(onClose)
+    val dismissDistance = with(density) { 120.dp.toPx() }
+    val dismissVelocity = with(density) { 800.dp.toPx() }
+    var dismissRaw by remember { mutableFloatStateOf(0f) }
+    var dismissDragging by remember { mutableStateOf(false) }
+    val returnOffset = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    var returnJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val velocityTracker = remember { androidx.compose.ui.input.pointer.util.VelocityTracker() }
+    val dismissOffset = if (dismissDragging) dismissRaw else returnOffset.value
+    fun returnToRest(velocity: Float = 0f) {
+        returnJob?.cancel()
+        returnJob = scope.launch {
+            returnOffset.snapTo(dismissRaw)
+            dismissDragging = false
+            returnOffset.animateTo(0f, Motion.interactive(), initialVelocity = velocity)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -79,55 +102,43 @@ fun CourseDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .offset { androidx.compose.ui.unit.IntOffset(0, dismissOffset.roundToInt()) }
                 .verticalScroll(rememberScrollState())
         ) {
-            // 下拉关闭（Apple 1:1 跟随 + 阻尼 + 速度判定）：从头部卡片按住下滑；
-            // 松手时速度超阈值或位移过半即关闭，否则以临界阻尼弹簧弹回。
-            var dismissRaw by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-            var dismissDragging by remember { androidx.compose.runtime.mutableStateOf(false) }
-            val velocityTracker = remember { androidx.compose.ui.input.pointer.util.VelocityTracker() }
-            fun rubber(raw: Float): Float {
-                val d = 900f
-                return if (raw <= 0f) 0f else (raw * d) / (d + raw)
-            }
-            val dismissTarget = if (dismissDragging) rubber(dismissRaw) else 0f
-            val dismissOffset by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = dismissTarget,
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = 1f,
-                    stiffness = if (dismissDragging) androidx.compose.animation.core.Spring.StiffnessHigh
-                    else androidx.compose.animation.core.Spring.StiffnessMediumLow
-                ),
-                label = "dismissOffset"
-            )
+            // Track the finger directly; animate only the return after release.
             // Hero 转场详情端：头部完成测量后回写 bounds，正向飞行的终点由此获得。
             Surface(
                 modifier = Modifier
                     .onGloballyPositioned { coords ->
                         HeroRegistry.headerBounds = coords.boundsInRoot()
                     }
-                    .offset { androidx.compose.ui.unit.IntOffset(0, dismissOffset.roundToInt()) }
-                    .pointerInput(Unit) {
+                    // 只以阈值为 key：父级每次重组都会新建 onClose，把它当 key 会在拖动中途重建
+                    // 手势处理器（且不会回调 onDragCancel），导致内容跳回或卡在拖到一半的位置。
+                    .pointerInput(dismissDistance, dismissVelocity) {
                         detectVerticalDragGestures(
                             onDragStart = {
+                                returnJob?.cancel()
+                                dismissRaw = returnOffset.value
                                 dismissDragging = true
-                                dismissRaw = 0f
                                 velocityTracker.resetTracking()
                             },
                             onVerticalDrag = { change, dragAmount ->
                                 change.consume()
-                                velocityTracker.addPosition(change.uptimeMillis, change.position)
-                                dismissRaw += dragAmount
+                                // The content itself moves: track in the stationary parent space.
+                                velocityTracker.addPosition(change.uptimeMillis,
+                                    change.position + androidx.compose.ui.geometry.Offset(0f, dismissRaw))
+                                dismissRaw = (dismissRaw + dragAmount).coerceAtLeast(0f)
                             },
                             onDragEnd = {
                                 val velocity = velocityTracker.calculateVelocity().y
                                 velocityTracker.resetTracking()
-                                dismissDragging = false
-                                if (velocity > 800f || dismissOffset > 240f) onClose()
+                                if (dismissRaw > dismissDistance || (dismissRaw > 0f && velocity > dismissVelocity)) {
+                                    currentOnClose()
+                                } else returnToRest(velocity)
                             },
                             onDragCancel = {
                                 velocityTracker.resetTracking()
-                                dismissDragging = false
+                                returnToRest()
                             }
                         )
                     }
@@ -148,8 +159,9 @@ fun CourseDetailScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Key info chips
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         InfoChip(
                             icon = Icons.Rounded.Schedule,
@@ -160,20 +172,23 @@ fun CourseDetailScreen(
                             text = stringResource(R.string.detail_credits_chip, course.credits)
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (course.courseType.isNotBlank()) {
-                            InfoChip(
-                                icon = Icons.Rounded.Bookmark,
-                                text = course.courseType
+                    if (course.courseType.isNotBlank() || course.assessmentMethod.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (course.courseType.isNotBlank()) {
+                                InfoChip(
+                                    icon = Icons.Rounded.Bookmark,
+                                    text = course.courseType
+                                )
+                            }
+                            if (course.assessmentMethod.isNotBlank()) InfoChip(
+                                icon = Icons.Rounded.Assessment,
+                                text = course.assessmentMethod
                             )
                         }
-                        InfoChip(
-                            icon = Icons.Rounded.Assessment,
-                            text = course.assessmentMethod
-                        )
                     }
                 }
             }
@@ -182,15 +197,17 @@ fun CourseDetailScreen(
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp)
             ) {
-                SectionTitle(stringResource(R.string.detail_section_basic))
-                DetailCard {
-                    DetailRow(stringResource(R.string.detail_course_id), course.courseId)
-                    DetailRow(stringResource(R.string.detail_class_number), course.classNumber)
-                    DetailRow(stringResource(R.string.detail_department), course.department)
-                    DetailRow(stringResource(R.string.detail_course_category), course.courseCategory)
+                if (course.courseId.isNotBlank() || course.classNumber.isNotBlank() ||
+                    course.department.isNotBlank() || course.courseCategory.isNotBlank()) {
+                    SectionTitle(stringResource(R.string.detail_section_basic))
+                    DetailCard {
+                        DetailRow(stringResource(R.string.detail_course_id), course.courseId)
+                        DetailRow(stringResource(R.string.detail_class_number), course.classNumber)
+                        DetailRow(stringResource(R.string.detail_department), course.department)
+                        DetailRow(stringResource(R.string.detail_course_category), course.courseCategory)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
 
                 SectionTitle(stringResource(R.string.detail_section_class))
                 DetailCard {
@@ -206,11 +223,12 @@ fun CourseDetailScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                SectionTitle(stringResource(R.string.detail_section_assessment))
-                DetailCard {
-                    DetailRow(stringResource(R.string.detail_assessment_method), course.assessmentMethod)
+                if (course.assessmentMethod.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SectionTitle(stringResource(R.string.detail_section_assessment))
+                    DetailCard {
+                        DetailRow(stringResource(R.string.detail_assessment_method), course.assessmentMethod)
+                    }
                 }
 
                 if (course.notes.isNotBlank()) {
@@ -286,12 +304,8 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun InfoChip(icon: ImageVector, text: String) {
     Surface(
-        shape = AppShapes.panel,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
-        border = BorderStroke(
-            0.6.dp,
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
-        ),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
         shadowElevation = 0.dp
     ) {
         Row(

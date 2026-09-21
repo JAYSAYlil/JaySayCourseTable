@@ -1,4 +1,11 @@
 package com.jaysay.coursetable.ui.components
+import com.jaysay.coursetable.ui.components.AppAlertDialog as AlertDialog
+import com.jaysay.coursetable.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.jaysay.coursetable.ui.components.AppButton as Button
+import com.jaysay.coursetable.ui.components.AppSwitch as Switch
+import com.jaysay.coursetable.ui.components.AppTextField as OutlinedTextField
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppFilledTonalButton as FilledTonalButton
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,18 +21,11 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.WarningAmber
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -66,9 +66,11 @@ internal fun DetailDeleteConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dismiss = rememberSheetDismiss(sheetState)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
         shape = AppShapes.sheet,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
@@ -93,7 +95,7 @@ internal fun DetailDeleteConfirmDialog(
             )
             Spacer(Modifier.height(4.dp))
             Button(
-                onClick = onConfirm,
+                onClick = { dismiss(onConfirm) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = AppShapes.small,
                 colors = ButtonDefaults.buttonColors(
@@ -104,7 +106,7 @@ internal fun DetailDeleteConfirmDialog(
                 Text(stringResource(R.string.dialog_button_confirm_remove))
             }
             TextButton(
-                onClick = onDismiss,
+                onClick = { dismiss(onDismiss) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.dialog_button_cancel))
@@ -169,9 +171,11 @@ internal fun EncryptedImportPasswordDialog(
     onDismiss: () -> Unit
 ) {
     var password by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dismiss = rememberSheetDismiss(sheetState)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
         shape = AppShapes.sheet,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
@@ -200,7 +204,7 @@ internal fun EncryptedImportPasswordDialog(
             )
             Spacer(Modifier.height(4.dp))
             Button(
-                onClick = { onConfirm(password) },
+                onClick = { dismiss { onConfirm(password) } },
                 enabled = password.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 shape = AppShapes.small
@@ -208,7 +212,7 @@ internal fun EncryptedImportPasswordDialog(
                 Text(stringResource(R.string.dialog_button_decrypt_and_verify))
             }
             TextButton(
-                onClick = onDismiss,
+                onClick = { dismiss(onDismiss) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.dialog_button_cancel))
@@ -228,9 +232,11 @@ internal fun BackupRestoreConfirmDialog(
 ) {
     val courseCount = backup.tables.sumOf { it.courses.size }
     val diff = remember(backup, currentTables) { BackupDiff.between(currentTables, backup.tables) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dismiss = rememberSheetDismiss(sheetState)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
         shape = AppShapes.sheet,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
@@ -259,14 +265,14 @@ internal fun BackupRestoreConfirmDialog(
             )
             Spacer(Modifier.height(4.dp))
             Button(
-                onClick = onConfirm,
+                onClick = { dismiss(onConfirm) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = AppShapes.small
             ) {
                 Text(stringResource(R.string.dialog_button_confirm_restore))
             }
             TextButton(
-                onClick = onDismiss,
+                onClick = { dismiss(onDismiss) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.dialog_button_cancel))

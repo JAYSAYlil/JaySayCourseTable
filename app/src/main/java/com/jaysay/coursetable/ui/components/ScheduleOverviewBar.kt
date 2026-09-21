@@ -1,6 +1,11 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.jaysay.coursetable.ui.components
+import com.jaysay.coursetable.ui.components.AppDropdownMenu as DropdownMenu
+import com.jaysay.coursetable.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.jaysay.coursetable.ui.components.AppTextField as OutlinedTextField
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -35,16 +40,11 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -236,9 +236,11 @@ fun ScheduleOverviewBar(
     }
 
     if (agendaVisible) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val dismiss = rememberSheetDismiss(sheetState)
         ModalBottomSheet(
             onDismissRequest = { agendaVisible = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            sheetState = sheetState,
             shape = AppShapes.sheet,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
@@ -251,7 +253,7 @@ fun ScheduleOverviewBar(
                 Spacer(Modifier.height(14.dp))
                 Text(agenda.accessibilityText(), style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(22.dp))
-                TextButton(onClick = { agendaVisible = false }, modifier = Modifier.align(Alignment.End)) {
+                TextButton(onClick = { dismiss { agendaVisible = false } }, modifier = Modifier.align(Alignment.End)) {
                     Text(stringResource(R.string.overview_dialog_got_it))
                 }
             }

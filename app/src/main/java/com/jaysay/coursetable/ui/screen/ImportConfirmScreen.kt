@@ -1,4 +1,8 @@
 package com.jaysay.coursetable.ui.screen
+import com.jaysay.coursetable.ui.components.AppFilterChip as FilterChip
+import com.jaysay.coursetable.ui.components.AppCheckbox as Checkbox
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -16,16 +20,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf

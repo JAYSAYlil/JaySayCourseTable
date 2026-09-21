@@ -1,4 +1,9 @@
 package com.jaysay.coursetable.ui.screen
+import com.jaysay.coursetable.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.jaysay.coursetable.ui.components.AppButton as Button
+import com.jaysay.coursetable.ui.components.AppTextField as OutlinedTextField
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -21,6 +26,7 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
+import com.jaysay.coursetable.ui.components.rememberSheetDismiss
 import com.jaysay.coursetable.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,10 +48,12 @@ fun TableManageScreen(
     pendingDeleteIndex?.let { index ->
         val table = tables.getOrNull(index)
         if (table != null) {
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            val dismiss = rememberSheetDismiss(sheetState)
             // 与课程详情的删除确认保持同一材质：底部抽屉 + AppShapes.sheet + 整宽操作按钮。
             ModalBottomSheet(
                 onDismissRequest = { pendingDeleteIndex = null },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                sheetState = sheetState,
                 shape = AppShapes.sheet,
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
@@ -71,8 +79,10 @@ fun TableManageScreen(
                     Spacer(Modifier.height(4.dp))
                     Button(
                         onClick = {
+                            dismiss {
                             pendingDeleteIndex = null
                             onDelete(index)
+                            }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = AppShapes.small,
@@ -84,7 +94,7 @@ fun TableManageScreen(
                         Text(stringResource(R.string.table_delete_confirm))
                     }
                     TextButton(
-                        onClick = { pendingDeleteIndex = null },
+                        onClick = { dismiss { pendingDeleteIndex = null } },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(stringResource(R.string.table_cancel))

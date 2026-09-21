@@ -5,7 +5,7 @@
 - Android 应用模块：`app/`
 - 包名与 applicationId：`com.jaysay.coursetable`
 - 最低/目标系统：Android 8.0（API 26）/ Android 15（API 35）
-- 当前版本：3.4.27，versionCode 147
+- 当前版本：3.4.28，versionCode 148
 - 构建栈：Gradle 9.1.0 / AGP 8.13.0 / Kotlin 2.2.0（内置 Compose 编译器）/ Compose BOM 2025.06.01
 - 应用仅在用户手动检查更新时访问 GitHub Releases；不包含常驻联网客户端，课程、备份、提醒和日历均在本机处理。
 - 全部 UI 用户可见文案位于 `res/values/strings.xml`；数据层错误消息保持纯 Kotlin 数据（不依赖 Context）。
@@ -24,6 +24,7 @@
 - `data/model/AcademicCalendarStatus.kt`：把停课周、周标签和具体日期调整转换为课表/小组件共用的展示状态；新增入口不得另写一套校历解释逻辑。
 - `widget/`：3/4/5 列响应式桌面小组件、今日/明日集合数据与状态边界刷新；Android 12+ 使用 `RemoteCollectionItems`，Android 8–11 保留 `RemoteViewsService`。
 - `ui/`：课表、详情、编辑、设置、导入确认和公共组件；`ui/components/CourseDialogs.kt` 集中承载删除、冲突确认、备份密码与粘贴导入等弹窗。
+- `ui/components/NativeControls.kt` / `NativeOverlays.kt`：统一中性表面、无涟漪控件与弹层；底部弹层按钮通过 `rememberSheetDismiss` 完成退出后再执行动作，不得直接移除仍可见的弹层。居中弹窗退出由窗口动画负责，保留表单校验与保存失败时的停留行为。
 - `ui/screen/ScheduleGrid.kt`：课表网格、课程卡片、当前时间线与透明度/排版视觉契约；`CourseTableScreen.kt` 负责页面控制和周次/视图状态。
 
 ## 本地数据与兼容性

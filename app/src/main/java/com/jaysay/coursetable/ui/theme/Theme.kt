@@ -4,6 +4,8 @@ package com.jaysay.coursetable.ui.theme
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -33,7 +35,7 @@ private val LightColors = lightColorScheme(
     surfaceContainer = Surface,
     surfaceContainerHigh = Surface,
     surfaceContainerHighest = Surface,
-    surfaceTint = Primary,
+    surfaceTint = Color.Transparent,
     surfaceVariant = Color(0xFFECF0EF), onSurfaceVariant = OnSurfaceVariant,
     background = Background, onBackground = OnSurface,
     outline = Color(0xFF7C8280), outlineVariant = Color(0xFFD8DEDC),
@@ -47,6 +49,14 @@ private val DarkColors = darkColorScheme(    primary = DarkPrimary, onPrimary = 
     tertiary = DarkTertiary, onTertiary = Color(0xFF1A280D),
     tertiaryContainer = DarkTertiaryLight, onTertiaryContainer = DarkTertiaryDark,
     surface = DarkSurface, onSurface = DarkOnSurface,
+    surfaceTint = Color.Transparent,
+    surfaceBright = DarkSurfaceVariant,
+    surfaceDim = DarkBackground,
+    surfaceContainerLowest = DarkBackground,
+    surfaceContainerLow = DarkSurface,
+    surfaceContainer = DarkSurface,
+    surfaceContainerHigh = DarkSurfaceVariant,
+    surfaceContainerHighest = DarkSurfaceVariant,
     surfaceVariant = DarkSurfaceVariant, onSurfaceVariant = DarkOnSurfaceVariant,
     background = DarkBackground, onBackground = DarkOnSurface,
     outline = Color(0xFF8A8F8D),
@@ -58,6 +68,7 @@ private val DarkColors = darkColorScheme(    primary = DarkPrimary, onPrimary = 
 val LocalEnhancedContrast = compositionLocalOf { false }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun JaySayTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     highContrast: Boolean = false,
@@ -78,7 +89,7 @@ fun JaySayTheme(
     ) else baseColors
     val view = LocalView.current
     MaterialTheme(colorScheme = colors, typography = Typography) {
-        CompositionLocalProvider(LocalEnhancedContrast provides highContrast) {
+        CompositionLocalProvider(LocalEnhancedContrast provides highContrast, LocalRippleConfiguration provides null) {
             // 页面交叉淡化时始终有与当前主题一致的底色，深色模式不会透出窗口默认白色。
             if (!view.isInEditMode) {
                 SideEffect {

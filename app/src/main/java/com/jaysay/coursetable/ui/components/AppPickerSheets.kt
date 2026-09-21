@@ -1,6 +1,10 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.jaysay.coursetable.ui.components
+import com.jaysay.coursetable.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.jaysay.coursetable.ui.components.AppButton as Button
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn

@@ -5,13 +5,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,10 +23,6 @@ import com.jaysay.coursetable.ui.theme.AppShapes
 /** 兼容别名：旧调用点仍引用 AppPanelShape，语义与 AppShapes.medium 一致。 */
 val AppPanelShape = AppShapes.medium
 
-/**
- * 半透明材质顶栏（Apple materials）：表面 90% 不透明度，滚动内容从其下穿过；
- * 分隔线由材质的明暗对比承担，不再画硬分隔线。
- */
 /** Shared top chrome keeps navigation, titles and dividers consistent across screens. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,30 +31,19 @@ fun AppTopBar(
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    Column {
-        TopAppBar(
-            title = {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            navigationIcon = navigationIcon,
-            actions = actions,
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface
-            )
-        )
-        HorizontalDivider(
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-        )
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 52.dp).padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            navigationIcon()
+            Text(title, Modifier.weight(1f).padding(horizontal = 8.dp),
+                style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            actions()
+        }
     }
 }
 
-/** Shared panel treatment: quiet surface, 20 dp radius and a theme-aware hairline. */
+/** Neutral grouped surfaces, with an outline only for an explicitly selected panel. */
 @Composable
 fun AppPanel(
     modifier: Modifier = Modifier,
@@ -72,18 +58,13 @@ fun AppPanel(
         } else {
             MaterialTheme.colorScheme.surface
         },
-        border = BorderStroke(
+        border = if (selected) BorderStroke(
             0.75.dp,
-            if (selected) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.48f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            }
-        ),
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.48f)
+        ) else null,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
         Column(content = content)
     }
 }
-

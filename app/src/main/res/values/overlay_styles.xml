@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppCenteredOverlayAnimation">
+        <item name="android:windowEnterAnimation">@anim/overlay_enter</item>
+        <item name="android:windowExitAnimation">@anim/overlay_exit</item>
+    </style>
+</resources>

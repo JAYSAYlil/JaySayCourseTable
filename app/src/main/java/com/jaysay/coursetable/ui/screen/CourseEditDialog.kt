@@ -1,4 +1,13 @@
 package com.jaysay.coursetable.ui.screen
+import com.jaysay.coursetable.ui.components.AppAlertDialog as AlertDialog
+import com.jaysay.coursetable.ui.components.AppDialog as Dialog
+import com.jaysay.coursetable.ui.components.AppButton as Button
+import com.jaysay.coursetable.ui.components.AppFilterChip as FilterChip
+import com.jaysay.coursetable.ui.components.AppOutlinedButton as OutlinedButton
+import com.jaysay.coursetable.ui.components.AppSwitch as Switch
+import com.jaysay.coursetable.ui.components.AppTextField as OutlinedTextField
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -34,7 +43,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.CourseReminderMode

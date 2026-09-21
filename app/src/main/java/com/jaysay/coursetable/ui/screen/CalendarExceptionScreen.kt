@@ -1,4 +1,12 @@
 package com.jaysay.coursetable.ui.screen
+import com.jaysay.coursetable.ui.components.AppAlertDialog as AlertDialog
+import com.jaysay.coursetable.ui.components.AppDropdownMenu as DropdownMenu
+import com.jaysay.coursetable.ui.components.AppFilterChip as FilterChip
+import com.jaysay.coursetable.ui.components.AppOutlinedButton as OutlinedButton
+import com.jaysay.coursetable.ui.components.AppAssistChip as AssistChip
+import com.jaysay.coursetable.ui.components.AppTextField as OutlinedTextField
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -29,25 +37,14 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.EditCalendar
 import androidx.compose.material.icons.rounded.EventBusy
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,9 +67,7 @@ import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.util.TimeUtils
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -472,25 +467,14 @@ private fun DateArrangementDialog(
     val valid = type == ScheduleExceptionType.DAY_OFF || course != null
 
     if (showDatePicker) {
-        val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        com.jaysay.coursetable.ui.components.AppDatePickerSheet(
+            initialDate = date,
+            title = stringResource(R.string.calendar_dates_title),
+            confirmLabel = stringResource(R.string.settings_confirm),
+            cancelLabel = stringResource(R.string.calendar_cancel),
+            onDismiss = { showDatePicker = false },
+            onConfirm = { date = it }
         )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let {
-                        date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
-                    }
-                    showDatePicker = false
-                }) { Text(stringResource(R.string.settings_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(stringResource(R.string.calendar_cancel))
-                }
-            }
-        ) { DatePicker(state = pickerState) }
     }
 
     AlertDialog(

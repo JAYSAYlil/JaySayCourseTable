@@ -53,13 +53,13 @@ object AppSizes {
  * - 缓动补间只用于淡入淡出与颜色过渡；动画永远从当前值出发（Compose 弹簧天然支持中断续接）。
  */
 object Motion {
-    val emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
-    val standard = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
-    val exit = CubicBezierEasing(0.4f, 0f, 1f, 1f)
+    val emphasized = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
+    val standard = CubicBezierEasing(0.77f, 0f, 0.175f, 1f)
+    val exit = emphasized
 
     const val DURATION_SHORT = 150
     const val DURATION_BASE = 250
-    const val DURATION_LONG = 380
+    const val DURATION_LONG = 280
 
     /** 交互弹簧：临界阻尼、快速跟随（约 0.25s 收敛）。 */
     fun <T> interactive(): SpringSpec<T> =
@@ -88,7 +88,7 @@ fun Modifier.pressScale(
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
         // Press feedback should feel immediate and settle without a distracting bounce.
-        animationSpec = spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = tween(if (pressed) 100 else 160, easing = Motion.emphasized),
         label = "pressScale"
     )
     // 缩放经 graphicsLayer 读取：缩放变化只触发重绘（层属性更新），不触发重组。

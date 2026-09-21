@@ -1,4 +1,5 @@
 package com.jaysay.coursetable.ui.screen
+import com.jaysay.coursetable.ui.components.AppButton as Button
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.rounded.EditCalendar
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.School
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme

@@ -1,4 +1,12 @@
 package com.jaysay.coursetable.ui.screen
+import com.jaysay.coursetable.ui.components.AppAlertDialog as AlertDialog
+import com.jaysay.coursetable.ui.components.AppButton as Button
+import com.jaysay.coursetable.ui.components.AppOutlinedButton as OutlinedButton
+import com.jaysay.coursetable.ui.components.AppSwitch as Switch
+import com.jaysay.coursetable.ui.components.AppTextField as OutlinedTextField
+import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
+import com.jaysay.coursetable.ui.components.AppRadioButton as RadioButton
 
 import android.os.Build
 import android.widget.Toast

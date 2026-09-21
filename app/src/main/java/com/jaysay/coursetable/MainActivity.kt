@@ -1,4 +1,5 @@
 package com.jaysay.coursetable
+import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import android.Manifest
 import android.content.pm.PackageManager
