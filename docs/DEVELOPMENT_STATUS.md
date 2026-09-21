@@ -14,7 +14,7 @@
 - 踩到的坑（记下来避免重复）：① 横向滚动行里的芯片，`performScrollTo()` 之后再去点另一个节点会让目标滚出屏幕（bounds 出现负坐标 x=-247），合成点击静默落空——点击断言留在 `totalWeeks=4` 的 `CourseEditorWeeksTest`，`RevisionVisualTest` 里只做同行/等高布局断言；② `createComposeRule` 的 `setContent` 每个用例只能调用一次，八套主题色要在同一次组合里各套一层 `JaySayTheme` 逐层取回 `ColorScheme`；③ 编辑过程中一次 Edit 误删了"全学期"芯片，靠复查 `git diff` 发现并补回——重签后的 APK SHA-256 与首次签名完全一致，反证最终源码与首次构建逐字节相同。
 - 最终验证：193 项 JVM 与 114 项 API 34 设备端测试全部通过且无跳过；Release Lint 0 错误／30 警告／1 提示（与基线一致）；Release 构建、原证书签名校验通过，签名包覆盖安装冷启动正常，设备核对 versionName 3.4.31、versionCode 151，安装包 2,263,394 字节，SHA-256 `8BA3FA137DCD9F7E86D46B34588F1B6E05D980FBA881CD325DF82FD7F47C6C4B`。
 - 视觉证据：`交付记录/v3.4.31-主题色浅染与周次清除/` —— 深色＋品红设置页（搜索框泛品红）、浅色＋紫罗兰周视图（分组带泛紫）、默认青绿设置页与周视图（淡薄荷）、真机冷启动截图。
-- 数据格式仍为 schemaVersion 4，包名与升级签名不变，可从 v3.4.x 直接覆盖升级。本轮仅本地交付，未公开发布。
+- 数据格式仍为 schemaVersion 4，包名与升级签名不变，可从 v3.4.x 直接覆盖升级。已公开脱敏发布：GitHub Release `v3.4.31`（标签指向 `f2f2384`，源码与签名 APK 均已上传，上传后 GitHub 服务端回算的 APK SHA-256 与本地逐字节一致）。
 
 ## 上一轮（v3.4.30，本地交付：清除主题色的最后几处青绿残留）
 
