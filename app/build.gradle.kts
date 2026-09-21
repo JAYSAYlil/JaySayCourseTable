@@ -12,8 +12,8 @@ android {
         applicationId = "com.jaysay.coursetable"
         minSdk = 26
         targetSdk = 35
-        versionCode = 149
-        versionName = "3.4.29"
+        versionCode = 150
+        versionName = "3.4.30"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     androidResources {

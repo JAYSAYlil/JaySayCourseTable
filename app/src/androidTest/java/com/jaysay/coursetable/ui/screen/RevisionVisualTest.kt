@@ -2,7 +2,10 @@ package com.jaysay.coursetable.ui.screen
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -17,10 +20,13 @@ import com.jaysay.coursetable.data.preferences.AppPreferences
 import com.jaysay.coursetable.data.preferences.ThemeAccent
 import com.jaysay.coursetable.data.preferences.ThemeMode
 import com.jaysay.coursetable.ui.theme.JaySayTheme
+import com.jaysay.coursetable.ui.theme.accentPalette
 import com.jaysay.coursetable.util.TimeUtils
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import java.io.File
 
@@ -106,6 +112,46 @@ class RevisionVisualTest {
         capture("week-accent-violet")
     }
 
+    /**
+     * 深色模式的 onPrimary／onSecondary／onTertiary 必须跟随所选主题色。
+     * 调色板单测只能证明色值存在，证明不了 ColorScheme 真把它们接了上去。
+     * 八套主题色在同一次组合里各自套一层 JaySayTheme，逐层取回自己的 ColorScheme。
+     */
+    @Test fun darkColorSchemeWiresOnPrimaryToEveryAccent() {
+        val brandTealOnPrimary = Color(0xFF00332C)
+        val captured = mutableMapOf<ThemeAccent, ColorScheme>()
+        rule.setContent {
+            ThemeAccent.entries.forEach { accent ->
+                JaySayTheme(themeMode = ThemeMode.DARK, themeAccent = accent) {
+                    captured[accent] = MaterialTheme.colorScheme
+                }
+            }
+        }
+        rule.runOnIdle {
+            ThemeAccent.entries.forEach { accent ->
+                val scheme = captured.getValue(accent)
+                val expected = accentPalette(accent).darkOnPrimary
+                assertEquals("$accent 的 onPrimary 未跟随主题色", expected, scheme.onPrimary)
+                if (accent == ThemeAccent.TEAL) {
+                    assertEquals("默认青绿的 onPrimary 必须保持原值", brandTealOnPrimary, expected)
+                } else {
+                    assertNotEquals("$accent 仍残留青绿的 onPrimary 文字色", brandTealOnPrimary, scheme.onPrimary)
+                    assertEquals("$accent 的 onSecondary 未跟随主题色", expected, scheme.onSecondary)
+                    assertEquals("$accent 的 onTertiary 未跟随主题色", expected, scheme.onTertiary)
+                }
+            }
+        }
+    }
+
+    /** 深色 + 非默认主题色的设置页：开关、单选与状态条都在这里，作为换色的视觉取证。 */
+    @Test fun settingsDarkWithNonDefaultAccent() {
+        val preferences = AppPreferences(themeMode = ThemeMode.DARK, themeAccent = ThemeAccent.PINK)
+        rule.setContent { JaySayTheme(themeMode = ThemeMode.DARK, themeAccent = ThemeAccent.PINK) {
+            SettingsScreen(preferences = preferences, onUpdatePrefs = {}, onExportBackup = {}, onImportBackup = {}, onBack = {})
+        } }
+        capture("settings-dark-accent-pink")
+    }
+
     @Test fun calendarLight() {
         rule.setContent { JaySayTheme(themeMode = ThemeMode.LIGHT) {
             CalendarExceptionScreen(com.jaysay.coursetable.data.repository.TableData("示例学期", courses), {}, {})
@@ -140,12 +186,14 @@ class RevisionVisualTest {
             assertFalse("Month count overflow: size=${layout.size}, constraints=${layout.layoutInput.constraints}, paragraph=${layout.multiParagraph.width}x${layout.multiParagraph.height}, width=${layout.didOverflowWidth}, height=${layout.didOverflowHeight}", layout.hasVisualOverflow)
         }
     }
-    private fun capture(name: String, tag: String? = null) {
+    private fun capture(name: String, tag: String? = null): Bitmap {
         rule.waitForIdle()
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val directory = File(context.getExternalFilesDir(null), "visual-3.4.29").apply { mkdirs() }
+        val directory = File(context.getExternalFilesDir(null), "visual-3.4.30").apply { mkdirs() }
+        val bitmap = (if (tag == null) rule.onRoot() else rule.onNodeWithTag(tag)).captureToImage().asAndroidBitmap()
         File(directory, "$name.png").outputStream().use {
-            (if (tag == null) rule.onRoot() else rule.onNodeWithTag(tag)).captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        return bitmap
     }
 }

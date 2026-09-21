@@ -15,6 +15,7 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.model.ScheduleDateResolver
 import com.jaysay.coursetable.data.repository.CourseRepository
 import com.jaysay.coursetable.data.preferences.PreferencesManager
+import com.jaysay.coursetable.data.preferences.ThemeAccent
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -107,7 +108,8 @@ class CourseReminderReceiver : BroadcastReceiver() {
         if (canNotify) {
             val id = notificationId(tableIndex, seriesKey, week, eventKind)
             val notification = buildNotification(
-                context, title, info, startMinute, endMinute, eventKind, tableIndex, seriesKey, week, id
+                context, title, info, startMinute, endMinute, eventKind, tableIndex, seriesKey, week, id,
+                preferences.themeAccent
             )
             runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
         }
@@ -123,7 +125,8 @@ class CourseReminderReceiver : BroadcastReceiver() {
         tableIndex: Int,
         seriesKey: String,
         week: Int,
-        notificationId: Int
+        notificationId: Int,
+        accent: ThemeAccent
     ): Notification {
         val timeText = when (eventKind) {
             ReminderEventKind.START -> if (startMinute >= 0) " ${TimeUtils.formatMinuteOfDay(startMinute)} 开始" else ""
@@ -132,6 +135,8 @@ class CourseReminderReceiver : BroadcastReceiver() {
         val prefix = if (eventKind == ReminderEventKind.START) "即将上课" else "课程已结束"
         return NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
+            // 通知由系统绘制，读不到 Compose 主题；不下发颜色时部分系统一律用默认 teal。
+            .setColor(ReminderScheduler.notificationColor(context, accent))
             .setContentTitle(title)
             .setContentText(prefix + timeText + if (info.isNotBlank()) " · $info" else "")
             .setContentIntent(ReminderScheduler.buildOpenAppIntent(context, tableIndex, seriesKey))

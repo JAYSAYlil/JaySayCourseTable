@@ -7,12 +7,15 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Build
 import androidx.core.content.edit
 import com.jaysay.coursetable.MainActivity
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
 import com.jaysay.coursetable.data.preferences.AppPreferences
+import com.jaysay.coursetable.data.preferences.ThemeAccent
 import com.jaysay.coursetable.data.repository.TableData
+import com.jaysay.coursetable.ui.theme.notificationAccent
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -40,17 +43,31 @@ object ReminderScheduler {
     /** 覆盖今天至下周同一天，保证每周一次的课程也能接续下一条提醒。 */
     private const val SCHEDULE_WINDOW_DAYS = 8L
 
-    fun ensureChannel(context: Context) {
+    fun ensureChannel(context: Context, accent: ThemeAccent) {
         val manager = context.getSystemService(NotificationManager::class.java)
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "上课提醒",
-            NotificationManager.IMPORTANCE_DEFAULT
-        ).apply {
-            description = "按节次时间提前提醒上课"
-        }
-        manager.createNotificationChannel(channel)
+        val color = notificationColor(context, accent)
+        // 渠道已存在时不能重建（会丢用户的渠道设置），但呼吸灯颜色允许就地更新，
+        // 否则换了主题色后提醒仍按旧颜色闪烁。
+        manager.getNotificationChannel(CHANNEL_ID)
+            ?.setLightColor(color)
+            ?: manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "上课提醒",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = "按节次时间提前提醒上课"
+                    setLightColor(color)
+                }
+            )
     }
+
+    /** 通知强调色：跟随用户在通用设置里选的主题色，按系统深浅外观取对应一档。 */
+    fun notificationColor(context: Context, accent: ThemeAccent): Int = notificationAccent(
+        accent,
+        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+    )
 
     /** 基于当前课表与偏好重新调度活动课表未来 7 天的提醒（覆盖式，可重复调用）。 */
     fun rescheduleAll(context: Context, tables: List<TableData>, preferences: AppPreferences) {
@@ -87,7 +104,7 @@ object ReminderScheduler {
         val activeIndex = preferences.activeTableIndex.coerceIn(tables.indices)
         val table = tables.getOrNull(activeIndex) ?: return
         if (table.archived) return
-        ensureChannel(context)
+        ensureChannel(context, preferences.themeAccent)
 
         val now = LocalDateTime.now()
         val nowMillis = System.currentTimeMillis()

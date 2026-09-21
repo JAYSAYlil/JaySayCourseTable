@@ -57,12 +57,14 @@ private fun darkColorsFor(accent: ThemeAccent): ColorScheme {
     val palette = accentPalette(accent)
     val brand = accent == ThemeAccent.TEAL
     return darkColorScheme(
-    primary = palette.darkPrimary, onPrimary = Color(0xFF00332C),
+    primary = palette.darkPrimary, onPrimary = palette.darkOnPrimary,
     primaryContainer = palette.darkContainer, onPrimaryContainer = palette.darkOnContainer,
-    secondary = if (brand) DarkSecondary else palette.darkPrimary, onSecondary = Color(0xFF0A261B),
+    secondary = if (brand) DarkSecondary else palette.darkPrimary,
+    onSecondary = if (brand) Color(0xFF0A261B) else palette.darkOnPrimary,
     secondaryContainer = if (brand) DarkSecondaryLight else palette.darkContainer,
     onSecondaryContainer = if (brand) DarkSecondaryDark else palette.darkOnContainer,
-    tertiary = if (brand) DarkTertiary else palette.darkPrimary, onTertiary = Color(0xFF1A280D),
+    tertiary = if (brand) DarkTertiary else palette.darkPrimary,
+    onTertiary = if (brand) Color(0xFF1A280D) else palette.darkOnPrimary,
     tertiaryContainer = if (brand) DarkTertiaryLight else palette.darkContainer,
     onTertiaryContainer = if (brand) DarkTertiaryDark else palette.darkOnContainer,
     surface = DarkSurface, onSurface = DarkOnSurface,

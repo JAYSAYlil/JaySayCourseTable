@@ -18,8 +18,6 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.diagnostics.ServiceStatusStore
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
-import com.jaysay.coursetable.data.preferences.PreferencesManager
-import com.jaysay.coursetable.data.preferences.ThemeAccent
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.CoroutineScope
@@ -88,9 +86,7 @@ open class CourseWidgetProvider : AppWidgetProvider() {
         if (appWidgetIds.isEmpty()) return
         val active = WidgetScheduleLoader.loadActive(context)
         // 小组件跟随应用主题色：这里取偏好并换算成具体色值，下面统一下发给两个变体。
-        val accentColor = runCatching { PreferencesManager(context).load().themeAccent }
-            .getOrDefault(ThemeAccent.TEAL)
-            .let { accent -> WidgetAccent.textColor(accent, WidgetAccent.isNight(context)) }
+        val accentColor = WidgetAccent.textColorOf(context)
         val today = LocalDate.now()
         val tomorrow = today.plusDays(1)
         val nowMinute = Calendar.getInstance().let {

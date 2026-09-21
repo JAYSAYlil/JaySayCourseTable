@@ -31,8 +31,8 @@ private class CourseWidgetRemoteViewsFactory(
         WidgetWidthMode.valueOf(intent.getStringExtra(CourseWidgetProvider.EXTRA_WIDTH_MODE).orEmpty())
     }.getOrDefault(WidgetWidthMode.COMPACT)
     private val variant = WidgetVariant.fromTag(intent.getStringExtra(CourseWidgetProvider.EXTRA_VARIANT))
-    /** 0 表示 Provider 没传（服务被系统单独拉起）：条目沿用资源里的默认强调色。 */
-    private val accentColor = intent.getIntExtra(CourseWidgetProvider.EXTRA_ACCENT, 0).takeIf { it != 0 }
+    /** 0 表示 Provider 没传（服务被系统单独拉起）：下面在同一轮 IO 里按偏好补齐，不沿用布局默认色。 */
+    private var accentColor = intent.getIntExtra(CourseWidgetProvider.EXTRA_ACCENT, 0)
     private var date: LocalDate = LocalDate.now().plusDays(dayOffset.toLong())
     private var rows: List<WidgetCourseRow> = emptyList()
 
@@ -41,6 +41,7 @@ private class CourseWidgetRemoteViewsFactory(
     override fun onDataSetChanged() {
         date = LocalDate.now().plusDays(dayOffset.toLong())
         rows = runBlocking(Dispatchers.IO) {
+            if (accentColor == 0) accentColor = WidgetAccent.textColorOf(context)
             WidgetScheduleLoader.loadActive(context)?.let { active ->
                 val afterMinute = if (dayOffset == 0) {
                     LocalTime.now().let { it.hour * 60 + it.minute }
@@ -63,7 +64,10 @@ private class CourseWidgetRemoteViewsFactory(
 
     override fun getViewAt(position: Int): RemoteViews? {
         val row = rows.getOrNull(position) ?: return null
-        return WidgetCourseItemViews.create(context, row, widthMode, variant.itemLayoutRes, accentColor)
+        // 0 只可能是强调色尚未换算出来，交给条目沿用布局默认色，避免把文字涂成透明。
+        return WidgetCourseItemViews.create(
+            context, row, widthMode, variant.itemLayoutRes, accentColor.takeIf { it != 0 }
+        )
     }
 
     override fun getLoadingView(): RemoteViews? = null
