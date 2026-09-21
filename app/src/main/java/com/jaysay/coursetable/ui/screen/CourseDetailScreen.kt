@@ -62,8 +62,10 @@ fun CourseDetailScreen(
     val headerTextColors = remember(courseColor, dark) { courseCardTextColors(courseColor, dark) }
     val density = LocalDensity.current
     val currentOnClose by rememberUpdatedState(onClose)
-    val dismissDistance = with(density) { 120.dp.toPx() }
-    val dismissVelocity = with(density) { 800.dp.toPx() }
+    // 阈值用 dp 表达（跨密度一致），数值对齐 v3.4.27 的手感：240px / 800px·s⁻¹ 在 2.75x 密度下
+    // 约等于 88dp / 300dp·s⁻¹。之前写成 120dp / 800dp·s⁻¹，等于行程 1.4 倍、甩动门槛 3 倍，明显更难关闭。
+    val dismissDistance = with(density) { 88.dp.toPx() }
+    val dismissVelocity = with(density) { 300.dp.toPx() }
     var dismissRaw by remember { mutableFloatStateOf(0f) }
     var dismissDragging by remember { mutableStateOf(false) }
     val returnOffset = remember { Animatable(0f) }

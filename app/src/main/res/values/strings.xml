@@ -412,6 +412,18 @@
     <string name="month_day_course_count">"共 %1$d 节"</string>
     <string name="month_prev_month">"上一个月"</string>
     <string name="month_next_month">"下一个月"</string>
+    <string-array name="picker_weekday_labels">
+        <item>"一"</item>
+        <item>"二"</item>
+        <item>"三"</item>
+        <item>"四"</item>
+        <item>"五"</item>
+        <item>"六"</item>
+        <item>"日"</item>
+    </string-array>
+    <string name="picker_hour_suffix">"时"</string>
+    <string name="picker_minute_suffix">"分"</string>
+    <string name="picker_wheel_content_description">"%1$s选择"</string>
     <string name="month_no_courses">"本月该时间段无课程"</string>
     <string name="month_more_courses">"+%1$d 项"</string>
     <string name="month_course_summary">"%1$d 门课"</string>

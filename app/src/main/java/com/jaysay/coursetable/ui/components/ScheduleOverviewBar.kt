@@ -9,6 +9,7 @@ import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.jaysay.coursetable.ui.theme.pressScale
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -127,9 +129,14 @@ fun ScheduleOverviewBar(
                 Icon(Icons.Rounded.Close, stringResource(R.string.overview_close_search))
             }
         } else {
+            val menuInteraction = remember { MutableInteractionSource() }
             Column(
                 modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                    .clickable(enabled = writesEnabled, onClick = onTableMenuClick).padding(vertical = 3.dp)
+                    // 全局关闭涟漪后，这里必须自己给按压反馈，否则点课表名毫无响应。
+                    .pressScale(menuInteraction)
+                    .clickable(interactionSource = menuInteraction, indication = null,
+                        enabled = writesEnabled, onClick = onTableMenuClick)
+                    .padding(vertical = 3.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

@@ -126,10 +126,15 @@ fun AppCheckbox(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifie
 fun AppRadioButton(selected: Boolean, onClick: (() -> Unit)?, modifier: Modifier = Modifier,
     enabled: Boolean = true, colors: RadioButtonColors = RadioButtonDefaults.colors()) {
     val source = remember { MutableInteractionSource() }
+    val accent = if (enabled) colors.selectedColor else colors.disabledSelectedColor
+    val ring = if (enabled) colors.unselectedColor else colors.disabledUnselectedColor
     Box(modifier.sizeIn(minWidth = 44.dp, minHeight = 44.dp)
         .then(if (onClick == null) Modifier else Modifier.selectable(selected, source, null, enabled,
             Role.RadioButton, onClick)), Alignment.Center) {
-        if (selected) Icon(Icons.Rounded.Check, null, tint = if (enabled) colors.selectedColor else colors.disabledSelectedColor)
+        // 未选中同样画出外环：否则整组选项里只有当前项可见，其余是空白。
+        Box(Modifier.size(22.dp).border(1.5.dp, if (selected) accent else ring, CircleShape), Alignment.Center) {
+            if (selected) Box(Modifier.size(11.dp).background(accent, CircleShape))
+        }
     }
 }
 

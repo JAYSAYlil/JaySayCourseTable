@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
@@ -52,7 +53,6 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 
-private val WeekdayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
 private val HourValues = (0..23).toList()
 private val MinuteValues = (0..59).toList()
 
@@ -83,7 +83,7 @@ fun AppDatePickerSheet(
                 Icon(Icons.Rounded.ChevronLeft, contentDescription = stringResource(R.string.month_prev_month))
             }
             Text(
-                text = "${visibleMonth.year} 年 ${visibleMonth.monthValue} 月",
+                text = stringResource(R.string.month_header_title, visibleMonth.year, visibleMonth.monthValue),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -99,8 +99,9 @@ fun AppDatePickerSheet(
                 Icon(Icons.Rounded.ChevronRight, contentDescription = stringResource(R.string.month_next_month))
             }
         }
+        val weekdayLabels = stringArrayResource(R.array.picker_weekday_labels)
         Row(Modifier.fillMaxWidth()) {
-            WeekdayLabels.forEach { label ->
+            weekdayLabels.forEach { label ->
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
@@ -255,7 +256,7 @@ fun AppTimePickerSheet(
             NumberWheel(
                 values = HourValues,
                 initialValue = hour,
-                suffix = "时",
+                suffix = stringResource(R.string.picker_hour_suffix),
                 onValueChange = { hour = it },
                 modifier = Modifier.weight(1f).testTag("time-picker-hour-wheel")
             )
@@ -263,7 +264,7 @@ fun AppTimePickerSheet(
             NumberWheel(
                 values = MinuteValues,
                 initialValue = minute,
-                suffix = "分",
+                suffix = stringResource(R.string.picker_minute_suffix),
                 onValueChange = { minute = it },
                 modifier = Modifier.weight(1f).testTag("time-picker-minute-wheel")
             )
@@ -283,6 +284,8 @@ private fun NumberWheel(
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 语义描述在 @Composable 上下文里取好，semantics {} 里不能调用 stringResource。
+    val wheelContentDescription = stringResource(R.string.picker_wheel_content_description, suffix)
     val initialIndex = values.indexOf(initialValue).coerceAtLeast(0)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
@@ -316,7 +319,7 @@ private fun NumberWheel(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics {
-                    contentDescription = "${suffix}选择"
+                    contentDescription = wheelContentDescription
                     stateDescription = "%02d  %s".format(selectedValue, suffix)
                 }
         ) {
