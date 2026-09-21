@@ -45,9 +45,10 @@ private fun lightColorsFor(accent: ThemeAccent): ColorScheme {
     surfaceContainerHigh = Surface,
     surfaceContainerHighest = Surface,
     surfaceTint = Color.Transparent,
-    surfaceVariant = Color(0xFFECF0EF), onSurfaceVariant = OnSurfaceVariant,
+    // 中性底色不带色相：换主题色后灰底/描边不会残留一丝绿意。
+    surfaceVariant = Color(0xFFEDEFF0), onSurfaceVariant = OnSurfaceVariant,
     background = Background, onBackground = OnSurface,
-    outline = Color(0xFF7C8280), outlineVariant = Color(0xFFD8DEDC),
+    outline = Color(0xFF7E8180), outlineVariant = Color(0xFFDBDDDC),
     error = Error
     )
 }

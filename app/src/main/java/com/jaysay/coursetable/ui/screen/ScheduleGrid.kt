@@ -184,7 +184,7 @@ internal fun TableGrid(
     // 网格不再叠加半透明底色层：页面底色由屏幕层统一绘制，
     // 自定义背景壁纸直接透出，课程卡片自身的不透明度保证可读性。
     val gridBackground = Color.Transparent
-    val sectionBackground = if (dark) Color(0xFF17191B) else Color(0xFFEFF2F1)
+    val sectionBackground = if (dark) Color(0xFF17191B) else Color(0xFFF0F1F2)
     // 分组标签（上午/下午/晚上）必须跟主题色走：此前直接取品牌青绿常量，换色后会留在绿色。
     val sectionText = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
     val isTodayVisible = currentWeek == todayWeek

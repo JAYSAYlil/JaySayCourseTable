@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="widget_background">#FFFFFF</color>
-    <color name="widget_border">#E3E7E6</color>
+    <color name="widget_border">#E5E7E6</color>
     <color name="widget_accent">#0F8F82</color>
     <color name="widget_text_primary">#191C1B</color>
     <color name="widget_text_secondary">#636967</color>
     <!-- 徽标底色保持中性：强调色只出现在文字上，换主题色时不会留下一块绿色底。 -->
     <color name="widget_status_background">#EDF1F0</color>
     <color name="widget_status_text">#0B6E64</color>
-    <color name="widget_item_background">#F1F4F3</color>
-    <color name="widget_divider">#E9EDEC</color>
+    <color name="widget_item_background">#F2F4F3</color>
+    <color name="widget_divider">#EBEDEC</color>
 
     <!-- 毛玻璃变体：RemoteViews 不能实时模糊，用半透明叠层模拟玻璃；
          文字色按最差壁纸（纯黑/纯白）留足对比度，深色字配浅玻璃。 -->
