@@ -164,6 +164,7 @@
     <string name="edit_error_weeks_invalid">"请至少选择一个上课周次"</string>
     <string name="edit_error_weeks_range">"周次必须在 1-%1$s 之间"</string>
     <string name="edit_weeks_editing_week">"课程当前所在：第 %1$d 周"</string>
+    <string name="edit_weeks_clear">"清除"</string>
     <string name="edit_label_advance_minutes">"提前时间"</string>
     <string name="edit_label_assessment">"考核方式"</string>
     <string name="edit_label_class_number">"课序号"</string>

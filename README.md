@@ -1,4 +1,4 @@
-# JaySay 课程表 v3.4.30
+# JaySay 课程表 v3.4.31
 
 一款本地优先的 Android 课程表应用，支持 Excel/文本导入、多课表管理、日程列表、课程提醒、桌面小组件、日历导出、加密备份和历史恢复。
 
@@ -63,7 +63,7 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 - Android 系统云备份和设备迁移均排除应用数据；换机请使用应用内“导出完整备份”。
 - 请勿在 Issue、日志或提交中上传真实课表、完整备份、签名密钥或本机路径。
 
-当前版本：`3.4.30`（versionCode 150）；本地功能与界面交付，历史公开版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
+当前版本：`3.4.31`（versionCode 151）；本地功能与界面交付，历史公开版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
 
 ## 自动化测试策略
 

@@ -23,6 +23,21 @@ val Surface = Color(0xFFFFFFFF)
 val OnSurface = Color(0xFF191C1B)
 val OnSurfaceVariant = Color(0xFF636967)
 
+/**
+ * 中性框（搜索框、节次分组行、选项块）的无色相基底。
+ * 旧值 `#EDEFF0`／`#232628` 自带一点冷绿偏移，换主题色后仍被读成"泛绿"；
+ * 基底去掉色相，色相只由下面染进去的容器色提供。
+ */
+val NeutralField = Color(0xFFF2F2F2)
+val DarkNeutralField = Color(0xFF262626)
+
+/**
+ * 中性框染向主题色容器色的强度。上限由 `AccentPaletteTest` 的对比度用例锁住：
+ * 框上的标签与占位文字（onSurfaceVariant）在八套主题色下都要 ≥ 4.5:1。
+ */
+const val FIELD_TINT_LIGHT = 0.45f
+const val FIELD_TINT_DARK = 0.35f
+
 val Background = Color(0xFFF2F2F7)
 val Error = Color(0xFFDC2626)
 

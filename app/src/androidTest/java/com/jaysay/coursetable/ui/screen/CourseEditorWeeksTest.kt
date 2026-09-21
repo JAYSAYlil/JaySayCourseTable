@@ -153,8 +153,24 @@ class CourseEditorWeeksTest {
         rule.runOnIdle { assertEquals(listOf(3), saved!!.first.weeks) }
     }
 
-    @Test fun oddEvenShortcutsSaveTheirExactWeeks() {
+    /** 一键清空全部周次：省去逐个取消，且清空是未完成的编辑，不得悄悄回退成整学期。 */
+    @Test fun clearButtonEmptiesEveryWeekInOneTap() {
         open()
+        rule.onNodeWithText("学分").performScrollTo()
+        rule.onNodeWithTag("course-weeks-clear").performScrollTo().assertIsNotSelected()
+        rule.onNodeWithTag("course-weeks-clear").performClick()
+        for (week in 1..4) rule.onNodeWithTag("course-week-$week").assertIsNotSelected()
+        rule.onNodeWithTag("course-weeks-clear").assertIsSelected()
+        rule.onNodeWithTag("course-save-button").performClick()
+        rule.onNodeWithText("请至少选择一个上课周次").assertIsDisplayed()
+        rule.runOnIdle { assertNull(saved) }
+        rule.onNodeWithText("全学期").performScrollTo().performClick().assertIsSelected()
+        rule.onNodeWithTag("course-weeks-clear").assertIsNotSelected()
+        rule.onNodeWithTag("course-save-button").performClick()
+        rule.runOnIdle { assertEquals(listOf(1, 2, 3, 4), saved!!.first.weeks) }
+    }
+
+    @Test fun oddEvenShortcutsSaveTheirExactWeeks() {        open()
         rule.onNodeWithText("学分").performScrollTo()
         rule.onNodeWithText("单周").performScrollTo().performClick()
         rule.onNodeWithTag("course-save-button").performClick()

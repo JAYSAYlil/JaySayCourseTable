@@ -453,6 +453,8 @@ fun CourseEditDialog(
                             FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks.size == totalWeeks, onClick = { selectWeeks((1..totalWeeks).toSet()) }, label = { SelectorChipLabel("全学期") })
                             FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks == (1..totalWeeks step 2).toSet(), onClick = { selectWeeks((1..totalWeeks step 2).toSet()) }, label = { SelectorChipLabel("单周") })
                             FilterChip(modifier = Modifier.width(72.dp).height(40.dp), selected = selectedWeeks == (2..totalWeeks step 2).toSet(), onClick = { selectWeeks((2..totalWeeks step 2).toSet()) }, label = { SelectorChipLabel("双周") })
+                            // 清空全部周次，省去逐个取消；空选在保存时按未完成校验拦下，不会回退成整学期。
+                            FilterChip(modifier = Modifier.width(72.dp).height(40.dp).testTag("course-weeks-clear"), selected = selectedWeeks.isEmpty(), onClick = { selectWeeks(emptySet()) }, label = { SelectorChipLabel(stringResource(R.string.edit_weeks_clear)) })
                         }
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             (1..totalWeeks).forEach { week ->

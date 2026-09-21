@@ -1,6 +1,7 @@
 package com.jaysay.coursetable.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import com.jaysay.coursetable.data.preferences.ThemeAccent
 import org.junit.Assert.assertEquals
@@ -99,5 +100,39 @@ class AccentPaletteTest {
         assertEquals("深色端通知色要能区分每个主题色", ThemeAccent.entries.size, night.distinct().size)
         assertEquals(0xFF0F8F82.toInt(), notificationAccent(ThemeAccent.TEAL, dark = false))
         assertEquals(0xFF3ADBC4.toInt(), notificationAccent(ThemeAccent.TEAL, dark = true))
+    }
+
+    /**
+     * 中性框（搜索框、节次分组行、选项块）染上主题色后，框上的标签与占位文字
+     * 仍要达标；浅染强度的上限就由此用例锁住，调高 FIELD_TINT_* 会在这里失败。
+     */
+    @Test
+    fun tintedNeutralFieldKeepsLabelReadableForEveryAccent() {
+        ThemeAccent.entries.forEach { accent ->
+            val palette = accentPalette(accent)
+            val lightField = lerp(NeutralField, palette.lightContainer, FIELD_TINT_LIGHT)
+            val darkField = lerp(DarkNeutralField, palette.darkContainer, FIELD_TINT_DARK)
+            assertTrue(
+                "$accent 浅色框文字对比度不足：" + contrastRatio(lightField, OnSurfaceVariant),
+                contrastRatio(lightField, OnSurfaceVariant) >= 4.5f
+            )
+            assertTrue(
+                "$accent 深色框文字对比度不足：" + contrastRatio(darkField, DarkOnSurfaceVariant),
+                contrastRatio(darkField, DarkOnSurfaceVariant) >= 4.5f
+            )
+        }
+    }
+
+    /** 染色必须看得出来：八套主题色下的中性框不能还是同一个灰。 */
+    @Test
+    fun tintedNeutralFieldActuallyDiffersBetweenAccents() {
+        val lightFields = ThemeAccent.entries.map { lerp(NeutralField, accentPalette(it).lightContainer, FIELD_TINT_LIGHT) }
+        val darkFields = ThemeAccent.entries.map { lerp(DarkNeutralField, accentPalette(it).darkContainer, FIELD_TINT_DARK) }
+        assertEquals("浅色中性框要能区分每个主题色", ThemeAccent.entries.size, lightFields.distinct().size)
+        assertEquals("深色中性框要能区分每个主题色", ThemeAccent.entries.size, darkFields.distinct().size)
+        // 染色后仍要比纯白内容面暗，否则框会从页面上消失。
+        lightFields.forEach { field ->
+            assertTrue("染色后的中性框必须仍比白色内容面暗", contrastRatio(Color.White, field) >= 1.08f)
+        }
     }
 }

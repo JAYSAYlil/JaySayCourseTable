@@ -152,6 +152,25 @@ class RevisionVisualTest {
         capture("settings-dark-accent-pink")
     }
 
+    /**
+     * 周次快捷行的布局契约：清除芯片必须与全学期／单周／双周同一行、等高。
+     * 这里不做点击断言——快捷行与数字周次行都是横向滚动的，滚动后合成点击
+     * 会落在屏幕外（bounds 出现负坐标）；点击行为由
+     * [CourseEditorWeeksTest.clearButtonEmptiesEveryWeekInOneTap] 覆盖。
+     */
+    @Test fun editorWeeksQuickRowKeepsClearChipInLine() {
+        rule.setContent { JaySayTheme(themeMode = ThemeMode.LIGHT) {
+            CourseEditDialog(courses.first(), totalWeeks = 20, onSave = { _, _ -> }, onDelete = {}, onDismiss = {})
+        } }
+        rule.onNodeWithTag("course-weeks-clear").performScrollTo()
+        val clearBounds = rule.onNodeWithTag("course-weeks-clear").getUnclippedBoundsInRoot()
+        listOf("全学期", "单周", "双周").forEach { label ->
+            val bounds = rule.onNodeWithText(label).getUnclippedBoundsInRoot()
+            assertTrue("$label 必须与清除芯片同一行", bounds.top == clearBounds.top)
+            assertTrue("$label 必须与清除芯片等高", bounds.bottom - bounds.top == clearBounds.bottom - clearBounds.top)
+        }
+    }
+
     @Test fun calendarLight() {
         rule.setContent { JaySayTheme(themeMode = ThemeMode.LIGHT) {
             CalendarExceptionScreen(com.jaysay.coursetable.data.repository.TableData("示例学期", courses), {}, {})
@@ -189,7 +208,7 @@ class RevisionVisualTest {
     private fun capture(name: String, tag: String? = null): Bitmap {
         rule.waitForIdle()
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val directory = File(context.getExternalFilesDir(null), "visual-3.4.30").apply { mkdirs() }
+        val directory = File(context.getExternalFilesDir(null), "visual-3.4.31").apply { mkdirs() }
         val bitmap = (if (tag == null) rule.onRoot() else rule.onNodeWithTag(tag)).captureToImage().asAndroidBitmap()
         File(directory, "$name.png").outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)

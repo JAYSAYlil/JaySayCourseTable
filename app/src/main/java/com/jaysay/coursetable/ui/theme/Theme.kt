@@ -15,6 +15,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -45,8 +46,9 @@ private fun lightColorsFor(accent: ThemeAccent): ColorScheme {
     surfaceContainerHigh = Surface,
     surfaceContainerHighest = Surface,
     surfaceTint = Color.Transparent,
-    // 中性底色不带色相：换主题色后灰底/描边不会残留一丝绿意。
-    surfaceVariant = Color(0xFFEDEFF0), onSurfaceVariant = OnSurfaceVariant,
+    // 中性框（搜索框、节次分组行、各类选项块）染向所选主题色的容器色：选品红就泛品红。
+    // 强度受框上文字对比度约束，由 AccentPaletteTest 守住；描边仍不带色相，避免整页到处染色。
+    surfaceVariant = lerp(NeutralField, palette.lightContainer, FIELD_TINT_LIGHT), onSurfaceVariant = OnSurfaceVariant,
     background = Background, onBackground = OnSurface,
     outline = Color(0xFF7E8180), outlineVariant = Color(0xFFDBDDDC),
     error = Error
@@ -76,7 +78,7 @@ private fun darkColorsFor(accent: ThemeAccent): ColorScheme {
     surfaceContainer = DarkSurface,
     surfaceContainerHigh = DarkSurfaceVariant,
     surfaceContainerHighest = DarkSurfaceVariant,
-    surfaceVariant = DarkSurfaceVariant, onSurfaceVariant = DarkOnSurfaceVariant,
+    surfaceVariant = lerp(DarkNeutralField, palette.darkContainer, FIELD_TINT_DARK), onSurfaceVariant = DarkOnSurfaceVariant,
     background = DarkBackground, onBackground = DarkOnSurface,
     outline = Color(0xFF8A8F8D),
     outlineVariant = DarkOutlineVariant,
