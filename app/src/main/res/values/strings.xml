@@ -331,9 +331,7 @@
     <string name="settings_week_card_compact">"周视图精简课程卡片"</string>
     <string name="settings_week_card_compact_subtitle">"七列/五列视图优先显示课程名与教室，教师信息进入课程详情查看"</string>
     <string name="settings_hide_time_slots">"不显示上课时间段"</string>
-    <string name="settings_hide_time_slots_subtitle">"左侧栏只显示节数，栏位更窄，课程区域更宽"</string>
     <string name="settings_theme_accent">"主题色"</string>
-    <string name="settings_theme_accent_subtitle">"更换整个应用的强调色，浅色与深色模式都会跟着变"</string>
     <string name="theme_accent_teal">"青绿"</string>
     <string name="theme_accent_blue">"海蓝"</string>
     <string name="theme_accent_indigo">"靛蓝"</string>

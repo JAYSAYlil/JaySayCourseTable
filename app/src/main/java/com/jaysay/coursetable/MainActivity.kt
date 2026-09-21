@@ -341,7 +341,9 @@ class MainActivity : ComponentActivity() {
                     state.tables,
                     state.preferences.activeTableIndex,
                     state.preferences.reminderEnabled,
-                    state.preferences.reminderMinutes
+                    state.preferences.reminderMinutes,
+                    // 主题色变了也要刷新小组件，否则桌面还停在旧颜色上。
+                    state.preferences.themeAccent
                 ) {
                     if (!state.isLoading) {
                         withContext(Dispatchers.IO) {

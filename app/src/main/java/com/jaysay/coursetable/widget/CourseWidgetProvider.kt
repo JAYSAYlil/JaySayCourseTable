@@ -18,6 +18,8 @@ import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.diagnostics.ServiceStatusStore
 import com.jaysay.coursetable.data.model.TodayAgenda
 import com.jaysay.coursetable.data.model.TodayAgendaCalculator
+import com.jaysay.coursetable.data.preferences.PreferencesManager
+import com.jaysay.coursetable.data.preferences.ThemeAccent
 import com.jaysay.coursetable.data.model.TodayAgendaPhase
 import com.jaysay.coursetable.util.TimeUtils
 import kotlinx.coroutines.CoroutineScope
@@ -85,6 +87,10 @@ open class CourseWidgetProvider : AppWidgetProvider() {
     ) {
         if (appWidgetIds.isEmpty()) return
         val active = WidgetScheduleLoader.loadActive(context)
+        // 小组件跟随应用主题色：这里取偏好并换算成具体色值，下面统一下发给两个变体。
+        val accentColor = runCatching { PreferencesManager(context).load().themeAccent }
+            .getOrDefault(ThemeAccent.TEAL)
+            .let { accent -> WidgetAccent.textColor(accent, WidgetAccent.isNight(context)) }
         val today = LocalDate.now()
         val tomorrow = today.plusDays(1)
         val nowMinute = Calendar.getInstance().let {
@@ -113,6 +119,7 @@ open class CourseWidgetProvider : AppWidgetProvider() {
                 options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, WidgetWidthMode.COMPACT.referenceWidthDp)
             )
             val views = RemoteViews(context.packageName, variant.layoutRes)
+            WidgetAccent.apply(views, accentColor)
             // 课表名与日期同行显示（“8月27日 · 课表名”），不额外占用列表高度；
             // 无课表或名称为空时只显示日期。
             val dateText = "${today.monthValue}月${today.dayOfMonth}日"
@@ -160,7 +167,7 @@ open class CourseWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_column_divider, if (showTomorrow) View.VISIBLE else View.GONE)
             bindCourseList(
                 context, views, widgetId, R.id.widget_today_list, R.id.widget_today_empty,
-                dayOffset = 0, widthMode = widthMode, schedule = todaySchedule
+                dayOffset = 0, widthMode = widthMode, schedule = todaySchedule, accentColor = accentColor
             )
             if (showTomorrow) {
                 bindCourseList(
@@ -171,7 +178,8 @@ open class CourseWidgetProvider : AppWidgetProvider() {
                     R.id.widget_tomorrow_empty,
                     1,
                     widthMode,
-                    tomorrowSchedule
+                    tomorrowSchedule,
+                    accentColor
                 )
             }
 
@@ -204,12 +212,13 @@ open class CourseWidgetProvider : AppWidgetProvider() {
         emptyId: Int,
         dayOffset: Int,
         widthMode: WidgetWidthMode,
-        schedule: WidgetDaySchedule?
+        schedule: WidgetDaySchedule?,
+        accentColor: Int
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            bindModernCollection(context, views, listId, schedule, widthMode)
+            bindModernCollection(context, views, listId, schedule, widthMode, accentColor)
         } else {
-            bindLegacyCollection(context, views, widgetId, listId, dayOffset, widthMode)
+            bindLegacyCollection(context, views, widgetId, listId, dayOffset, widthMode, accentColor)
         }
         views.setEmptyView(listId, emptyId)
         val mutableFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
@@ -229,12 +238,15 @@ open class CourseWidgetProvider : AppWidgetProvider() {
         widgetId: Int,
         listId: Int,
         dayOffset: Int,
-        widthMode: WidgetWidthMode
+        widthMode: WidgetWidthMode,
+        accentColor: Int
     ) {
         val adapterIntent = Intent(context, CourseWidgetRemoteViewsService::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra(EXTRA_DAY_OFFSET, dayOffset)
             putExtra(EXTRA_WIDTH_MODE, widthMode.name)
+            // 主题色也随 Intent 下发，Android 11 及以下的列表条目才能同色。
+            putExtra(EXTRA_ACCENT, accentColor)
             // 变体随 Intent 明确传给服务，服务据此选条目布局，不猜全局状态。
             putExtra(EXTRA_VARIANT, variant.tag)
             data = "jaysay://widget/$widgetId/day/$dayOffset/${widthMode.name}".toUri()
@@ -248,7 +260,8 @@ open class CourseWidgetProvider : AppWidgetProvider() {
         views: RemoteViews,
         listId: Int,
         schedule: WidgetDaySchedule?,
-        widthMode: WidgetWidthMode
+        widthMode: WidgetWidthMode,
+        accentColor: Int
     ) {
         val date = schedule?.date ?: LocalDate.now()
         val collection = RemoteViews.RemoteCollectionItems.Builder()
@@ -258,7 +271,7 @@ open class CourseWidgetProvider : AppWidgetProvider() {
                 schedule?.courses.orEmpty().forEach { row ->
                     addItem(
                         row.stableId(date),
-                        WidgetCourseItemViews.create(context, row, widthMode, variant.itemLayoutRes)
+                        WidgetCourseItemViews.create(context, row, widthMode, variant.itemLayoutRes, accentColor)
                     )
                 }
             }
@@ -282,6 +295,7 @@ open class CourseWidgetProvider : AppWidgetProvider() {
 
         /** 材质变体标记（见 [WidgetVariant.tag]），传给集合服务选条目布局。 */
         const val EXTRA_VARIANT = "widget_variant"
+        const val EXTRA_ACCENT = "widget_accent_color"
         private const val REFRESH_REQUEST_CODE = 28_001
         private val REFRESH_ACTIONS = setOf(
             ACTION_UPDATE,

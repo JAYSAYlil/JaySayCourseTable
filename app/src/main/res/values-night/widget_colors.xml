@@ -5,7 +5,7 @@
     <color name="widget_accent">#3ADBC4</color>
     <color name="widget_text_primary">#E4E6E5</color>
     <color name="widget_text_secondary">#9CA1A0</color>
-    <color name="widget_status_background">#12433D</color>
+    <color name="widget_status_background">#2A2E30</color>
     <color name="widget_status_text">#6FEADD</color>
     <color name="widget_item_background">#232628</color>
     <color name="widget_divider">#2C2F32</color>
@@ -18,7 +18,7 @@
     <color name="widget_frosted_item_background">#4D000000</color>
     <color name="widget_frosted_item_sheen">#14FFFFFF</color>
     <color name="widget_frosted_item_border">#33FFFFFF</color>
-    <color name="widget_frosted_status_background">#CC12433D</color>
+    <color name="widget_frosted_status_background">#CC2A2E30</color>
     <color name="widget_frosted_status_border">#4DFFFFFF</color>
     <color name="widget_frosted_status_text">#8CF0E4</color>
     <color name="widget_frosted_accent">#4FE3CD</color>

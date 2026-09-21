@@ -290,10 +290,10 @@ fun CourseTableScreen(
     }
     // 不显示时间段模式只留“节数 + 节”，栏位可以明显收窄（省下的宽度全部给课程列）。
     val timeWidth = if (hideTimeSlots) when (viewMode) {
-        ScheduleViewMode.WEEK -> 32.dp
-        ScheduleViewMode.WORK_WEEK -> 34.dp
-        ScheduleViewMode.DAY -> 40.dp
-        ScheduleViewMode.MONTH -> 32.dp
+        ScheduleViewMode.WEEK -> 26.dp
+        ScheduleViewMode.WORK_WEEK -> 26.dp
+        ScheduleViewMode.DAY -> 30.dp
+        ScheduleViewMode.MONTH -> 26.dp
     } else when (viewMode) {
         ScheduleViewMode.WEEK -> 46.dp
         ScheduleViewMode.WORK_WEEK -> 50.dp

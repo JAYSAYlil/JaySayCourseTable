@@ -256,12 +256,9 @@ fun SettingsScreen(
                     )
                 ) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                        Text(stringResource(R.string.settings_theme_accent), fontSize = 15.sp)
-                        Text(
-                            stringResource(R.string.settings_theme_accent_subtitle),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.settings_theme_accent), fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        }
                         Spacer(Modifier.height(10.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             ThemeAccent.entries.forEach { accent ->
@@ -409,13 +406,12 @@ fun SettingsScreen(
                 },
                 SettingsItem(
                     keywords = listOf(
-                        stringResource(R.string.settings_hide_time_slots),
-                        stringResource(R.string.settings_hide_time_slots_subtitle)
+                        stringResource(R.string.settings_hide_time_slots)
                     )
                 ) {
                     PreferenceSwitchRow(
                         title = stringResource(R.string.settings_hide_time_slots),
-                        subtitle = stringResource(R.string.settings_hide_time_slots_subtitle),
+                        subtitle = null,
                         checked = preferences.hideTimeSlots,
                         onCheckedChange = { save(preferences.copy(hideTimeSlots = it)) },
                         switchTestTag = "hide-time-slots-switch"

@@ -57,10 +57,8 @@ import com.jaysay.coursetable.ui.theme.AppShapes
 import com.jaysay.coursetable.ui.theme.CourseColors
 import com.jaysay.coursetable.ui.theme.DarkBackground
 import com.jaysay.coursetable.ui.theme.DarkCourseColors
-import com.jaysay.coursetable.ui.theme.DarkPrimaryDark
 import com.jaysay.coursetable.ui.theme.LocalEnhancedContrast
 import com.jaysay.coursetable.ui.theme.Motion
-import com.jaysay.coursetable.ui.theme.PrimaryDark
 import com.jaysay.coursetable.ui.theme.courseCardBorderColor
 import com.jaysay.coursetable.ui.theme.courseCardFillStops
 import com.jaysay.coursetable.ui.theme.courseCardTextColors
@@ -187,7 +185,8 @@ internal fun TableGrid(
     // 自定义背景壁纸直接透出，课程卡片自身的不透明度保证可读性。
     val gridBackground = Color.Transparent
     val sectionBackground = if (dark) Color(0xFF17191B) else Color(0xFFEFF2F1)
-    val sectionText = if (dark) DarkPrimaryDark.copy(alpha = 0.72f) else PrimaryDark.copy(alpha = 0.72f)
+    // 分组标签（上午/下午/晚上）必须跟主题色走：此前直接取品牌青绿常量，换色后会留在绿色。
+    val sectionText = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
     val isTodayVisible = currentWeek == todayWeek
     val totalHeight = remember(periodTimes, cellHeight) { cellHeight * periodTimes.size + 20.dp * sections.size }
     val byDay = remember(courses) {
@@ -221,47 +220,55 @@ internal fun TableGrid(
                             .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        // 时间栏保持轻量：用一条品牌色时间轴承接节次和时间，
-                        // 避免每个格子都套一张独立卡片，保证课表网格的连续性。
-                        Row(
-                            modifier = Modifier.fillMaxSize()
-                                .padding(horizontal = if (hideTimeSlots) 2.dp else 4.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(3.dp)
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.52f))
+                        if (hideTimeSlots) {
+                            // 不显示时间段模式：整列只留节数，去掉时间轴承、分隔线与“节”字样。
+                            // 元素越少栏位才能收得越窄，视觉上也比“节数 + 空荡的时间轴承”干净。
+                            Text(
+                                period.toString(),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                        } else {
+                            // 时间栏保持轻量：用一条品牌色时间轴承接节次和时间，
+                            // 避免每个格子都套一张独立卡片，保证课表网格的连续性。
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.Bottom,
-                                    horizontalArrangement = Arrangement.Center
+                                Box(
+                                    modifier = Modifier
+                                        .width(3.dp)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.52f))
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
                                 ) {
-                                    Text(
-                                        period.toString(),
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        lineHeight = 16.sp
-                                    )
-                                    Text(
-                                        stringResource(R.string.course_period_suffix),
-                                        modifier = Modifier.padding(start = 1.dp, bottom = 1.dp),
-                                        fontSize = 8.sp,
-                                        lineHeight = 9.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                // 不显示时间段模式：只留节数，省下的横向空间全部给课程列。
-                                if (!hideTimeSlots) {
+                                    Row(
+                                        verticalAlignment = Alignment.Bottom,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            period.toString(),
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            lineHeight = 16.sp
+                                        )
+                                        Text(
+                                            stringResource(R.string.course_period_suffix),
+                                            modifier = Modifier.padding(start = 1.dp, bottom = 1.dp),
+                                            fontSize = 8.sp,
+                                            lineHeight = 9.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         periodTime.start,

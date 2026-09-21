@@ -4,9 +4,13 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.RemoteViews
+import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.jaysay.coursetable.R
+import com.jaysay.coursetable.data.preferences.ThemeAccent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -35,6 +39,31 @@ class WidgetVariantLayoutTest {
     @Test
     fun frostedWidgetExposesExactlyTheSameControlsAsTheSolidOne() {
         assertEquals(idsOf(WidgetVariant.SOLID.layoutRes), idsOf(WidgetVariant.FROSTED.layoutRes))
+    }
+
+    @Test
+    fun accentColorReachesEveryAccentTextInTheWidget() {
+        val accent = WidgetAccent.textColor(ThemeAccent.PINK, night = false)
+        assertTrue(
+            "非默认主题色必须与默认青绿不同",
+            accent != WidgetAccent.textColor(ThemeAccent.TEAL, night = false)
+        )
+        val views = RemoteViews(context.packageName, WidgetVariant.SOLID.layoutRes)
+        WidgetAccent.apply(views, accent)
+        val inflated = views.apply(context, FrameLayout(context))
+        assertEquals(accent, inflated.findViewById<TextView>(R.id.widget_weekday).currentTextColor)
+        assertEquals(accent, inflated.findViewById<TextView>(R.id.widget_today_title).currentTextColor)
+        assertEquals(accent, inflated.findViewById<TextView>(R.id.widget_tomorrow_title).currentTextColor)
+    }
+
+    @Test
+    fun accentColorReachesTheCourseItemTimeLabel() {
+        val accent = WidgetAccent.textColor(ThemeAccent.VIOLET, night = true)
+        val row = WidgetCourseRow(0, "series", "示例课程", "示例教室", "示例教师", "08:00–09:35")
+        val item = WidgetCourseItemViews.create(
+            context, row, WidgetWidthMode.EXPANDED, WidgetVariant.FROSTED.itemLayoutRes, accent
+        ).apply(context, FrameLayout(context))
+        assertEquals(accent, item.findViewById<TextView>(R.id.widget_item_time).currentTextColor)
     }
 
     @Test

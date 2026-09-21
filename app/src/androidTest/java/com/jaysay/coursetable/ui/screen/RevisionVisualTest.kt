@@ -14,6 +14,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.jaysay.coursetable.data.model.Course
 import com.jaysay.coursetable.data.model.ScheduleViewMode
 import com.jaysay.coursetable.data.preferences.AppPreferences
+import com.jaysay.coursetable.data.preferences.ThemeAccent
 import com.jaysay.coursetable.data.preferences.ThemeMode
 import com.jaysay.coursetable.ui.theme.JaySayTheme
 import com.jaysay.coursetable.util.TimeUtils
@@ -94,6 +95,15 @@ class RevisionVisualTest {
         } }
         rule.onNodeWithTag("course-table-screen").assertIsDisplayed()
         capture("week-no-times")
+    }
+
+    @Test fun weekWithNonDefaultAccentKeepsEveryBrandDetailColored() {
+        rule.setContent { JaySayTheme(themeMode = ThemeMode.LIGHT, themeAccent = ThemeAccent.VIOLET) {
+            CourseTableScreen(courses, 1, {}, {}, {}, tableName = "示例学期课表", semesterStart = TimeUtils.currentWeekStartDate(),
+                totalWeeks = 20, viewMode = ScheduleViewMode.WEEK, onViewModeChange = {}, focusedDay = 1, onFocusedDayChange = {})
+        } }
+        rule.onNodeWithTag("course-table-screen").assertIsDisplayed()
+        capture("week-accent-violet")
     }
 
     @Test fun calendarLight() {
