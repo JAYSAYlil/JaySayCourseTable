@@ -9,9 +9,14 @@ import com.jaysay.coursetable.ui.components.AppTextButton as TextButton
 import com.jaysay.coursetable.ui.components.AppIconButton as IconButton
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -27,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -52,9 +58,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jaysay.coursetable.R
@@ -66,6 +75,10 @@ import com.jaysay.coursetable.data.repository.TableData
 import com.jaysay.coursetable.ui.components.AppPanel
 import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.theme.AppShapes
+import com.jaysay.coursetable.ui.theme.AppSizes
+import com.jaysay.coursetable.ui.theme.AppSpacing
+import com.jaysay.coursetable.ui.theme.Motion
+import com.jaysay.coursetable.ui.theme.pressScale
 import com.jaysay.coursetable.util.TimeUtils
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -229,32 +242,19 @@ fun CalendarExceptionScreen(
 @Composable
 private fun SuspendedWeeksPanel(table: TableData, onToggle: (Int) -> Unit) {
     AppPanel {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(AppSpacing.cardInner)) {
             SectionHeading(
                 icon = Icons.Rounded.EventBusy,
                 title = stringResource(R.string.calendar_suspended_title),
                 subtitle = stringResource(R.string.calendar_suspended_hint)
             )
-            Spacer(Modifier.height(12.dp))
-            FlowRow(
-                modifier = Modifier.fillMaxWidth().testTag("excluded-weeks-list"),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalArrangement = Arrangement.spacedBy(7.dp),
-                maxItemsInEachRow = 5
-            ) {
-                (1..table.totalWeeks).forEach { week ->
-                    FilterChip(
-                        selected = week in table.excludedWeeks,
-                        onClick = { onToggle(week) },
-                        label = { Text("$week") },
-                        leadingIcon = if (week in table.excludedWeeks) ({
-                            Icon(Icons.Rounded.EventBusy, null, modifier = Modifier.size(16.dp))
-                        }) else null,
-                        modifier = Modifier.testTag("excluded-week-$week")
-                    )
-                }
-            }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
+            ExcludedWeeksGrid(
+                totalWeeks = table.totalWeeks,
+                excludedWeeks = table.excludedWeeks,
+                onToggle = onToggle
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
             Text(
                 if (table.excludedWeeks.isEmpty()) stringResource(R.string.calendar_suspended_empty)
                 else stringResource(R.string.calendar_suspended_selected, TimeUtils.formatWeeks(table.excludedWeeks)),
@@ -264,6 +264,86 @@ private fun SuspendedWeeksPanel(table: TableData, onToggle: (Int) -> Unit) {
                 fontWeight = if (table.excludedWeeks.isEmpty()) FontWeight.Normal else FontWeight.Medium
             )
         }
+    }
+}
+
+/**
+ * 停课周网格：等宽单元格按行排布，列数只由可用宽度决定（同一宽度下恒定，不随重组或滚动跳动）。
+ * 每格宽度始终不小于 AppSizes.compactControl（44dp），因此点击区域不会被压缩；
+ * 行高用 heightIn 下限控制，字号放大时单元格只增高、只换行，绝不裁切周次数字。
+ */
+@Composable
+private fun ExcludedWeeksGrid(
+    totalWeeks: Int,
+    excludedWeeks: List<Int>,
+    onToggle: (Int) -> Unit
+) {
+    val gap = AppSpacing.sm
+    BoxWithConstraints(Modifier.fillMaxWidth().testTag("excluded-weeks-list")) {
+        // 面板内可用宽度 = 屏宽 - 列表左右边距 32dp - 面板内边距 32dp：
+        // 320dp 屏 → 5 列（每格 44.8dp）；≥392dp 屏 → 6 列；更宽的屏 → 最多 7 列。
+        val columns = ((maxWidth + gap) / (AppSizes.compactControl + gap)).toInt().coerceIn(1, 7)
+        val excluded = remember(excludedWeeks) { excludedWeeks.toSet() }
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            (1..totalWeeks).chunked(columns).forEach { rowWeeks ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(gap)
+                ) {
+                    rowWeeks.forEach { week ->
+                        ExcludedWeekCell(
+                            week = week,
+                            selected = week in excluded,
+                            onClick = { onToggle(week) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    // 末行不足整列时补等宽占位，保证每行的列轨道完全对齐，不会把最后几格拉宽。
+                    repeat(columns - rowWeeks.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+/** 单个周次单元格：整块可点，选中＝主色实心 + 加粗数字，未选中＝surfaceVariant + 描边。 */
+@Composable
+private fun ExcludedWeekCell(
+    week: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val source = remember { MutableInteractionSource() }
+    val fill by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        animationSpec = Motion.eased(Motion.DURATION_SHORT),
+        label = "excludedWeekFill"
+    )
+    Box(
+        modifier = modifier
+            .heightIn(min = AppSizes.compactControl)
+            .pressScale(source)
+            .clip(AppShapes.small)
+            .background(fill)
+            .border(
+                width = 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape = AppShapes.small
+            )
+            .testTag("excluded-week-$week")
+            .selectable(selected = selected, interactionSource = source, indication = null,
+                enabled = true, role = Role.Tab, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "$week",
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xs)
+        )
     }
 }
 

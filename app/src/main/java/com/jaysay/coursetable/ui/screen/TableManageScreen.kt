@@ -29,6 +29,10 @@ import com.jaysay.coursetable.ui.components.AppTopBar
 import com.jaysay.coursetable.ui.components.rememberSheetDismiss
 import com.jaysay.coursetable.ui.theme.*
 
+// 相邻课表面板之间的净间距（每项上下各留一半）。它同时是顶栏与第一张面板之间的目标间距。
+private val TablePanelGap = 10.dp
+private val TablePanelInset = TablePanelGap / 2
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TableManageScreen(
@@ -115,6 +119,9 @@ fun TableManageScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState())
         ) {
+            // 首张面板自带的 TablePanelInset 上内边距已经提供了一半间距，这里补上另一半，
+            // 于是「顶栏 → 第一张面板」的净间距 = 「相邻两张面板」的净间距 = TablePanelGap。
+            Spacer(Modifier.height(TablePanelInset))
             tables.forEachIndexed { idx, table ->
                 // key(idx) 让每行的编辑状态与课表身份绑定，删除/插入行时状态不会串位
                 key(idx) {
@@ -122,7 +129,7 @@ fun TableManageScreen(
                     var editName by remember { mutableStateOf(table.name) }
 
                     AppPanel(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = TablePanelInset),
                         selected = idx == activeIndex
                     ) {
                         val rowInteraction = remember { MutableInteractionSource() }

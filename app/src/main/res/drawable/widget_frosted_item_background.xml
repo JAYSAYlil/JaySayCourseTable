@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 毛玻璃条目表面：半透明白（夜间为半透明黑）叠加在毛玻璃底板上，
+     圆角与实心变体一致（12dp），1dp 半透明描边勾勒玻璃边缘。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_frosted_item_background" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:endColor="#00FFFFFF"
+                android:startColor="@color/widget_frosted_item_sheen" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke
+                android:width="1dp"
+                android:color="@color/widget_frosted_item_border" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 毛玻璃变体：与 widget_course.xml 结构/尺寸/约束/id 完全一致，只把实心表面换成半透明分层表面。 -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_frosted_background"
+    android:paddingStart="12dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="10dp">
+
+    <RelativeLayout
+        android:id="@+id/widget_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/widget_weekday"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:background="@drawable/widget_frosted_status_background"
+            android:paddingStart="8dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="3dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_frosted_status_text"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            tools:text="星期四" />
+
+        <TextView
+            android:id="@+id/widget_date"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:layout_toStartOf="@id/widget_weekday"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:textColor="@color/widget_frosted_text_primary"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            tools:text="8月20日 · 课表名" />
+    </RelativeLayout>
+
+    <FrameLayout
+        android:id="@+id/widget_header_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_below="@id/widget_header"
+        android:layout_marginTop="7dp"
+        android:background="@color/widget_frosted_divider" />
+
+    <LinearLayout
+        android:id="@+id/widget_columns"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/widget_header_divider"
+        android:layout_marginTop="6dp"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <RelativeLayout
+            android:id="@+id/widget_today_column"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <TextView
+                android:id="@+id/widget_today_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:textColor="@color/widget_frosted_accent"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="今日课程 · 3 节" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_below="@id/widget_today_title"
+                android:layout_marginTop="4dp">
+
+                <ListView
+                    android:id="@+id/widget_today_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:divider="@android:color/transparent"
+                    android:dividerHeight="5dp"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="vertical" />
+
+                <TextView
+                    android:id="@+id/widget_today_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="@color/widget_frosted_text_secondary"
+                    android:textSize="12sp"
+                    tools:text="今日无课" />
+            </FrameLayout>
+        </RelativeLayout>
+
+        <FrameLayout
+            android:id="@+id/widget_column_divider"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="9dp"
+            android:layout_marginEnd="9dp"
+            android:background="@color/widget_frosted_divider" />
+
+        <RelativeLayout
+            android:id="@+id/widget_tomorrow_column"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <TextView
+                android:id="@+id/widget_tomorrow_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:textColor="@color/widget_frosted_accent"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="明日课程 · 2 节" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_below="@id/widget_tomorrow_title"
+                android:layout_marginTop="4dp">
+
+                <ListView
+                    android:id="@+id/widget_tomorrow_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:divider="@android:color/transparent"
+                    android:dividerHeight="5dp"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="vertical" />
+
+                <TextView
+                    android:id="@+id/widget_tomorrow_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="@color/widget_frosted_text_secondary"
+                    android:textSize="12sp"
+                    tools:text="明日无课" />
+            </FrameLayout>
+        </RelativeLayout>
+    </LinearLayout>
+</RelativeLayout>

@@ -164,6 +164,7 @@ internal fun DaySchedulePager(
     dark: Boolean,
     hasCustomBackground: Boolean,
     weekCardCompactInfo: Boolean,
+    hideTimeSlots: Boolean = false,
     semesterStart: String,
     excludedWeekSet: Set<Int>,
     dateExceptions: List<ScheduleDateException>
@@ -235,7 +236,8 @@ internal fun DaySchedulePager(
                 todayDow = today.dayOfWeek.value,
                 viewMode = ScheduleViewMode.DAY,
                 hasCustomBackground = hasCustomBackground,
-                weekCardCompactInfo = weekCardCompactInfo
+                weekCardCompactInfo = weekCardCompactInfo,
+                hideTimeSlots = hideTimeSlots
             )
         }
     }

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.util.TypedValue
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
+import androidx.annotation.LayoutRes
 import com.jaysay.coursetable.R
 import com.jaysay.coursetable.data.reminder.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
@@ -12,7 +13,10 @@ import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** 为小组件的今日/明日课程列表提供可滚动条目。 */
+/**
+ * 为小组件的今日/明日课程列表提供可滚动条目（Android 11 及以下的集合路径）。
+ * 材质变体由 Provider 通过 [CourseWidgetProvider.EXTRA_VARIANT] 明确传入，服务不读全局状态。
+ */
 class CourseWidgetRemoteViewsService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
         CourseWidgetRemoteViewsFactory(applicationContext, intent)
@@ -26,6 +30,7 @@ private class CourseWidgetRemoteViewsFactory(
     private val widthMode = runCatching {
         WidgetWidthMode.valueOf(intent.getStringExtra(CourseWidgetProvider.EXTRA_WIDTH_MODE).orEmpty())
     }.getOrDefault(WidgetWidthMode.COMPACT)
+    private val variant = WidgetVariant.fromTag(intent.getStringExtra(CourseWidgetProvider.EXTRA_VARIANT))
     private var date: LocalDate = LocalDate.now().plusDays(dayOffset.toLong())
     private var rows: List<WidgetCourseRow> = emptyList()
 
@@ -56,7 +61,7 @@ private class CourseWidgetRemoteViewsFactory(
 
     override fun getViewAt(position: Int): RemoteViews? {
         val row = rows.getOrNull(position) ?: return null
-        return WidgetCourseItemViews.create(context, row, widthMode)
+        return WidgetCourseItemViews.create(context, row, widthMode, variant.itemLayoutRes)
     }
 
     override fun getLoadingView(): RemoteViews? = null
@@ -69,10 +74,18 @@ private class CourseWidgetRemoteViewsFactory(
     override fun hasStableIds(): Boolean = true
 }
 
-/** 新旧小组件集合实现共用同一条目布局，避免不同 Android 版本显示分叉。 */
+/**
+ * 新旧小组件集合实现共用同一份条目渲染，避免不同 Android 版本显示分叉；
+ * 条目布局由调用方按材质变体给出（实心 / 毛玻璃），渲染内容完全一致。
+ */
 internal object WidgetCourseItemViews {
-    fun create(context: Context, row: WidgetCourseRow, widthMode: WidgetWidthMode): RemoteViews =
-        RemoteViews(context.packageName, R.layout.widget_course_item).apply {
+    fun create(
+        context: Context,
+        row: WidgetCourseRow,
+        widthMode: WidgetWidthMode,
+        @LayoutRes itemLayoutRes: Int
+    ): RemoteViews =
+        RemoteViews(context.packageName, itemLayoutRes).apply {
             setTextViewText(R.id.widget_item_time, row.timeLabel)
             setTextViewText(R.id.widget_item_course_name, row.courseName)
             setTextViewText(R.id.widget_item_classroom, "教室 · ${row.classroom}")

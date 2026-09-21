@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 毛玻璃状态胶囊：半透明底色 + 1dp 半透明描边，圆角与实心变体一致（10dp）。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_frosted_status_background" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke
+                android:width="1dp"
+                android:color="@color/widget_frosted_status_border" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+</layer-list>

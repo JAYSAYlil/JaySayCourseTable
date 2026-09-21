@@ -6,25 +6,34 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.jaysay.coursetable.data.preferences.ThemeAccent
 import com.jaysay.coursetable.data.preferences.ThemeMode
 
-private val LightColors = lightColorScheme(
-    primary = Primary, onPrimary = Color.White,
-    primaryContainer = PrimaryLight, onPrimaryContainer = PrimaryDark,
-    secondary = Secondary, onSecondary = Color.White,
-    secondaryContainer = SecondaryLight, onSecondaryContainer = SecondaryDark,
-    tertiary = Tertiary, onTertiary = Color.White,
-    tertiaryContainer = TertiaryLight, onTertiaryContainer = TertiaryDark,
+/** 按强调色生成浅色方案；青绿保持既有品牌绿/橄榄次要色，其它颜色让次要色跟随强调色。 */
+private fun lightColorsFor(accent: ThemeAccent): ColorScheme {
+    val palette = accentPalette(accent)
+    val brand = accent == ThemeAccent.TEAL
+    return lightColorScheme(
+    primary = palette.lightPrimary, onPrimary = Color.White,
+    primaryContainer = palette.lightContainer, onPrimaryContainer = palette.lightOnContainer,
+    secondary = if (brand) Secondary else palette.lightPrimary, onSecondary = Color.White,
+    secondaryContainer = if (brand) SecondaryLight else palette.lightContainer,
+    onSecondaryContainer = if (brand) SecondaryDark else palette.lightOnContainer,
+    tertiary = if (brand) Tertiary else palette.lightPrimary, onTertiary = Color.White,
+    tertiaryContainer = if (brand) TertiaryLight else palette.lightContainer,
+    onTertiaryContainer = if (brand) TertiaryDark else palette.lightOnContainer,
     surface = Surface, onSurface = OnSurface,
     // Material 3 未显式指定时会回退到默认紫粉色调；所有页面、菜单、弹层的
     // 浅色基底在这里统一为纯白，层级由描边、阴影和显式 surfaceVariant 表达。
@@ -40,14 +49,21 @@ private val LightColors = lightColorScheme(
     background = Background, onBackground = OnSurface,
     outline = Color(0xFF7C8280), outlineVariant = Color(0xFFD8DEDC),
     error = Error
-)
+    )
+}
 
-private val DarkColors = darkColorScheme(    primary = DarkPrimary, onPrimary = Color(0xFF00332C),
-    primaryContainer = DarkPrimaryLight, onPrimaryContainer = DarkPrimaryDark,
-    secondary = DarkSecondary, onSecondary = Color(0xFF0A261B),
-    secondaryContainer = DarkSecondaryLight, onSecondaryContainer = DarkSecondaryDark,
-    tertiary = DarkTertiary, onTertiary = Color(0xFF1A280D),
-    tertiaryContainer = DarkTertiaryLight, onTertiaryContainer = DarkTertiaryDark,
+private fun darkColorsFor(accent: ThemeAccent): ColorScheme {
+    val palette = accentPalette(accent)
+    val brand = accent == ThemeAccent.TEAL
+    return darkColorScheme(
+    primary = palette.darkPrimary, onPrimary = Color(0xFF00332C),
+    primaryContainer = palette.darkContainer, onPrimaryContainer = palette.darkOnContainer,
+    secondary = if (brand) DarkSecondary else palette.darkPrimary, onSecondary = Color(0xFF0A261B),
+    secondaryContainer = if (brand) DarkSecondaryLight else palette.darkContainer,
+    onSecondaryContainer = if (brand) DarkSecondaryDark else palette.darkOnContainer,
+    tertiary = if (brand) DarkTertiary else palette.darkPrimary, onTertiary = Color(0xFF1A280D),
+    tertiaryContainer = if (brand) DarkTertiaryLight else palette.darkContainer,
+    onTertiaryContainer = if (brand) DarkTertiaryDark else palette.darkOnContainer,
     surface = DarkSurface, onSurface = DarkOnSurface,
     surfaceTint = Color.Transparent,
     surfaceBright = DarkSurfaceVariant,
@@ -62,7 +78,8 @@ private val DarkColors = darkColorScheme(    primary = DarkPrimary, onPrimary = 
     outline = Color(0xFF8A8F8D),
     outlineVariant = DarkOutlineVariant,
     error = Color(0xFFEF5350)
-)
+    )
+}
 
 /** 系统级“增强对比度”偏好在组合树的可达形式，供课程卡片等自定义绘制组件读取。 */
 val LocalEnhancedContrast = compositionLocalOf { false }
@@ -71,6 +88,7 @@ val LocalEnhancedContrast = compositionLocalOf { false }
 @OptIn(ExperimentalMaterial3Api::class)
 fun JaySayTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    themeAccent: ThemeAccent = ThemeAccent.TEAL,
     highContrast: Boolean = false,
     transparentSystemBars: Boolean = false,
     content: @Composable () -> Unit
@@ -81,7 +99,9 @@ fun JaySayTheme(
         ThemeMode.DARK -> true
         ThemeMode.SYSTEM -> systemDark
     }
-    val baseColors = if (isDark) DarkColors else LightColors
+    val baseColors = remember(themeAccent, isDark) {
+        if (isDark) darkColorsFor(themeAccent) else lightColorsFor(themeAccent)
+    }
     val colors = if (highContrast) baseColors.copy(
         onSurfaceVariant = baseColors.onSurface,
         outline = baseColors.onSurface,

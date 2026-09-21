@@ -26,6 +26,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.annotation.StringRes
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -39,8 +41,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -239,6 +244,71 @@ fun SettingsScreen(
                 },
                 SettingsItem(
                     keywords = listOf(
+                        stringResource(R.string.settings_theme_accent),
+                        stringResource(R.string.theme_accent_teal),
+                        stringResource(R.string.theme_accent_blue),
+                        stringResource(R.string.theme_accent_indigo),
+                        stringResource(R.string.theme_accent_violet),
+                        stringResource(R.string.theme_accent_pink),
+                        stringResource(R.string.theme_accent_orange),
+                        stringResource(R.string.theme_accent_green),
+                        stringResource(R.string.theme_accent_graphite)
+                    )
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(stringResource(R.string.settings_theme_accent), fontSize = 15.sp)
+                        Text(
+                            stringResource(R.string.settings_theme_accent_subtitle),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ThemeAccent.entries.forEach { accent ->
+                                val swatch = accentPalette(accent).lightPrimary
+                                val selected = preferences.themeAccent == accent
+                                val label = stringResource(accentLabelRes(accent))
+                                val interaction = remember { MutableInteractionSource() }
+                                Box(
+                                    modifier = Modifier.weight(1f).height(44.dp)
+                                        .pressScale(interaction)
+                                        .clickable(interactionSource = interaction, indication = null) {
+                                            save(preferences.copy(themeAccent = accent))
+                                        }
+                                        .testTag("theme-accent-" + accent.name)
+                                        .semantics { contentDescription = label },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(28.dp)
+                                            .background(swatch, CircleShape)
+                                            .border(
+                                                width = if (selected) 2.5.dp else 1.dp,
+                                                color = if (selected) {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                } else {
+                                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                                },
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (selected) {
+                                            Icon(
+                                                Icons.Rounded.Check,
+                                                contentDescription = null,
+                                                tint = if (swatch.luminance() > 0.5f) Color(0xFF171A19) else Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                SettingsItem(
+                    keywords = listOf(
                         stringResource(R.string.settings_section_background),
                         stringResource(R.string.settings_choose_image),
                         stringResource(R.string.settings_change_image),
@@ -335,6 +405,20 @@ fun SettingsScreen(
                         subtitle = null,
                         checked = preferences.highContrast,
                         onCheckedChange = { save(preferences.copy(highContrast = it)) }
+                    )
+                },
+                SettingsItem(
+                    keywords = listOf(
+                        stringResource(R.string.settings_hide_time_slots),
+                        stringResource(R.string.settings_hide_time_slots_subtitle)
+                    )
+                ) {
+                    PreferenceSwitchRow(
+                        title = stringResource(R.string.settings_hide_time_slots),
+                        subtitle = stringResource(R.string.settings_hide_time_slots_subtitle),
+                        checked = preferences.hideTimeSlots,
+                        onCheckedChange = { save(preferences.copy(hideTimeSlots = it)) },
+                        switchTestTag = "hide-time-slots-switch"
                     )
                 },
             )
@@ -1120,6 +1204,19 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+/** 主题色选项的显示名。新增强调色时同步补一条字符串资源。 */
+@StringRes
+private fun accentLabelRes(accent: ThemeAccent): Int = when (accent) {
+    ThemeAccent.TEAL -> R.string.theme_accent_teal
+    ThemeAccent.BLUE -> R.string.theme_accent_blue
+    ThemeAccent.INDIGO -> R.string.theme_accent_indigo
+    ThemeAccent.VIOLET -> R.string.theme_accent_violet
+    ThemeAccent.PINK -> R.string.theme_accent_pink
+    ThemeAccent.ORANGE -> R.string.theme_accent_orange
+    ThemeAccent.GREEN -> R.string.theme_accent_green
+    ThemeAccent.GRAPHITE -> R.string.theme_accent_graphite
 }
 
 @Composable

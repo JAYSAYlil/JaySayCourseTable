@@ -240,6 +240,7 @@ class MainActivity : ComponentActivity() {
 
             JaySayTheme(
                 themeMode = state.preferences.themeMode,
+                themeAccent = state.preferences.themeAccent,
                 highContrast = state.preferences.highContrast,
                 transparentSystemBars = customBackgroundActive && currentScreen() == Screen.MAIN
             ) {
@@ -387,9 +388,8 @@ class MainActivity : ComponentActivity() {
                     }
                 } else emptyList()
                 val widgetPresent = remember(reminderStatusTick.intValue) {
-                    AppWidgetManager.getInstance(this@MainActivity)
-                        .getAppWidgetIds(ComponentName(this@MainActivity, CourseWidgetProvider::class.java))
-                        .isNotEmpty()
+                    // 实体版与毛玻璃版都算“已添加小组件”。
+                    CourseWidgetProvider.anyWidgetPresent(this@MainActivity)
                 }
 
                 val stagedImport = model.stagedCourseImport
@@ -947,6 +947,7 @@ class MainActivity : ComponentActivity() {
                                         customBackgroundOverlayEnabled = state.preferences.customBackgroundOverlayEnabled,
                                         // 课程卡片信息层级固定，移除重复的“精简卡片”开关。
                                         weekCardCompactInfo = false,
+                                        hideTimeSlots = state.preferences.hideTimeSlots,
                                         viewMode = activeTable.viewMode,
                                         onViewModeChange = { model.setScheduleViewMode(it, ::showSaveError) },
                                         focusedDay = scheduleFocusedDay,

@@ -175,7 +175,9 @@ internal fun TableGrid(
     todayDow: Int,
     viewMode: ScheduleViewMode,
     hasCustomBackground: Boolean,
-    weekCardCompactInfo: Boolean = false
+    weekCardCompactInfo: Boolean = false,
+    /** 开启后左侧节次栏只显示节数，不显示上课时间（栏位随之变窄）。 */
+    hideTimeSlots: Boolean = false
 ) {
     val sections = remember(periodTimes) { buildSections(periodTimes) }
     // 只持有 State 引用而不读取 .value，本层不会随分钟刷新重组；
@@ -222,7 +224,8 @@ internal fun TableGrid(
                         // 时间栏保持轻量：用一条品牌色时间轴承接节次和时间，
                         // 避免每个格子都套一张独立卡片，保证课表网格的连续性。
                         Row(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 8.dp),
+                            modifier = Modifier.fillMaxSize()
+                                .padding(horizontal = if (hideTimeSlots) 2.dp else 4.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
@@ -257,31 +260,34 @@ internal fun TableGrid(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    periodTime.start,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    lineHeight = 10.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Clip,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .width(18.dp)
-                                        .height(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
-                                )
-                                Text(
-                                    periodTime.end,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    lineHeight = 10.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Clip,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                // 不显示时间段模式：只留节数，省下的横向空间全部给课程列。
+                                if (!hideTimeSlots) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        periodTime.start,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        lineHeight = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Clip,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .width(18.dp)
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                                    )
+                                    Text(
+                                        periodTime.end,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        lineHeight = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Clip,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }

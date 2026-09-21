@@ -86,6 +86,16 @@ class RevisionVisualTest {
         rule.runOnIdle { org.junit.Assert.assertEquals("短拖不能触发关闭", 0, closes) }
     }
 
+    @Test fun weekWithoutTimeSlots() {
+        rule.setContent { JaySayTheme(themeMode = ThemeMode.LIGHT) {
+            CourseTableScreen(courses, 1, {}, {}, {}, tableName = "示例学期课表", semesterStart = TimeUtils.currentWeekStartDate(),
+                totalWeeks = 20, viewMode = ScheduleViewMode.WEEK, onViewModeChange = {}, focusedDay = 1, onFocusedDayChange = {},
+                hideTimeSlots = true)
+        } }
+        rule.onNodeWithTag("course-table-screen").assertIsDisplayed()
+        capture("week-no-times")
+    }
+
     @Test fun calendarLight() {
         rule.setContent { JaySayTheme(themeMode = ThemeMode.LIGHT) {
             CalendarExceptionScreen(com.jaysay.coursetable.data.repository.TableData("示例学期", courses), {}, {})
@@ -123,7 +133,7 @@ class RevisionVisualTest {
     private fun capture(name: String, tag: String? = null) {
         rule.waitForIdle()
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val directory = File(context.getExternalFilesDir(null), "visual-3.4.28").apply { mkdirs() }
+        val directory = File(context.getExternalFilesDir(null), "visual-3.4.29").apply { mkdirs() }
         File(directory, "$name.png").outputStream().use {
             (if (tag == null) rule.onRoot() else rule.onNodeWithTag(tag)).captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
         }

@@ -69,6 +69,24 @@
                 android:resource="@xml/course_widget_info" />
         </receiver>
 
+        <!-- 毛玻璃材质的第二个小组件：与上面的实心小组件共用同一套渲染/刷新逻辑，
+             只换布局与背景资源；系统广播同样按自身 Provider 刷新。 -->
+        <receiver
+            android:name=".widget.CourseWidgetFrostedProvider"
+            android:exported="false"
+            android:label="@string/widget_label_frosted">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/course_widget_info_frosted" />
+        </receiver>
+
         <service
             android:name=".widget.CourseWidgetRemoteViewsService"
             android:exported="false"

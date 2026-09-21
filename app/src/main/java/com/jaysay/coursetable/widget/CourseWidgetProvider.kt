@@ -29,7 +29,13 @@ import java.time.ZoneId
 import java.util.Calendar
 
 /** 桌面小组件：两行高，按 3/4/5 列宽自适应显示今日或今日+明日课程。 */
-class CourseWidgetProvider : AppWidgetProvider() {
+open class CourseWidgetProvider : AppWidgetProvider() {
+
+    /**
+     * 材质变体：子类只覆盖它就能整套换成毛玻璃布局，
+     * 数据、渲染、刷新与尺寸自适应逻辑全部共用，不做第二份实现。
+     */
+    internal open val variant: WidgetVariant get() = WidgetVariant.SOLID
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         val pendingResult = goAsync()
@@ -48,7 +54,8 @@ class CourseWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         if (intent.action in REFRESH_ACTIONS) {
             val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(ComponentName(context, CourseWidgetProvider::class.java))
+            // 用运行时的实际子类取 id：毛玻璃变体收到的系统广播只刷新自己那批小组件。
+            val ids = manager.getAppWidgetIds(ComponentName(context, javaClass))
             onUpdate(context, manager, ids)
         }
     }
@@ -68,7 +75,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        cancelScheduledRefresh(context)
+        cancelScheduledRefresh(context, javaClass)
     }
 
     private suspend fun updateWidgets(
@@ -105,7 +112,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
             val widthMode = WidgetWidthMode.fromMinWidth(
                 options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, WidgetWidthMode.COMPACT.referenceWidthDp)
             )
-            val views = RemoteViews(context.packageName, R.layout.widget_course)
+            val views = RemoteViews(context.packageName, variant.layoutRes)
             // 课表名与日期同行显示（“8月27日 · 课表名”），不额外占用列表高度；
             // 无课表或名称为空时只显示日期。
             val dateText = "${today.monthValue}月${today.dayOfMonth}日"
@@ -185,7 +192,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
                 }
             }
         }
-        scheduleNextRefresh(context, agenda)
+        scheduleNextRefresh(context, agenda, javaClass)
         ServiceStatusStore.record(context, "widget", true)
     }
 
@@ -228,6 +235,8 @@ class CourseWidgetProvider : AppWidgetProvider() {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra(EXTRA_DAY_OFFSET, dayOffset)
             putExtra(EXTRA_WIDTH_MODE, widthMode.name)
+            // 变体随 Intent 明确传给服务，服务据此选条目布局，不猜全局状态。
+            putExtra(EXTRA_VARIANT, variant.tag)
             data = "jaysay://widget/$widgetId/day/$dayOffset/${widthMode.name}".toUri()
         }
         views.setRemoteAdapter(listId, adapterIntent)
@@ -247,7 +256,10 @@ class CourseWidgetProvider : AppWidgetProvider() {
             .setViewTypeCount(1)
             .apply {
                 schedule?.courses.orEmpty().forEach { row ->
-                    addItem(row.stableId(date), WidgetCourseItemViews.create(context, row, widthMode))
+                    addItem(
+                        row.stableId(date),
+                        WidgetCourseItemViews.create(context, row, widthMode, variant.itemLayoutRes)
+                    )
                 }
             }
             .build()
@@ -267,6 +279,9 @@ class CourseWidgetProvider : AppWidgetProvider() {
         const val ACTION_UPDATE = "com.jaysay.coursetable.action.WIDGET_UPDATE"
         const val EXTRA_DAY_OFFSET = "widget_day_offset"
         const val EXTRA_WIDTH_MODE = "widget_width_mode"
+
+        /** 材质变体标记（见 [WidgetVariant.tag]），传给集合服务选条目布局。 */
+        const val EXTRA_VARIANT = "widget_variant"
         private const val REFRESH_REQUEST_CODE = 28_001
         private val REFRESH_ACTIONS = setOf(
             ACTION_UPDATE,
@@ -276,14 +291,14 @@ class CourseWidgetProvider : AppWidgetProvider() {
             Intent.ACTION_TIMEZONE_CHANGED
         )
 
-        /** 供主应用在数据变化后定向刷新小组件。 */
-        fun requestUpdate(context: Context) {
-            val intent = Intent(context, CourseWidgetProvider::class.java).setAction(ACTION_UPDATE)
-            context.sendBroadcast(intent)
-        }
+        /** 供主应用在数据变化后定向刷新小组件；一次覆盖全部材质变体。 */
+        fun requestUpdate(context: Context) = CourseWidgetProviders.requestUpdate(context)
 
-        /** 在下一次上课、下课或跨日边界刷新。 */
-        private fun scheduleNextRefresh(context: Context, agenda: TodayAgenda?) {
+        /** 任意材质变体的小组件存在于桌面；主应用可用它替代只查单个 Provider 的判断。 */
+        fun anyWidgetPresent(context: Context): Boolean = CourseWidgetProviders.anyWidgetPresent(context)
+
+        /** 在下一次上课、下课或跨日边界刷新；闹钟按 Provider 分别登记，互不干扰。 */
+        private fun scheduleNextRefresh(context: Context, agenda: TodayAgenda?, provider: Class<*>) {
             val now = LocalDateTime.now()
             val transitionMinute = when (agenda?.phase) {
                 TodayAgendaPhase.BEFORE_FIRST, TodayAgendaPhase.BETWEEN_CLASSES -> agenda.next?.startMinute
@@ -294,7 +309,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
                 now.toLocalDate().atStartOfDay().plusMinutes(it.toLong()).plusSeconds(2)
             }?.takeIf { it.isAfter(now) }
                 ?: now.toLocalDate().plusDays(1).atStartOfDay().plusSeconds(2)
-            val pending = refreshPendingIntent(context, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
+            val pending = refreshPendingIntent(context, PendingIntent.FLAG_UPDATE_CURRENT, provider) ?: return
             val alarmManager = context.getSystemService(AlarmManager::class.java)
             alarmManager.cancel(pending)
             val triggerAt = target.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -307,17 +322,17 @@ class CourseWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun cancelScheduledRefresh(context: Context) {
-            val pending = refreshPendingIntent(context, PendingIntent.FLAG_NO_CREATE) ?: return
+        private fun cancelScheduledRefresh(context: Context, provider: Class<*>) {
+            val pending = refreshPendingIntent(context, PendingIntent.FLAG_NO_CREATE, provider) ?: return
             context.getSystemService(AlarmManager::class.java).cancel(pending)
             pending.cancel()
         }
 
-        private fun refreshPendingIntent(context: Context, flags: Int): PendingIntent? =
+        private fun refreshPendingIntent(context: Context, flags: Int, provider: Class<*>): PendingIntent? =
             PendingIntent.getBroadcast(
                 context,
                 REFRESH_REQUEST_CODE,
-                Intent(context, CourseWidgetProvider::class.java).setAction(ACTION_UPDATE),
+                Intent(context, provider).setAction(ACTION_UPDATE),
                 flags or PendingIntent.FLAG_IMMUTABLE
             )
     }

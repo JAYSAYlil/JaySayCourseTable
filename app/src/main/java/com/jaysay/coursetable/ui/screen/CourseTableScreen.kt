@@ -211,6 +211,7 @@ fun CourseTableScreen(
     customBackground: ImageBitmap? = null,
     customBackgroundOverlayEnabled: Boolean = true,
     weekCardCompactInfo: Boolean = false,
+    hideTimeSlots: Boolean = false,
     viewMode: ScheduleViewMode,
     onViewModeChange: (ScheduleViewMode) -> Unit,
     focusedDay: Int,
@@ -287,7 +288,13 @@ fun CourseTableScreen(
             ScheduleViewMode.MONTH -> (1..7).toList()
         }
     }
-    val timeWidth = when (viewMode) {
+    // 不显示时间段模式只留“节数 + 节”，栏位可以明显收窄（省下的宽度全部给课程列）。
+    val timeWidth = if (hideTimeSlots) when (viewMode) {
+        ScheduleViewMode.WEEK -> 32.dp
+        ScheduleViewMode.WORK_WEEK -> 34.dp
+        ScheduleViewMode.DAY -> 40.dp
+        ScheduleViewMode.MONTH -> 32.dp
+    } else when (viewMode) {
         ScheduleViewMode.WEEK -> 46.dp
         ScheduleViewMode.WORK_WEEK -> 50.dp
         ScheduleViewMode.DAY -> 64.dp
@@ -862,6 +869,7 @@ fun CourseTableScreen(
                     dark = dark,
                     hasCustomBackground = customBackground != null,
                     weekCardCompactInfo = weekCardCompactInfo,
+                    hideTimeSlots = hideTimeSlots,
                     semesterStart = semesterStart,
                     excludedWeekSet = excludedWeekSet,
                     dateExceptions = dateExceptions
@@ -888,6 +896,7 @@ fun CourseTableScreen(
                 viewMode = viewMode,
                 hasCustomBackground = customBackground != null,
                 weekCardCompactInfo = weekCardCompactInfo,
+                hideTimeSlots = hideTimeSlots,
                 searchQuery = searchQuery,
                 onClearSearch = { searchQuery = "" },
                 semesterStart = semesterStart,
@@ -926,6 +935,7 @@ private fun WeekPagerSection(
     viewMode: ScheduleViewMode,
     hasCustomBackground: Boolean,
     weekCardCompactInfo: Boolean,
+    hideTimeSlots: Boolean,
     searchQuery: String,
     onClearSearch: () -> Unit,
     semesterStart: String,
@@ -1064,7 +1074,8 @@ private fun WeekPagerSection(
                         todayDow = todayDow,
                         viewMode = viewMode,
                         hasCustomBackground = hasCustomBackground,
-                        weekCardCompactInfo = weekCardCompactInfo
+                        weekCardCompactInfo = weekCardCompactInfo,
+                        hideTimeSlots = hideTimeSlots
                     )
                 }
             }

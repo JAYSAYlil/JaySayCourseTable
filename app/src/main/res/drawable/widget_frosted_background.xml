@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 毛玻璃底板：RemoteViews 无法实时模糊，用「半透明基底 + 顶部柔光 + 1dp 半透明描边」
+     三层叠加模拟磨砂玻璃；圆角与实心变体一致（20dp）。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_frosted_background" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:endColor="#00FFFFFF"
+                android:startColor="@color/widget_frosted_sheen" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke
+                android:width="1dp"
+                android:color="@color/widget_frosted_border" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</layer-list>

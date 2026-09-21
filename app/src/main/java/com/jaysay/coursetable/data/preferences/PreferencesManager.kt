@@ -22,6 +22,9 @@ fun defaultPeriodTimes() = listOf(
 
 enum class ThemeMode { LIGHT, DARK, SYSTEM }
 
+/** 应用强调色。只影响品牌色（按钮、选中态、时间轴等），不影响课程卡片配色与数据。 */
+enum class ThemeAccent { TEAL, BLUE, INDIGO, VIOLET, PINK, ORANGE, GREEN, GRAPHITE }
+
 /** 全局设置只保存真正跨课表的状态；学期与节次属于各自课表。 */
 @Immutable
 data class AppPreferences(
@@ -43,7 +46,11 @@ data class AppPreferences(
      * 周视图课程卡片是否精简为“课程名 + 教室”（教师进入详情查看）。
      * 默认关闭以保持既有完整信息习惯；开启后仍由宽度密度自动降级兜底。
      */
-    val weekCardCompactInfo: Boolean = false
+    val weekCardCompactInfo: Boolean = false,
+    /** 应用强调色；未知值在读取时回落到青绿。 */
+    val themeAccent: ThemeAccent = ThemeAccent.TEAL,
+    /** 开启后课表左侧栏只显示节数、不显示上课时间，栏位更窄，课程区域更宽。 */
+    val hideTimeSlots: Boolean = false
 ) {
     companion object {
         fun defaultPeriods() = defaultPeriodTimes()
@@ -70,6 +77,8 @@ class PreferencesManager(context: Context) {
             .put("customBackgroundRevision", prefs.customBackgroundRevision.coerceAtLeast(0L))
             .put("customBackgroundOverlayEnabled", prefs.customBackgroundOverlayEnabled)
             .put("weekCardCompactInfo", prefs.weekCardCompactInfo)
+            .put("themeAccent", prefs.themeAccent.name)
+            .put("hideTimeSlots", prefs.hideTimeSlots)
         store.write(obj.toString(2))
     }
 
@@ -87,7 +96,10 @@ class PreferencesManager(context: Context) {
             autoBackupUri = obj.optString("autoBackupUri"),
             customBackgroundRevision = obj.optLong("customBackgroundRevision", 0L).coerceAtLeast(0L),
             customBackgroundOverlayEnabled = obj.optBoolean("customBackgroundOverlayEnabled", true),
-            weekCardCompactInfo = obj.optBoolean("weekCardCompactInfo", false)
+            weekCardCompactInfo = obj.optBoolean("weekCardCompactInfo", false),
+            themeAccent = runCatching { ThemeAccent.valueOf(obj.optString("themeAccent")) }
+                .getOrDefault(ThemeAccent.TEAL),
+            hideTimeSlots = obj.optBoolean("hideTimeSlots", false)
         )
     }
 
