@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
@@ -30,6 +31,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.abs
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -98,6 +100,71 @@ class CourseTableVisualContractTest {
         composeRule.onNodeWithTag("week-swipe-area").performTouchInput { swipeLeft() }
         composeRule.waitForIdle()
         composeRule.onNodeWithText("第 2 周").assertIsDisplayed()
+    }
+
+    /** 七天视图：卡片左右留白必须等距，且文字要拿到卡片宽度的绝大部分。 */
+    @Test
+    fun sevenDayCourseCardKeepsSymmetricalTextInsets() {
+        assertSymmetricalCardInsets(ScheduleViewMode.WEEK)
+    }
+
+    /** 五天视图：同一条约束。 */
+    @Test
+    fun fiveDayCourseCardKeepsSymmetricalTextInsets() {
+        assertSymmetricalCardInsets(ScheduleViewMode.WORK_WEEK)
+    }
+
+    /** 关掉「显示上课时间段」后左侧栏变窄，课程列更宽，留白约束同样要成立。 */
+    @Test
+    fun sevenDayCourseCardInsetsHoldWithTimeSlotsHidden() {
+        assertSymmetricalCardInsets(ScheduleViewMode.WEEK, hideTimeSlots = true)
+    }
+
+    @Test
+    fun fiveDayCourseCardInsetsHoldWithTimeSlotsHidden() {
+        assertSymmetricalCardInsets(ScheduleViewMode.WORK_WEEK, hideTimeSlots = true)
+    }
+
+    private fun assertSymmetricalCardInsets(
+        viewMode: ScheduleViewMode,
+        hideTimeSlots: Boolean = false
+    ) {
+        val course = longCourse()
+        composeRule.setContent {
+            JaySayTheme(themeMode = ThemeMode.LIGHT) {
+                CourseTableScreen(
+                    courses = listOf(course),
+                    currentWeek = 1,
+                    onImportClick = {},
+                    onCourseClick = {},
+                    onWeekChange = {},
+                    semesterStart = "2030-02-04",
+                    totalWeeks = 20,
+                    customBackground = null,
+                    viewMode = viewMode,
+                    onViewModeChange = {},
+                    focusedDay = 1,
+                    onFocusedDayChange = {},
+                    hideTimeSlots = hideTimeSlots
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("course-card-1-1").performScrollTo()
+        val card = composeRule.onNodeWithTag("course-card-1-1").getUnclippedBoundsInRoot()
+        val text = composeRule.onNodeWithText(course.courseName, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        val leftGap = (text.left - card.left).value
+        val rightGap = (card.right - text.right).value
+        assertTrue(
+            "$viewMode(隐藏时间段=$hideTimeSlots) 文字左右留白不等：左 $leftGap dp，右 $rightGap dp",
+            abs(leftGap - rightGap) <= 0.5f
+        )
+        val usedRatio = (text.right - text.left).value / (card.right - card.left).value
+        assertTrue(
+            "$viewMode(隐藏时间段=$hideTimeSlots) 卡片空间利用率过低：文字只占卡片宽度 ${(usedRatio * 100).toInt()}%",
+            usedRatio >= 0.82f
+        )
     }
 
     private fun renderAndAssert(

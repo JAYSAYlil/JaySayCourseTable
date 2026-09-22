@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -549,10 +550,17 @@ private fun CourseCard(
         } else cardFillStops
         Brush.verticalGradient(colorStops = stops.toTypedArray())
     }
-    val contentPadding = when (viewMode) {
-        ScheduleViewMode.WEEK -> PaddingValues(4.dp, 5.dp, 3.dp, 4.dp)
-        else -> PaddingValues(7.dp, 5.dp, 6.dp, 4.dp)
-    }
+    // 左右必须等距：此前 start 恒比 end 多 1dp，文字块整体偏右，右侧看着空、左侧看着挤。
+    // 取值原则是「横向留白总量严格小于改前」——旧值周视图 4+3=7、其余 7+6=13——
+    // 否则光是补齐对称就会反过来吃掉文字宽度。单日视图列宽足够，才保留较宽的 6dp。
+    // 纵向维持原行距（上下不对称是有意的：顶部留出行高呼吸，底部收紧）。
+    val horizontalContentPadding = if (viewMode == ScheduleViewMode.DAY) 6.dp else 3.dp
+    val contentPadding = PaddingValues(
+        start = horizontalContentPadding,
+        top = 5.dp,
+        end = horizontalContentPadding,
+        bottom = 4.dp
+    )
     val cardInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     // Hero 转场卡片端：布局回调把「可见卡片」的 root bounds 与底色快照进注册表；
     // 点击瞬间由注册表发起 overlay 飞行。bounds 只在点击时被消费，
@@ -560,6 +568,7 @@ private fun CourseCard(
     val rootView = LocalView.current
     Box(
         modifier = modifier
+            .testTag("course-card-${course.dayOfWeek}-${course.startPeriod}")
             .onGloballyPositioned { coords ->
                 val rect = coords.boundsInRoot()
                 // 只记录视口内的卡片：Pager 相邻周页的同 series 卡片位于屏外，不能覆盖可见位置。

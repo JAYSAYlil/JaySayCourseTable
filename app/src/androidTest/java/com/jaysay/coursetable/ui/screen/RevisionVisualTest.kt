@@ -39,6 +39,7 @@ class RevisionVisualTest {
             "示例教师", "教学楼A20${i + 1}", "", "", false, "", seriesId = "visual-$i")
     }
     @Test fun weekLight() = render(ScheduleViewMode.WEEK, false)
+    @Test fun workWeekLight() = render(ScheduleViewMode.WORK_WEEK, false)
     @Test fun dayLight() = render(ScheduleViewMode.DAY, false)
     @Test fun dayDark() = render(ScheduleViewMode.DAY, true)
     @Test fun monthLight() = render(ScheduleViewMode.MONTH, false)
@@ -208,7 +209,7 @@ class RevisionVisualTest {
     private fun capture(name: String, tag: String? = null): Bitmap {
         rule.waitForIdle()
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val directory = File(context.getExternalFilesDir(null), "visual-3.4.31").apply { mkdirs() }
+        val directory = File(context.getExternalFilesDir(null), "visual-3.4.32").apply { mkdirs() }
         val bitmap = (if (tag == null) rule.onRoot() else rule.onNodeWithTag(tag)).captureToImage().asAndroidBitmap()
         File(directory, "$name.png").outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
