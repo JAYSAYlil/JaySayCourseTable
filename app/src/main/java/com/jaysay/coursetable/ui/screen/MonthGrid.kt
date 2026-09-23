@@ -183,7 +183,9 @@ private fun buildMonthCells(
     val lastDay = anchor.withDayOfMonth(anchor.lengthOfMonth())
     val dayOffset = java.time.temporal.ChronoUnit.DAYS.between(gridStart, lastDay).toInt()
     val rowCount = ((dayOffset + 1 + 6) / 7).coerceIn(5, 6)
-    val coursesByDay = courses.groupBy(Course::dayOfWeek)
+    val prepared = ScheduleDateResolver.prepare(
+        courses, semesterStart, totalWeeks, excludedWeekSet, dateExceptions
+    )
     return (0 until rowCount).map { row ->
         (0 until 7).map { col ->
             val date = gridStart.plusDays((row * 7 + col).toLong())
@@ -205,10 +207,7 @@ private fun buildMonthCells(
                 holidayName = calendarLabel.holiday,
                 cancelledCount = status.cancelledCount,
                 makeupCount = status.makeupCount,
-                courses = ScheduleDateResolver.coursesOn(
-                    coursesByDay[date.dayOfWeek.value].orEmpty(),
-                    semesterStart, totalWeeks, excludedWeekSet, dateExceptions, date
-                ).map { it.course }
+                courses = prepared.coursesOn(date).map { it.course }
             )
         }
     }

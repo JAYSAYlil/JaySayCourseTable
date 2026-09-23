@@ -57,6 +57,7 @@ import com.jaysay.coursetable.data.model.CourseImportAnalyzer
 import com.jaysay.coursetable.data.model.CourseSeriesOperations
 import com.jaysay.coursetable.data.model.CourseSeriesUndo
 import com.jaysay.coursetable.data.parser.ExcelParser
+import com.jaysay.coursetable.data.parser.AiScheduleResult
 import com.jaysay.coursetable.data.preferences.CustomBackgroundStore
 import com.jaysay.coursetable.data.reminder.AutostartHelper
 import com.jaysay.coursetable.data.reminder.ReminderPermissions
@@ -68,6 +69,7 @@ import com.jaysay.coursetable.ui.screen.CourseEditDialog
 import com.jaysay.coursetable.ui.screen.CourseEditScope
 import com.jaysay.coursetable.ui.screen.CourseTableScreen
 import com.jaysay.coursetable.ui.screen.AgendaScreen
+import com.jaysay.coursetable.ui.screen.AiExcelConvertScreen
 import com.jaysay.coursetable.ui.screen.CalendarExceptionScreen
 import com.jaysay.coursetable.ui.screen.HistoryScreen
 import com.jaysay.coursetable.ui.screen.ImportConfirmScreen
@@ -204,6 +206,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 屏幕位置持久化，Activity 重建（旋转/进程回收）后不会跳回主界面。
             var currentScreenOrdinal by rememberSaveable { mutableIntStateOf(Screen.MAIN.ordinal) }
+            var aiImportOrigin by rememberSaveable { mutableStateOf(false) }
+            var aiConversionResult by remember { mutableStateOf<AiScheduleResult?>(null) }
             fun currentScreen(): Screen = Screen.entries.getOrNull(currentScreenOrdinal) ?: Screen.MAIN
             // 详情页使用跨编辑稳定的 seriesKey 保存恢复依据，并记录从主课表还是日程列表进入。
             var selectedCourseSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
@@ -399,8 +403,10 @@ class MainActivity : ComponentActivity() {
                     if (stagedImport != null) {
                         currentScreenOrdinal = Screen.IMPORT_CONFIRM.ordinal
                     } else if (currentScreen() == Screen.IMPORT_CONFIRM) {
-                        // 进程重建不会保存大批课程到 Bundle；没有暂存数据时安全返回主界面。
-                        currentScreenOrdinal = Screen.MAIN.ordinal
+                        currentScreenOrdinal = if (aiImportOrigin && aiConversionResult != null) Screen.AI_CONVERT.ordinal else Screen.MAIN.ordinal
+                        aiImportOrigin = false
+                    } else if (currentScreen() == Screen.SETTINGS && aiConversionResult != null) {
+                        aiConversionResult = null
                     }
                 }
 
@@ -410,7 +416,8 @@ class MainActivity : ComponentActivity() {
                     when (screen) {
                         Screen.IMPORT_CONFIRM -> {
                             model.clearStagedCourseImport()
-                            currentScreenOrdinal = Screen.MAIN.ordinal
+                            currentScreenOrdinal = if (aiImportOrigin && aiConversionResult != null) Screen.AI_CONVERT.ordinal else Screen.MAIN.ordinal
+                            aiImportOrigin = false
                         }
                         Screen.COURSE_DETAIL -> closeCourseDetail()
                         else -> screen.backDestination(detailOrigin(), calendarOrigin())
@@ -754,6 +761,10 @@ class MainActivity : ComponentActivity() {
                                 onExportExcelTemplate = {
                                     excelTemplateExportLauncher.launch("JaySay课表-导入模板.xlsx")
                                 },
+                                onOpenAiExcelConvert = {
+                                    aiConversionResult = null
+                                    currentScreenOrdinal = Screen.AI_CONVERT.ordinal
+                                },
                                 onExportDiagnostics = {
                                     diagnosticsExportLauncher.launch("JaySay课表-脱敏诊断-${LocalDate.now()}.txt")
                                 },
@@ -805,6 +816,18 @@ class MainActivity : ComponentActivity() {
                                 onBack = navigateBack
                             )
 
+                            Screen.AI_CONVERT -> AiExcelConvertScreen(
+                                totalWeeks = state.activeTable.totalWeeks,
+                                canImport = state.persistentDataError == null,
+                                initialResult = aiConversionResult,
+                                onResultChanged = { aiConversionResult = it },
+                                onImport = { courses ->
+                                    aiImportOrigin = true
+                                    model.stageCourseImport(ExcelParser.ParseResult(courses, emptyList()))
+                                },
+                                onBack = navigateBack
+                            )
+
                             Screen.IMPORT_CONFIRM -> {
                                 stagedImport?.let { importResult ->
                                     val preview = remember(importResult, state.courses) {
@@ -816,6 +839,8 @@ class MainActivity : ComponentActivity() {
                                         onConfirm = { selected ->
                                             model.importCourses(selected, onComplete = { result ->
                                                 model.clearStagedCourseImport()
+                                                aiConversionResult = null
+                                                aiImportOrigin = false
                                                 locateToday()
                                                 currentScreenOrdinal = Screen.MAIN.ordinal
                                                 Toast.makeText(
@@ -828,7 +853,8 @@ class MainActivity : ComponentActivity() {
                                         onCancel = {
                                             model.clearStagedCourseImport()
                                             locateToday()
-                                            currentScreenOrdinal = Screen.MAIN.ordinal
+                                            currentScreenOrdinal = if (aiImportOrigin && aiConversionResult != null) Screen.AI_CONVERT.ordinal else Screen.MAIN.ordinal
+                                            aiImportOrigin = false
                                         }
                                     )
                                 }

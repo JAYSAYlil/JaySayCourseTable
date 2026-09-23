@@ -1,10 +1,11 @@
-# JaySay 课程表 v3.4.32
+# JaySay 课程表 v3.4.36
 
 一款本地优先的 Android 课程表应用，支持 Excel/文本导入、多课表管理、日程列表、课程提醒、桌面小组件、日历导出、加密备份和历史恢复。
 
 ## 主要能力
 
 - 支持 `.xls` 与 `.xlsx`，可识别常见表头别名和前置说明行。
+- 可选择多家 AI 供应商预设并使用自己的 API Key，将学校导出的 Excel 课表转换为软件模板；支持模型连接检测、保存供应商配置及可选的本机加密 Key 保存。结果需本地校验并由用户确认后导入。
 - 重复导入时合并周次，并保留用户设置的颜色与备注。
 - 课表、节次时间、学期设置、当前课表和每张课表的视图模式均持久化到本机。
 - 使用原子文件替换、上一版本备份和串行写入降低数据损坏风险。
@@ -28,7 +29,7 @@
 - 顶部提供不占用网格空间的今日/下一节课摘要，并可按课程名、教师或教室本地搜索。
 - 支持方向明确的周切换与详情动画，删除课程前确认，并可在提示条中撤销。
 - 导入前按新增、合并、重复和冲突分类，可逐条选择；手工新增或编辑发生时间冲突时会二次确认。
-- 课程数据、备份、提醒和日历均在设备本地处理；仅在用户手动点击“检查更新”时访问 GitHub Releases，不执行常驻联网。
+- 课程、备份、提醒和日历在设备本地处理；仅在用户手动检查更新时访问 GitHub Releases，或在用户主动检测 AI 连接／确认转换后向所选接口发送请求。连接检测不发送课表，转换仅发送限量课表文本，不执行常驻联网。
 
 ## 环境要求
 
@@ -63,7 +64,7 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 - Android 系统云备份和设备迁移均排除应用数据；换机请使用应用内“导出完整备份”。
 - 请勿在 Issue、日志或提交中上传真实课表、完整备份、签名密钥或本机路径。
 
-当前版本：`3.4.32`（versionCode 152）；已公开脱敏发布，历史版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
+当前版本：`3.4.36`（versionCode 156）；已公开脱敏发布，历史版本见 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases)。
 
 ## 自动化测试策略
 
@@ -74,7 +75,7 @@ Windows 中文路径下不要通过 `org.gradle.jvmargs` 强制覆盖整个 Grad
 
 ## 下载
 
-正式签名 APK、版本说明和 SHA-256 校验值请从 [GitHub Releases](https://github.com/JAYSAYlil/JaySayCourseTable/releases) 获取。
+v3.4.36 签名 APK、版本说明和 SHA-256 校验值请从 [GitHub Release v3.4.36](https://github.com/JAYSAYlil/JaySayCourseTable/releases/tag/v3.4.36) 获取。
 
 版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 后续维护、数据格式和发布检查见 [docs/MAINTENANCE.md](docs/MAINTENANCE.md)。

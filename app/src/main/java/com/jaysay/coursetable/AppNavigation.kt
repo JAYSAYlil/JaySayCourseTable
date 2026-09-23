@@ -9,7 +9,8 @@ internal enum class Screen {
     AGENDA,
     HISTORY,
     CALENDAR,
-    COURSE_DETAIL
+    COURSE_DETAIL,
+    AI_CONVERT
 }
 
 internal fun Screen.backDestination(
@@ -21,4 +22,5 @@ internal fun Screen.backDestination(
     Screen.CALENDAR -> calendarOrigin.takeIf { it == Screen.MAIN || it == Screen.SETTINGS } ?: Screen.SETTINGS
     Screen.COURSE_DETAIL -> detailOrigin.takeIf { it == Screen.MAIN || it == Screen.AGENDA } ?: Screen.MAIN
     Screen.SETTINGS, Screen.IMPORT_CONFIRM, Screen.TABLE_MANAGE, Screen.AGENDA -> Screen.MAIN
+    Screen.AI_CONVERT -> Screen.SETTINGS
 }

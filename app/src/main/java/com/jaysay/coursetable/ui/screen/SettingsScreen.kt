@@ -95,6 +95,7 @@ fun SettingsScreen(
     onPasteImport: () -> Unit = {},
     onExportCalendar: () -> Unit = {},
     onExportExcelTemplate: () -> Unit = {},
+    onOpenAiExcelConvert: () -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenCalendarExceptions: () -> Unit = {},
@@ -1076,6 +1077,19 @@ fun SettingsScreen(
                         subtitle = stringResource(R.string.settings_paste_import_subtitle),
                         enabled = readOnlyMessage == null,
                         onClick = onPasteImport
+                    )
+                },
+                SettingsItem(
+                    keywords = listOf(
+                        stringResource(R.string.ai_excel_settings_title),
+                        stringResource(R.string.ai_excel_settings_subtitle)
+                    )
+                ) {
+                    SettingsActionRow(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = stringResource(R.string.ai_excel_settings_title),
+                        subtitle = stringResource(R.string.ai_excel_settings_subtitle),
+                        onClick = onOpenAiExcelConvert
                     )
                 },
                 SettingsItem(

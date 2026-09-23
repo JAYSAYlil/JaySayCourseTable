@@ -4,7 +4,7 @@
 
 ## 项目一句话
 
-本地优先的 Android 课程表应用（Kotlin + Compose，单 Activity）。数据全部存本机 JSON，不联网，仅在用户手动“检查更新”时访问 GitHub Releases。
+本地优先的 Android 课程表应用（Kotlin + Compose，单 Activity）。课程数据存本机 JSON；仅在用户手动检查更新时访问 GitHub Releases，或经用户主动确认后向其自填的 HTTPS AI 接口发送限量课表文本。
 
 ## 红线（违反即事故）
 

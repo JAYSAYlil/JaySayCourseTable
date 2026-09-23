@@ -98,6 +98,13 @@ private fun periodOffset(period: Int, sections: List<Section>, cellHeight: Dp): 
     return offset
 }
 
+/** Keeps the original offset formula while evaluating each grid position once per layout input. */
+internal fun buildPeriodOffsets(periodTimes: List<PeriodTime>, cellHeight: Dp): List<Dp> {
+    val sections = buildSections(periodTimes)
+    // Include the one-past-end position used by empty schedules and out-of-range fallback paths.
+    return (1..(periodTimes.size + 1)).map { periodOffset(it, sections, cellHeight) }
+}
+
 /**
  * 以 State 形式提供当前分钟数。刷新会对齐到下一分钟边界，避免长期漂移，
  * 让进度线在课间/整点切换时也能稳定重绘。
@@ -179,6 +186,10 @@ internal fun TableGrid(
     hideTimeSlots: Boolean = false
 ) {
     val sections = remember(periodTimes) { buildSections(periodTimes) }
+    val offsets = remember(periodTimes, cellHeight) { buildPeriodOffsets(periodTimes, cellHeight) }
+    fun offsetFor(period: Int): Dp = offsets.getOrElse(period - 1) {
+        periodOffset(period, sections, cellHeight)
+    }
     // 只持有 State 引用而不读取 .value，本层不会随分钟刷新重组；
     // 订阅下移到时间线覆盖层与课程卡片内部。
     val currentMinuteState = rememberCurrentMinute()
@@ -320,7 +331,7 @@ internal fun TableGrid(
                         }
                         sections.forEach { section ->
                             val y = section.periods.firstOrNull()?.let {
-                                periodOffset(it, sections, cellHeight) - 20.dp
+                                offsetFor(it) - 20.dp
                             } ?: 0.dp
                             drawRect(
                                 daySectionBg,
@@ -330,7 +341,7 @@ internal fun TableGrid(
                         }
                         val stroke = 0.5.dp.toPx()
                         periodTimes.indices.forEach { index ->
-                            val y = periodOffset(index + 1, sections, cellHeight).toPx()
+                            val y = offsetFor(index + 1).toPx()
                             drawLine(gridOutline, Offset(0f, y), Offset(size.width, y), strokeWidth = stroke)
                         }
                         drawLine(
@@ -355,7 +366,7 @@ internal fun TableGrid(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(cellHeight)
-                                    .offset(y = periodOffset(period, sections, cellHeight))
+                                    .offset(y = offsetFor(period))
                                     .clickable { onEmptyCellClick(day, period) }
                                     .semantics { contentDescription = emptyCellDescription }
                             )
@@ -365,8 +376,8 @@ internal fun TableGrid(
                     dayCourses.forEach { course ->
                         val start = course.startPeriod.coerceIn(1, periodTimes.size.coerceAtLeast(1))
                         val end = course.endPeriod.coerceIn(start, periodTimes.size.coerceAtLeast(start))
-                        val y = periodOffset(start, sections, cellHeight)
-                        val bottom = periodOffset(end, sections, cellHeight) + cellHeight
+                        val y = offsetFor(start)
+                        val bottom = offsetFor(end) + cellHeight
                         // colorMap 已是“应用自定义预设色后的最终色”，与月视图/详情同源。
                         val cardColor = colorMap[course.uniqueKey] ?: colorMap[course.courseName]
                             ?: (if (dark) DarkCourseColors else CourseColors).first()
@@ -398,9 +409,10 @@ internal fun TableGrid(
                             currentMinuteState = currentMinuteState,
                             periodTimes = periodTimes,
                             sections = sections,
+                            offsets = offsets,
                             cellHeight = cellHeight,
                             dark = dark,
-                            dayCourses = dayCourses.filter { it.dayOfWeek == todayDow }
+                            dayCourses = dayCourses
                         )
                     }
                 }
@@ -419,6 +431,7 @@ private fun CurrentTimeLineOverlay(
     currentMinuteState: State<Int>,
     periodTimes: List<PeriodTime>,
     sections: List<Section>,
+    offsets: List<Dp>,
     cellHeight: Dp,
     dark: Boolean,
     dayCourses: List<Course>
@@ -428,7 +441,7 @@ private fun CurrentTimeLineOverlay(
     Canvas(modifier = Modifier.fillMaxSize().zIndex(3f)) {
         val position = currentCourseProgressPosition(currentMinute, periodTimes, dayCourses)
         position?.let { (periodIndex, fraction) ->
-            val lineY = (periodOffset(periodIndex + 1, sections, cellHeight) +
+            val lineY = ((offsets.getOrElse(periodIndex) { periodOffset(periodIndex + 1, sections, cellHeight) }) +
                 cellHeight * fraction).toPx()
             val halo = if (dark) Color.Black.copy(alpha = 0.78f)
                 else Color.White.copy(alpha = 0.9f)
